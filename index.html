@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CIE CS 复习工具箱</title>
+<title>CIE CS Revision Toolkit</title>
 <style>
   :root {
     --bg:#0F1216; --panel:#161A20; --panel2:#1B2027; --line:#272E38;
@@ -134,13 +134,13 @@
 <body>
 
 <header>
-  <h1>CIE CS 复习工具箱</h1>
-  <span class="sub">9618 / 9608 · 0478 &nbsp;|&nbsp; 追踪表 · 逻辑门</span>
+  <h1>CIE CS Revision Toolkit</h1>
+  <span class="sub">9618 / 9608 · 0478 &nbsp;|&nbsp; Trace tables · Logic gates</span>
 </header>
 
 <div class="tabs" role="tablist">
-  <button role="tab" id="tab-trace" aria-selected="true" aria-controls="p-trace">伪代码追踪表模拟器</button>
-  <button role="tab" id="tab-logic" aria-selected="false" aria-controls="p-logic">逻辑门与真值表</button>
+  <button role="tab" id="tab-trace" aria-selected="true" aria-controls="p-trace">Pseudocode Trace Table Simulator</button>
+  <button role="tab" id="tab-logic" aria-selected="false" aria-controls="p-logic">Logic Gates &amp; Truth Tables</button>
 </div>
 
 <main>
@@ -148,9 +148,9 @@
   <section id="p-trace" role="tabpanel" aria-labelledby="tab-trace">
     <div class="cols">
       <div class="card">
-        <h2>伪代码</h2>
+        <h2>Pseudocode</h2>
         <div class="body">
-          <label class="fld" for="example">加载示例（考题常见题型，可直接单步跟踪）</label>
+          <label class="fld" for="example">Load an example (common exam question types — step straight through)</label>
           <select id="example" class="plain" style="margin-bottom:12px"></select>
 
           <div class="editor">
@@ -162,45 +162,45 @@
           </div>
 
           <div style="margin-top:12px">
-            <label class="fld" for="inputs">INPUT 用的输入值（每行一个，按顺序取用）</label>
-            <textarea id="inputs" class="plain" rows="2" spellcheck="false" placeholder="一行一个值，例如 7"></textarea>
+            <label class="fld" for="inputs">Values for INPUT (one per line, used in order)</label>
+            <textarea id="inputs" class="plain" rows="2" spellcheck="false" placeholder="One value per line, e.g. 7"></textarea>
           </div>
 
           <div class="btns">
-            <button class="act primary" id="btn-step">单步执行</button>
-            <button class="act" id="btn-play">自动播放</button>
-            <button class="act" id="btn-reset">重置</button>
-            <button class="act" id="btn-copy-trace">复制表格</button>
+            <button class="act primary" id="btn-step">Step</button>
+            <button class="act" id="btn-play">Auto-play</button>
+            <button class="act" id="btn-reset">Reset</button>
+            <button class="act" id="btn-copy-trace">Copy table</button>
           </div>
-          <div class="status" id="trace-status">点「单步执行」开始逐行运行。</div>
+          <div class="status" id="trace-status">Click "Step" to start running line by line.</div>
 
           <details class="help">
-            <summary>支持哪些语法？（点开）</summary>
+            <summary>Which syntax is supported? (click to expand)</summary>
             <div class="inner">
 DECLARE x : INTEGER / REAL / BOOLEAN / CHAR / STRING<br>
-DECLARE a : ARRAY[1:10] OF INTEGER　<span style="color:var(--warn)">下标从 1 开始</span><br>
+DECLARE a : ARRAY[1:10] OF INTEGER&nbsp;&nbsp;<span style="color:var(--warn)">indices start at 1</span><br>
 CONSTANT PI = 3.14<br>
-x ← 表达式　<span style="color:var(--warn)">赋值一律用 ←（也可以打 &lt;-）</span><br>
-运算：+ - * / MOD DIV &amp;（接字符串）<br>
-比较：= &lt;&gt; &lt; &gt; &lt;= &gt;=　　逻辑：AND OR NOT<br>
-IF … THEN … ELSE … ENDIF　（THEN 可省略）<br>
-CASE OF x / 值 : 语句 / OTHERWISE 语句 / ENDCASE<br>
-FOR i ← 1 TO 5 STEP 2 … NEXT i（或 ENDFOR）<br>
-WHILE 条件 DO … ENDWHILE　　REPEAT … UNTIL 条件<br>
-OUTPUT 表达式, 表达式　　INPUT x<br>
-函数：LENGTH MID LEFT RIGHT UCASE LCASE INT ROUND<br>
-注释：// 开头<br><br>
-<span style="color:var(--dim)">v1 不支持自定义 PROCEDURE / FUNCTION、递归、二维数组、文件读写
-——追踪表考题里基本不出现这些。</span>
+x ← expression&nbsp;&nbsp;<span style="color:var(--warn)">always assign with ← (you may also type &lt;-)</span><br>
+Operators: + - * / MOD DIV &amp; (string join)<br>
+Comparison: = &lt;&gt; &lt; &gt; &lt;= &gt;=&nbsp;&nbsp;&nbsp;Logic: AND OR NOT<br>
+IF … THEN … ELSE … ENDIF&nbsp;&nbsp;(THEN may be omitted)<br>
+CASE OF x / value : statement / OTHERWISE statement / ENDCASE<br>
+FOR i ← 1 TO 5 STEP 2 … NEXT i (or ENDFOR)<br>
+WHILE condition DO … ENDWHILE&nbsp;&nbsp;&nbsp;REPEAT … UNTIL condition<br>
+OUTPUT expression, expression&nbsp;&nbsp;&nbsp;INPUT x<br>
+Functions: LENGTH MID LEFT RIGHT UCASE LCASE INT ROUND<br>
+Comments: start the line with //<br><br>
+<span style="color:var(--dim)">v1 does not support user-defined PROCEDURE / FUNCTION, recursion, 2-D arrays or file handling
+— these hardly ever appear in trace table questions.</span>
             </div>
           </details>
         </div>
       </div>
 
       <div class="card">
-        <h2>追踪表 Trace Table</h2>
+        <h2>Trace Table</h2>
         <div class="body">
-          <div class="tbl-scroll" id="trace-out"><div class="empty">还没有开始执行。</div></div>
+          <div class="tbl-scroll" id="trace-out"><div class="empty">Nothing has been run yet.</div></div>
         </div>
       </div>
     </div>
@@ -210,15 +210,15 @@ OUTPUT 表达式, 表达式　　INPUT x<br>
   <section id="p-logic" role="tabpanel" aria-labelledby="tab-logic" hidden>
     <div class="cols">
       <div class="card">
-        <h2>布尔表达式</h2>
+        <h2>Boolean Expression</h2>
         <div class="body">
-          <label class="fld" for="expr">表达式</label>
+          <label class="fld" for="expr">Expression</label>
           <input id="expr" class="plain" spellcheck="false">
-          <div class="status">支持 AND OR NOT XOR NAND NOR 和括号。变量用单个大写字母 A–Z。<br>
-            优先级：( ) &gt; NOT &gt; AND/NAND &gt; XOR &gt; OR/NOR</div>
+          <div class="status">Supports AND OR NOT XOR NAND NOR and brackets. Variables are single capital letters A–Z.<br>
+            Precedence: ( ) &gt; NOT &gt; AND/NAND &gt; XOR &gt; OR/NOR</div>
           <div class="btns">
-            <button class="act primary" id="btn-gen">生成真值表与电路图</button>
-            <button class="act" id="btn-copy-tt">复制真值表</button>
+            <button class="act primary" id="btn-gen">Generate truth table &amp; circuit</button>
+            <button class="act" id="btn-copy-tt">Copy truth table</button>
           </div>
           <div class="status" id="logic-status"></div>
         </div>
@@ -226,12 +226,12 @@ OUTPUT 表达式, 表达式　　INPUT x<br>
 
       <div style="display:flex;flex-direction:column;gap:20px;min-width:0">
         <div class="card">
-          <h2>真值表（含中间步骤）</h2>
-          <div class="body"><div class="tbl-scroll" id="tt-out"><div class="empty">点「生成」查看。</div></div></div>
+          <h2>Truth Table (with intermediate steps)</h2>
+          <div class="body"><div class="tbl-scroll" id="tt-out"><div class="empty">Click "Generate" to see it.</div></div></div>
         </div>
         <div class="card">
-          <h2>逻辑门电路图</h2>
-          <div class="body"><div class="tbl-scroll" id="circ-out"><div class="empty">点「生成」查看。</div></div></div>
+          <h2>Logic Gate Circuit</h2>
+          <div class="body"><div class="tbl-scroll" id="circ-out"><div class="empty">Click "Generate" to see it.</div></div></div>
         </div>
       </div>
     </div>
@@ -239,24 +239,24 @@ OUTPUT 表达式, 表达式　　INPUT x<br>
 </main>
 
 <footer>
-  本工具为课后复习辅助工具，禁止用于正式考试作弊。<br>
-  自检：在网址后面加 <code style="color:var(--muted)">?selftest=1</code> 可运行内置测试，验证解释器和真值表算得对不对。
+  A revision aid for use outside the exam hall — not for use in a real examination.<br>
+  Self-test: add <code style="color:var(--muted)">?selftest=1</code> to the URL to run the built-in tests and check the interpreter and truth tables are correct.
 </footer>
 
 <div class="toast" id="toast"></div>
 
 <!-- =================================================================
-     SCRIPT 1 — 纯逻辑，不碰 DOM。Node 里可以直接跑，自检就靠它。
+     SCRIPT 1 — pure logic, no DOM. Runs directly in Node; the self-test relies on it.
      ================================================================= -->
 <script>
-/* ============================ 通用 ============================ */
+/* ============================ Shared ============================ */
 class CIEError extends Error {
   constructor(msg, line) { super(msg); this.line = line; }
 }
 
 /* ======================================================================
-   模块 A：CIE 伪代码解释器
-   流程：tokenize（分词） → parse（建语法树） → exec（生成器逐步执行）
+   Module A: CIE pseudocode interpreter
+   Pipeline: tokenize → parse (build the syntax tree) → exec (generator, one line at a time)
    ====================================================================== */
 
 const KEYWORDS = new Set([
@@ -266,11 +266,11 @@ const KEYWORDS = new Set([
   'OUTPUT','INPUT','AND','OR','NOT','MOD','DIV','TRUE','FALSE'
 ]);
 
-// 长的放前面，避免 '<=' 被切成 '<'
+// Longest first, so '<=' is not split into '<'
 const OPS = ['←','<-','<>','≠','>=','≥','<=','≤','=','>','<','+','-','*','/','&','(',')','[',']',',',':'];
 const OP_ALIAS = { '<-':'←', '≠':'<>', '≥':'>=', '≤':'<=' };
 
-/* ---------- 分词 ---------- */
+/* ---------- Tokenizer ---------- */
 function tokenize(text) {
   const lines = [];
   String(text).replace(/\r\n?/g, '\n').split('\n').forEach((src, idx) => {
@@ -279,24 +279,24 @@ function tokenize(text) {
     while (i < src.length) {
       const c = src[i];
       if (/\s/.test(c)) { i++; continue; }
-      if (c === '/' && src[i + 1] === '/') break;                 // 注释
+      if (c === '/' && src[i + 1] === '/') break;                 // comment
 
-      if (c === '"') {                                            // 字符串
+      if (c === '"') {                                            // string
         let j = i + 1, s = '';
         while (j < src.length && src[j] !== '"') s += src[j++];
-        if (j >= src.length) throw new CIEError('字符串少了右边的双引号 "', lineNo);
+        if (j >= src.length) throw new CIEError('String is missing its closing double quote "', lineNo);
         toks.push({ t:'STR', v:s, line:lineNo }); i = j + 1; continue;
       }
-      if (c === "'") {                                            // 字符常量 'A'
+      if (c === "'") {                                            // character literal 'A'
         if (src[i + 2] === "'") { toks.push({ t:'CHAR', v:src[i+1], line:lineNo }); i += 3; continue; }
-        throw new CIEError("字符常量要写成 'A' 这样：一对单引号夹一个字符", lineNo);
+        throw new CIEError("A character literal looks like 'A': one character inside single quotes", lineNo);
       }
-      if (/[0-9]/.test(c)) {                                      // 数字
+      if (/[0-9]/.test(c)) {                                      // number
         let j = i, s = '';
         while (j < src.length && /[0-9.]/.test(src[j])) s += src[j++];
         toks.push({ t:'NUM', v:parseFloat(s), line:lineNo }); i = j; continue;
       }
-      if (/[A-Za-z_]/.test(c)) {                                  // 标识符 / 关键字
+      if (/[A-Za-z_]/.test(c)) {                                  // identifier / keyword
         let j = i, s = '';
         while (j < src.length && /[A-Za-z0-9_]/.test(src[j])) s += src[j++];
         const up = s.toUpperCase();
@@ -305,28 +305,28 @@ function tokenize(text) {
       }
       const op = OPS.find(o => src.startsWith(o, i));
       if (op) { toks.push({ t:'OP', v:(OP_ALIAS[op] || op), line:lineNo }); i += op.length; continue; }
-      throw new CIEError(`看不懂这个字符 "${c}"`, lineNo);
+      throw new CIEError(`Unrecognised character "${c}"`, lineNo);
     }
     if (toks.length) lines.push({ no:lineNo, toks, raw:src });
   });
   return lines;
 }
 
-/* ---------- 表达式游标小工具 ---------- */
+/* ---------- Small cursor helpers for expressions ---------- */
 const cur   = (toks, i, lineNo) => ({ toks, i, line:lineNo });
 const at    = c => c.toks[c.i];
 const vAt   = c => (c.toks[c.i] ? c.toks[c.i].v : null);
 function eat(c, val) {
-  if (vAt(c) !== val) throw new CIEError(`这里应该有一个 ${val}`, c.line);
+  if (vAt(c) !== val) throw new CIEError(`A ${val} is expected here`, c.line);
   return c.toks[c.i++];
 }
 const tryEat = (c, val) => (vAt(c) === val ? (c.i++, true) : false);
 function expectEnd(c) {
-  if (c.i < c.toks.length) throw new CIEError(`这一行末尾多了看不懂的内容："${at(c).v}"`, c.line);
+  if (c.i < c.toks.length) throw new CIEError(`Unexpected extra content at the end of this line: "${at(c).v}"`, c.line);
 }
 
-/* ---------- 表达式解析（递归下降） ----------
-   优先级由低到高：OR < AND < NOT < 比较 < +- < */ /* MOD DIV < 负号 < 基本单元 */
+/* ---------- Expression parsing (recursive descent) ----------
+   Precedence, lowest to highest: OR < AND < NOT < comparison < +- < */ /* MOD DIV < unary minus < primary */
 function parseExpr(c) { return pOr(c); }
 function pOr(c)  { let l = pAnd(c);  while (vAt(c) === 'OR')  { c.i++; l = { k:'bin', op:'OR',  l, r:pAnd(c) }; } return l; }
 function pAnd(c) { let l = pNot(c);  while (vAt(c) === 'AND') { c.i++; l = { k:'bin', op:'AND', l, r:pNot(c) }; } return l; }
@@ -341,29 +341,29 @@ function pMul(c) { let l = pNeg(c); while (['*','/','MOD','DIV'].includes(vAt(c)
 function pNeg(c) { if (vAt(c) === '-') { c.i++; return { k:'un', op:'NEG', e:pNeg(c) }; } return pPrim(c); }
 function pPrim(c) {
   const t = at(c);
-  if (!t) throw new CIEError('表达式没写完', c.line);
+  if (!t) throw new CIEError('The expression is incomplete', c.line);
   if (t.t === 'NUM' || t.t === 'STR' || t.t === 'CHAR') { c.i++; return { k:'lit', v:t.v }; }
   if (t.v === 'TRUE')  { c.i++; return { k:'lit', v:true  }; }
   if (t.v === 'FALSE') { c.i++; return { k:'lit', v:false }; }
   if (t.v === '(')     { c.i++; const e = parseExpr(c); eat(c, ')'); return e; }
   if (t.t === 'IDENT') {
     c.i++;
-    if (vAt(c) === '(') {                       // 函数调用
+    if (vAt(c) === '(') {                       // function call
       c.i++; const args = [];
       if (vAt(c) !== ')') { do { args.push(parseExpr(c)); } while (tryEat(c, ',')); }
       eat(c, ')');
       return { k:'call', name:t.v.toUpperCase(), args, line:t.line };
     }
-    if (vAt(c) === '[') {                       // 数组下标
+    if (vAt(c) === '[') {                       // array subscript
       c.i++; const idx = parseExpr(c); eat(c, ']');
       return { k:'index', name:t.v, idx, line:t.line };
     }
     return { k:'var', name:t.v, line:t.line };
   }
-  throw new CIEError(`表达式里看不懂 "${t.v}"`, c.line);
+  throw new CIEError(`Unrecognised "${t.v}" in the expression`, c.line);
 }
 
-/* ---------- 语句解析 ---------- */
+/* ---------- Statement parsing ---------- */
 function parseProgram(lines) {
   const st = { lines, i:0 };
   return parseBlock(st, [], null);
@@ -380,7 +380,7 @@ function parseBlock(st, terms, opener) {
     out.push(parseStatement(st));
   }
   if (terms.length) {
-    throw new CIEError(`第 ${opener.line} 行的 ${opener.kw} 没有对应的 ${terms.join(' 或 ')}`, opener.line);
+    throw new CIEError(`The ${opener.kw} on line ${opener.line} has no matching ${terms.join(' or ')}`, opener.line);
   }
   return out;
 }
@@ -397,9 +397,9 @@ function parseStatement(st) {
     case 'FOR':      return parseFor(st);
     case 'WHILE':    return parseWhile(st);
     case 'REPEAT':   return parseRepeat(st);
-    case 'THEN':     st.i++; return { type:'NOP', line:line.no };   // 单独一行的 THEN
+    case 'THEN':     st.i++; return { type:'NOP', line:line.no };   // a THEN on a line of its own
     case 'ENDIF': case 'ENDFOR': case 'ENDWHILE': case 'ENDCASE': case 'NEXT': case 'UNTIL': case 'ELSE': case 'OTHERWISE':
-      throw new CIEError(`多出来一个 ${k}，前面没有对应的开头`, line.no);
+      throw new CIEError(`An extra ${k} with no matching opening statement before it`, line.no);
     default:         return parseAssign(st);
   }
 }
@@ -408,7 +408,7 @@ function parseDeclare(line) {
   const names = [];
   do {
     const t = at(c);
-    if (!t || t.t !== 'IDENT') throw new CIEError('DECLARE 后面要跟变量名', line.no);
+    if (!t || t.t !== 'IDENT') throw new CIEError('DECLARE must be followed by a variable name', line.no);
     names.push(t.v); c.i++;
   } while (tryEat(c, ','));
   eat(c, ':');
@@ -420,7 +420,7 @@ function parseDeclare(line) {
     arr = { lo, hi };
   }
   const t = at(c);
-  if (!t || t.t !== 'KW') throw new CIEError('要写清楚数据类型（INTEGER / REAL / BOOLEAN / CHAR / STRING）', line.no);
+  if (!t || t.t !== 'KW') throw new CIEError('State the data type (INTEGER / REAL / BOOLEAN / CHAR / STRING)', line.no);
   const type = t.v; c.i++;
   expectEnd(c);
   return { type:'DECLARE', line:line.no, names, dtype:type, arr };
@@ -428,7 +428,7 @@ function parseDeclare(line) {
 function parseConstant(line) {
   const c = cur(line.toks, 1, line);
   const t = at(c);
-  if (!t || t.t !== 'IDENT') throw new CIEError('CONSTANT 后面要跟名字', line.no);
+  if (!t || t.t !== 'IDENT') throw new CIEError('CONSTANT must be followed by a name', line.no);
   c.i++; eat(c, '=');
   const e = parseExpr(c); expectEnd(c);
   return { type:'CONST', line:line.no, name:t.v, expr:e };
@@ -447,7 +447,7 @@ function parseInput(line) {
 }
 function parseLValue(c) {
   const t = at(c);
-  if (!t || t.t !== 'IDENT') throw new CIEError('这里应该是一个变量名', c.line);
+  if (!t || t.t !== 'IDENT') throw new CIEError('A variable name is expected here', c.line);
   c.i++;
   if (vAt(c) === '[') { c.i++; const idx = parseExpr(c); eat(c, ']'); return { name:t.v, idx, line:t.line }; }
   return { name:t.v, idx:null, line:t.line };
@@ -455,9 +455,9 @@ function parseLValue(c) {
 function parseAssign(st) {
   const line = st.lines[st.i]; st.i++;
   const c = cur(line.toks, 0, line);
-  if (line.toks[0].t !== 'IDENT') throw new CIEError(`看不懂这一行：“${line.raw.trim()}”`, line.no);
+  if (line.toks[0].t !== 'IDENT') throw new CIEError(`Cannot make sense of this line: "${line.raw.trim()}"`, line.no);
   const target = parseLValue(c);
-  if (vAt(c) === '=') throw new CIEError('请使用 CIE 标准赋值符号 ← 而不是 =', line.no);
+  if (vAt(c) === '=') throw new CIEError('Use the CIE assignment symbol ← instead of =', line.no);
   eat(c, '←');
   const expr = parseExpr(c); expectEnd(c);
   return { type:'ASSIGN', line:line.no, target, expr };
@@ -466,13 +466,13 @@ function parseIf(st) {
   const line = st.lines[st.i]; st.i++;
   const c = cur(line.toks, 1, line);
   const cond = parseExpr(c);
-  tryEat(c, 'THEN');                                   // THEN 可以省略
+  tryEat(c, 'THEN');                                   // THEN may be omitted
   expectEnd(c);
   const opener = { line:line.no, kw:'IF' };
   const thenB = parseBlock(st, ['ELSE','ENDIF'], { ...opener, kw:'IF' });
   let elseB = null;
   if (peekKw(st) === 'ELSE') { st.i++; elseB = parseBlock(st, ['ENDIF'], opener); }
-  if (peekKw(st) !== 'ENDIF') throw new CIEError(`第 ${line.no} 行的 IF 没有对应的 ENDIF`, line.no);
+  if (peekKw(st) !== 'ENDIF') throw new CIEError(`The IF on line ${line.no} has no matching ENDIF`, line.no);
   st.i++;
   return { type:'IF', line:line.no, cond, then:thenB, else:elseB };
 }
@@ -484,7 +484,7 @@ function parseCase(st) {
   const arms = []; let other = null;
   while (true) {
     const l = st.lines[st.i];
-    if (!l) throw new CIEError(`第 ${line.no} 行的 CASE 没有对应的 ENDCASE`, line.no);
+    if (!l) throw new CIEError(`The CASE on line ${line.no} has no matching ENDCASE`, line.no);
     const k = l.toks[0].t === 'KW' ? l.toks[0].v : null;
     if (k === 'ENDCASE') { st.i++; break; }
     if (k === 'OTHERWISE') {
@@ -493,7 +493,7 @@ function parseCase(st) {
       other = parseInlineStatement(l, cc.i);
       continue;
     }
-    // 形如：值 : 语句
+    // of the form: value : statement
     const cc = cur(l.toks, 0, l);
     const val = parseExpr(cc);
     eat(cc, ':');
@@ -502,10 +502,10 @@ function parseCase(st) {
   }
   return { type:'CASE', line:line.no, subject, arms, other };
 }
-// CASE 分支里 “:” 后面那半行，当成一条独立语句解析
+// The half-line after ":" in a CASE branch is parsed as a statement of its own
 function parseInlineStatement(line, from) {
   const sub = { no:line.no, toks:line.toks.slice(from), raw:line.raw };
-  if (!sub.toks.length) throw new CIEError('CASE 的分支后面要写一条语句', line.no);
+  if (!sub.toks.length) throw new CIEError('A CASE branch must be followed by a statement', line.no);
   const mini = { lines:[sub], i:0 };
   return parseStatement(mini);
 }
@@ -513,9 +513,9 @@ function parseFor(st) {
   const line = st.lines[st.i]; st.i++;
   const c = cur(line.toks, 1, line);
   const t = at(c);
-  if (!t || t.t !== 'IDENT') throw new CIEError('FOR 后面要跟循环变量名', line.no);
+  if (!t || t.t !== 'IDENT') throw new CIEError('FOR must be followed by a loop variable name', line.no);
   const v = t.v; c.i++;
-  if (vAt(c) === '=') throw new CIEError('请使用 CIE 标准赋值符号 ← 而不是 =', line.no);
+  if (vAt(c) === '=') throw new CIEError('Use the CIE assignment symbol ← instead of =', line.no);
   eat(c, '←');
   const from = parseExpr(c); eat(c, 'TO'); const to = parseExpr(c);
   const step = tryEat(c, 'STEP') ? parseExpr(c) : null;
@@ -543,17 +543,17 @@ function parseRepeat(st) {
   return { type:'REPEAT', line:line.no, untilLine:uline.no, cond, body };
 }
 
-/* ---------- 运行环境 ---------- */
+/* ---------- Runtime environment ---------- */
 class Env {
   constructor(inputs) {
-    this.vars = new Map();     // name -> {dtype, value} 或 {dtype, isArray, lo, hi, cells}
-    this.order = [];           // 变量出现顺序，决定追踪表的列顺序
+    this.vars = new Map();     // name -> {dtype, value} or {dtype, isArray, lo, hi, cells}
+    this.order = [];           // order variables appear in; fixes the trace table column order
     this.output = [];
     this.inputs = inputs || [];
     this.ip = 0;
   }
   declare(name, dtype, line, bounds) {
-    if (this.vars.has(name)) throw new CIEError(`变量 ${name} 重复声明了`, line);
+    if (this.vars.has(name)) throw new CIEError(`Variable ${name} is declared more than once`, line);
     this.vars.set(name, bounds
       ? { dtype, isArray:true, lo:bounds.lo, hi:bounds.hi, cells:new Array(bounds.hi - bounds.lo + 1).fill(null) }
       : { dtype, value:null });
@@ -561,35 +561,35 @@ class Env {
   }
   slot(name, line) {
     const s = this.vars.get(name);
-    if (!s) throw new CIEError(`变量 ${name} 未声明 —— CIE 要求先 DECLARE 后使用`, line);
+    if (!s) throw new CIEError(`Variable ${name} is not declared — CIE requires DECLARE before use`, line);
     return s;
   }
   get(name, line) {
     const s = this.slot(name, line);
-    if (s.isArray) throw new CIEError(`${name} 是数组，要写成 ${name}[下标]`, line);
-    if (s.value === null) throw new CIEError(`变量 ${name} 还没有赋过值就被拿来用了`, line);
+    if (s.isArray) throw new CIEError(`${name} is an array — write it as ${name}[index]`, line);
+    if (s.value === null) throw new CIEError(`Variable ${name} is used before it has been given a value`, line);
     return s.value;
   }
   set(name, val, line) {
     const s = this.slot(name, line);
-    if (s.isArray) throw new CIEError(`${name} 是数组，要写成 ${name}[下标] ← …`, line);
-    if (s.isConst) throw new CIEError(`${name} 是 CONSTANT，不能再赋值`, line);
+    if (s.isArray) throw new CIEError(`${name} is an array — write it as ${name}[index] ← …`, line);
+    if (s.isConst) throw new CIEError(`${name} is a CONSTANT and cannot be assigned to`, line);
     s.value = val;
   }
   cellIndex(name, idx, line) {
     const s = this.slot(name, line);
-    if (!s.isArray) throw new CIEError(`${name} 不是数组，不能用下标`, line);
-    if (!Number.isInteger(idx)) throw new CIEError(`数组下标要是整数，现在是 ${fmt(idx)}`, line);
+    if (!s.isArray) throw new CIEError(`${name} is not an array, so it cannot be subscripted`, line);
+    if (!Number.isInteger(idx)) throw new CIEError(`An array index must be an integer, but this is ${fmt(idx)}`, line);
     if (idx < s.lo) {
-      if (s.lo === 1 && idx === 0) throw new CIEError(`CIE 数组下标从 1 开始，不能用 ${name}[0]`, line);
-      throw new CIEError(`${name}[${idx}] 越界了，有效范围是 ${s.lo}…${s.hi}`, line);
+      if (s.lo === 1 && idx === 0) throw new CIEError(`CIE array indices start at 1, so ${name}[0] is not allowed`, line);
+      throw new CIEError(`${name}[${idx}] is out of bounds — the valid range is ${s.lo}…${s.hi}`, line);
     }
-    if (idx > s.hi) throw new CIEError(`${name}[${idx}] 越界了，有效范围是 ${s.lo}…${s.hi}`, line);
+    if (idx > s.hi) throw new CIEError(`${name}[${idx}] is out of bounds — the valid range is ${s.lo}…${s.hi}`, line);
     return { s, k: idx - s.lo };
   }
   getCell(name, idx, line) {
     const { s, k } = this.cellIndex(name, idx, line);
-    if (s.cells[k] === null) throw new CIEError(`${name}[${idx}] 还没有赋过值`, line);
+    if (s.cells[k] === null) throw new CIEError(`${name}[${idx}] has not been given a value yet`, line);
     return s.cells[k];
   }
   setCell(name, idx, val, line) {
@@ -598,20 +598,20 @@ class Env {
   }
   nextInput(line) {
     if (this.ip >= this.inputs.length) {
-      throw new CIEError(`第 ${this.ip + 1} 个 INPUT 没有输入值可用 —— 在左边「输入值」框里补一行`, line);
+      throw new CIEError(`INPUT number ${this.ip + 1} has no value available — add another line in the "Values for INPUT" box on the left`, line);
     }
     return this.inputs[this.ip++];
   }
 }
 
-/* ---------- 求值 ---------- */
+/* ---------- Evaluation ---------- */
 const isNum = v => typeof v === 'number';
 function needNum(v, line, what) {
-  if (!isNum(v)) throw new CIEError(`${what} 需要数字，但拿到的是 ${fmt(v)}`, line);
+  if (!isNum(v)) throw new CIEError(`${what} needs a number, but got ${fmt(v)}`, line);
   return v;
 }
 function truthy(v, line) {
-  if (typeof v !== 'boolean') throw new CIEError(`这里需要一个条件（TRUE / FALSE），但拿到的是 ${fmt(v)}`, line);
+  if (typeof v !== 'boolean') throw new CIEError(`A condition (TRUE / FALSE) is needed here, but got ${fmt(v)}`, line);
   return v;
 }
 const FUNCS = {
@@ -620,7 +620,7 @@ const FUNCS = {
   LCASE:  a => String(a[0]).toLowerCase(),
   LEFT:   a => String(a[0]).slice(0, a[1]),
   RIGHT:  a => String(a[0]).slice(-a[1]),
-  MID:    a => String(a[0]).substr(a[1] - 1, a[2]),   // CIE 的 MID 从 1 开始
+  MID:    a => String(a[0]).substr(a[1] - 1, a[2]),   // CIE MID counts from 1
   INT:    a => Math.trunc(a[0]),
   ROUND:  a => { const d = a.length > 1 ? a[1] : 0; const m = Math.pow(10, d); return Math.round(a[0] * m) / m; },
 };
@@ -631,13 +631,13 @@ function evalExpr(n, env) {
     case 'index': return env.getCell(n.name, evalExpr(n.idx, env), n.line);
     case 'call': {
       const f = FUNCS[n.name];
-      if (!f) throw new CIEError(`不认识的函数 ${n.name}()`, n.line);
+      if (!f) throw new CIEError(`Unknown function ${n.name}()`, n.line);
       return f(n.args.map(a => evalExpr(a, env)), n.line);
     }
     case 'un': {
       const v = evalExpr(n.e, env);
       if (n.op === 'NOT') return !truthy(v, n.e.line);
-      return -needNum(v, n.e.line, '负号');
+      return -needNum(v, n.e.line, 'Unary minus');
     }
     case 'bin': {
       const a = evalExpr(n.l, env), b = evalExpr(n.r, env);
@@ -654,25 +654,25 @@ function evalExpr(n, env) {
         case '&':   return String(fmt(a)) + String(fmt(b));
         case '+':
           if (typeof a === 'string' || typeof b === 'string') return String(fmt(a)) + String(fmt(b));
-          return needNum(a, ln, '加法') + needNum(b, ln, '加法');
-        case '-':   return needNum(a, ln, '减法') - needNum(b, ln, '减法');
-        case '*':   return needNum(a, ln, '乘法') * needNum(b, ln, '乘法');
+          return needNum(a, ln, 'Addition') + needNum(b, ln, 'Addition');
+        case '-':   return needNum(a, ln, 'Subtraction') - needNum(b, ln, 'Subtraction');
+        case '*':   return needNum(a, ln, 'Multiplication') * needNum(b, ln, 'Multiplication');
         case '/':
-          if (needNum(b, ln, '除法') === 0) throw new CIEError('不能除以 0', ln);
-          return needNum(a, ln, '除法') / b;
+          if (needNum(b, ln, 'Division') === 0) throw new CIEError('Cannot divide by 0', ln);
+          return needNum(a, ln, 'Division') / b;
         case 'DIV':
-          if (needNum(b, ln, 'DIV') === 0) throw new CIEError('不能除以 0', ln);
+          if (needNum(b, ln, 'DIV') === 0) throw new CIEError('Cannot divide by 0', ln);
           return Math.trunc(needNum(a, ln, 'DIV') / b);
         case 'MOD':
-          if (needNum(b, ln, 'MOD') === 0) throw new CIEError('不能对 0 取余', ln);
+          if (needNum(b, ln, 'MOD') === 0) throw new CIEError('Cannot take MOD 0', ln);
           return needNum(a, ln, 'MOD') % b;
       }
     }
   }
-  throw new CIEError('表达式有问题', n.line);
+  throw new CIEError('There is something wrong with this expression', n.line);
 }
 
-/* ---------- 显示格式 ---------- */
+/* ---------- Display formatting ---------- */
 function fmt(v) {
   if (v === null || v === undefined) return '';
   if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
@@ -684,7 +684,7 @@ function fmtSlot(s) {
   return '[' + s.cells.map(x => (x === null ? '·' : fmt(x))).join(', ') + ']';
 }
 
-/* ---------- 执行（生成器：每执行一行 yield 一个快照） ---------- */
+/* ---------- Execution (generator: yields a snapshot per executed line) ---------- */
 function snapshot(env, line, out) {
   const vars = {};
   for (const name of env.order) vars[name] = fmtSlot(env.vars.get(name));
@@ -749,10 +749,10 @@ function* execStmt(s, env) {
       return;
     }
     case 'FOR': {
-      const to = needNum(evalExpr(s.to, env), s.line, 'FOR 的终值');
+      const to = needNum(evalExpr(s.to, env), s.line, 'The FOR end value');
       const step = s.step ? needNum(evalExpr(s.step, env), s.line, 'STEP') : 1;
-      if (step === 0) throw new CIEError('STEP 不能是 0，循环永远停不下来', s.line);
-      env.set(s.v, needNum(evalExpr(s.from, env), s.line, 'FOR 的初值'), s.line);
+      if (step === 0) throw new CIEError('STEP cannot be 0 — the loop would never stop', s.line);
+      env.set(s.v, needNum(evalExpr(s.from, env), s.line, 'The FOR start value'), s.line);
       yield snapshot(env, s.line);
       while (step > 0 ? env.get(s.v, s.line) <= to : env.get(s.v, s.line) >= to) {
         yield* execBlock(s.body, env);
@@ -778,10 +778,10 @@ function* execStmt(s, env) {
       }
     }
   }
-  throw new CIEError(`还不支持的语句：${s.type}`, s.line);
+  throw new CIEError(`Unsupported statement: ${s.type}`, s.line);
 }
 
-/* ---------- 对外入口 ---------- */
+/* ---------- Public entry points ---------- */
 const MAX_STEPS = 3000;
 function parseInputValues(text) {
   return String(text || '').split('\n').map(s => s.trim()).filter(s => s !== '').map(s => {
@@ -794,21 +794,21 @@ function parseInputValues(text) {
 }
 function runProgram(codeText, inputText) {
   const lines = tokenize(codeText);
-  if (!lines.length) throw new CIEError('还没有写任何伪代码', 1);
+  if (!lines.length) throw new CIEError('No pseudocode has been written yet', 1);
   const ast = parseProgram(lines);
   const env = new Env(parseInputValues(inputText));
   const steps = [];
   for (const s of execBlock(ast, env)) {
     steps.push(s);
     if (steps.length > MAX_STEPS) {
-      throw new CIEError(`执行超过 ${MAX_STEPS} 步，多半是死循环 —— 检查一下循环条件会不会变成 FALSE`, s.line);
+      throw new CIEError(`Execution passed ${MAX_STEPS} steps — most likely an infinite loop; check whether the loop condition can ever become FALSE`, s.line);
     }
   }
   return { steps, env };
 }
 
 /* ======================================================================
-   模块 B：布尔表达式 → 真值表 + 电路图
+   Module B: boolean expression -> truth table + circuit diagram
    ====================================================================== */
 
 const BOOL_OPS = ['AND','OR','NOT','XOR','NAND','NOR'];
@@ -825,20 +825,20 @@ function btokenize(src) {
       const up = w.toUpperCase();
       if (BOOL_OPS.includes(up)) { toks.push({ t:'OP', v:up }); i = j; continue; }
       if (w.length === 1) { toks.push({ t:'VAR', v:up }); i = j; continue; }
-      throw new Error(`看不懂 "${w}" —— 变量要用单个字母，运算符只有 AND OR NOT XOR NAND NOR`);
+      throw new Error(`Unrecognised "${w}" — variables are single letters and the only operators are AND OR NOT XOR NAND NOR`);
     }
-    throw new Error(`表达式里有非法字符 "${c}"`);
+    throw new Error(`Illegal character "${c}" in the expression`);
   }
   return toks;
 }
 function bparse(src) {
   const toks = btokenize(src);
-  if (!toks.length) throw new Error('请输入一个布尔表达式');
+  if (!toks.length) throw new Error('Enter a boolean expression');
   const c = { toks, i:0 };
   const node = bOr(c);
   if (c.i < toks.length) {
-    if (toks[c.i].v === ')') throw new Error('括号不配对，请检查表达式');
-    throw new Error(`"${toks[c.i].v}" 附近多了内容`);
+    if (toks[c.i].v === ')') throw new Error('Unbalanced brackets — check the expression');
+    throw new Error(`Extra content near "${toks[c.i].v}"`);
   }
   return node;
 }
@@ -849,16 +849,16 @@ function bAnd(c) { let l = bNot(c); while (bPeek(c) === 'AND' || bPeek(c) === 'N
 function bNot(c) { if (bPeek(c) === 'NOT') { c.i++; return { op:'NOT', e:bNot(c) }; } return bPrim(c); }
 function bPrim(c) {
   const t = c.toks[c.i];
-  if (!t) throw new Error('表达式没写完');
+  if (!t) throw new Error('The expression is incomplete');
   if (t.t === 'VAR') { c.i++; return { op:'VAR', name:t.v }; }
   if (t.v === '(') {
     c.i++;
     const e = bOr(c);
-    if (bPeek(c) !== ')') throw new Error('括号不配对，请检查表达式');
+    if (bPeek(c) !== ')') throw new Error('Unbalanced brackets — check the expression');
     c.i++;
     return e;
   }
-  throw new Error(`"${t.v}" 放在这里不对`);
+  throw new Error(`"${t.v}" does not belong here`);
 }
 
 const BPREC = { OR:1, NOR:1, XOR:2, AND:3, NAND:3, NOT:4, VAR:5 };
@@ -885,9 +885,9 @@ function beval(n, asg) {
     case 'NOR':  return !(beval(n.l, asg) || beval(n.r, asg));
     case 'XOR':  return beval(n.l, asg) !== beval(n.r, asg);
   }
-  throw new Error('未知运算符 ' + n.op);
+  throw new Error('Unknown operator ' + n.op);
 }
-// 后序遍历收集中间步骤列（去重），最终结果自然排在最后
+// Post-order walk collects the intermediate step columns (deduplicated); the final result lands last
 function bsteps(n, out) {
   out = out || [];
   if (n.op === 'VAR') return out;
@@ -899,13 +899,13 @@ function bsteps(n, out) {
 function truthTable(src) {
   const root = bparse(src);
   const vars = [...bvars(root)].sort();
-  if (vars.length > 6) throw new Error(`变量太多了（${vars.length} 个），真值表会有 ${2 ** vars.length} 行，最多支持 6 个`);
+  if (vars.length > 6) throw new Error(`Too many variables (${vars.length}) — the truth table would have ${2 ** vars.length} rows; 6 is the maximum`);
   const steps = bsteps(root);
   const cols = [...vars, ...steps.map(s => s.s)];
   const rows = [];
   for (let i = 0; i < (1 << vars.length); i++) {
     const asg = {};
-    // 二进制升序：第一个变量是最高位
+    // Ascending binary order: the first variable is the most significant bit
     vars.forEach((v, k) => { asg[v] = !!((i >> (vars.length - 1 - k)) & 1); });
     rows.push([...vars.map(v => asg[v]), ...steps.map(s => beval(s.node, asg))]);
   }
@@ -913,7 +913,7 @@ function truthTable(src) {
 }
 
 /* ======================================================================
-   自检：?selftest=1 时运行。这是这个文件唯一的测试来源。
+   Self-test: runs when ?selftest=1. This is the only source of tests in this file.
    ====================================================================== */
 const SAMPLE_CODE = `DECLARE total : INTEGER
 DECLARE i : INTEGER
@@ -928,12 +928,12 @@ OUTPUT total`;
 
 const SAMPLE_EXPR = '(A XOR B) AND NOT C';
 
-/* 内置示例：既是下拉菜单的选项，也是自检用例。
-   expect = 所有 OUTPUT 用逗号连起来的结果。 */
+/* Built-in examples: both the dropdown options and the self-test cases.
+   expect = every OUTPUT joined with commas. */
 const EXAMPLES = [
-  { name:'求和 + 判断偶数（入门）', inputs:'', expect:'2,4,15', code: SAMPLE_CODE },
+  { name:'Sum + even-number check (starter)', inputs:'', expect:'2,4,15', code: SAMPLE_CODE },
 
-  { name:'冒泡排序 Bubble Sort', inputs:'', expect:'1,3,4,5,8', code:
+  { name:'Bubble Sort', inputs:'', expect:'1,3,4,5,8', code:
 `DECLARE a : ARRAY[1:5] OF INTEGER
 DECLARE i : INTEGER
 DECLARE j : INTEGER
@@ -956,7 +956,7 @@ FOR i ← 1 TO 5
     OUTPUT a[i]
 NEXT i` },
 
-  { name:'线性查找 Linear Search', inputs:'', expect:'3', code:
+  { name:'Linear Search', inputs:'', expect:'3', code:
 `DECLARE a : ARRAY[1:5] OF INTEGER
 DECLARE i : INTEGER
 DECLARE found : BOOLEAN
@@ -977,7 +977,7 @@ WHILE i <= 5 AND found = FALSE DO
     i ← i + 1
 ENDWHILE` },
 
-  { name:'哨兵值求和（用到 INPUT）', inputs:'4\n8\n15\n-1', expect:'Total: 27,Count: 3', code:
+  { name:'Sum with a sentinel value (uses INPUT)', inputs:'4\n8\n15\n-1', expect:'Total: 27,Count: 3', code:
 `DECLARE n : INTEGER
 DECLARE total : INTEGER
 DECLARE count : INTEGER
@@ -992,7 +992,7 @@ ENDWHILE
 OUTPUT "Total: ", total
 OUTPUT "Count: ", count` },
 
-  { name:'找最大值与最小值', inputs:'', expect:'9,1', code:
+  { name:'Find the largest and smallest', inputs:'', expect:'9,1', code:
 `DECLARE a : ARRAY[1:6] OF INTEGER
 DECLARE i : INTEGER
 DECLARE max : INTEGER
@@ -1016,7 +1016,7 @@ NEXT i
 OUTPUT max
 OUTPUT min` },
 
-  { name:'十进制转二进制（REPEAT）', inputs:'', expect:'1101', code:
+  { name:'Denary to binary (REPEAT)', inputs:'', expect:'1101', code:
 `DECLARE n : INTEGER
 DECLARE b : STRING
 b ← ""
@@ -1027,7 +1027,7 @@ REPEAT
 UNTIL n = 0
 OUTPUT b` },
 
-  { name:'字符串反转（MID + 倒序 FOR）', inputs:'', expect:'EIC', code:
+  { name:'Reverse a string (MID + descending FOR)', inputs:'', expect:'EIC', code:
 `DECLARE s : STRING
 DECLARE r : STRING
 DECLARE i : INTEGER
@@ -1038,7 +1038,7 @@ FOR i ← LENGTH(s) TO 1 STEP -1
 NEXT i
 OUTPUT r` },
 
-  { name:'成绩分级（嵌套 IF ELSE）', inputs:'', expect:'B', code:
+  { name:'Grade boundaries (nested IF ELSE)', inputs:'', expect:'B', code:
 `DECLARE m : INTEGER
 DECLARE g : CHAR
 m ← 72
@@ -1053,7 +1053,7 @@ ELSE
 ENDIF
 OUTPUT g` },
 
-  { name:'嵌套循环乘法表', inputs:'', expect:'1x1=1,1x2=2,1x3=3,2x1=2,2x2=4,2x3=6,3x1=3,3x2=6,3x3=9', code:
+  { name:'Nested loops: times table', inputs:'', expect:'1x1=1,1x2=2,1x3=3,2x1=2,2x2=4,2x3=6,3x1=3,3x2=6,3x3=9', code:
 `DECLARE i : INTEGER
 DECLARE j : INTEGER
 FOR i ← 1 TO 3
@@ -1065,116 +1065,116 @@ NEXT i` },
 
 function assert(cond, msg) { if (!cond) throw new Error(msg); }
 function assertEq(got, want, msg) {
-  if (got !== want) throw new Error(`${msg}\n  期望：${JSON.stringify(want)}\n  实际：${JSON.stringify(got)}`);
+  if (got !== want) throw new Error(`${msg}\n  expected: ${JSON.stringify(want)}\n  actual:   ${JSON.stringify(got)}`);
 }
 function assertThrows(fn, needle, msg) {
   let e = null;
   try { fn(); } catch (x) { e = x; }
-  assert(e, `${msg}：本该报错却没有报`);
-  assert(String(e.message).includes(needle), `${msg}：报错内容不对\n  期望包含：${needle}\n  实际：${e.message}`);
+  assert(e, `${msg}: expected an error, but none was thrown`);
+  assert(String(e.message).includes(needle), `${msg}: wrong error message\n  expected to contain: ${needle}\n  actual: ${e.message}`);
 }
 
 const TESTS = [
-  ['示例程序：FOR + MOD + IF', () => {
+  ['Sample program: FOR + MOD + IF', () => {
     const { steps, env } = runProgram(SAMPLE_CODE, '');
-    assertEq(env.output.join(','), '2,4,15', '输出序列不对');
-    assertEq(steps[steps.length - 1].vars.total, '15', 'total 最终值不对');
-    assertEq(steps[steps.length - 1].vars.i, '6', 'FOR 结束后 i 应该是 6');
+    assertEq(env.output.join(','), '2,4,15', 'wrong output sequence');
+    assertEq(steps[steps.length - 1].vars.total, '15', 'wrong final value for total');
+    assertEq(steps[steps.length - 1].vars.i, '6', 'i should be 6 after the FOR loop');
   }],
-  ['MOD / DIV 的语义', () => {
+  ['MOD / DIV semantics', () => {
     const { env } = runProgram(
       'DECLARE a : INTEGER\na ← 17\nOUTPUT a DIV 5\nOUTPUT a MOD 5', '');
     assertEq(env.output.join('|'), '3|2', '17 DIV 5 = 3，17 MOD 5 = 2');
   }],
-  ['WHILE 循环', () => {
+  ['WHILE loop', () => {
     const { env } = runProgram(
       'DECLARE n : INTEGER\nn ← 3\nWHILE n > 0 DO\n  OUTPUT n\n  n ← n - 1\nENDWHILE', '');
-    assertEq(env.output.join(','), '3,2,1', 'WHILE 应该跑 3 次');
+    assertEq(env.output.join(','), '3,2,1', 'WHILE should run 3 times');
   }],
-  ['REPEAT UNTIL 至少跑一次', () => {
+  ['REPEAT UNTIL runs at least once', () => {
     const { env } = runProgram(
       'DECLARE n : INTEGER\nn ← 10\nREPEAT\n  OUTPUT n\n  n ← n + 1\nUNTIL n > 10', '');
-    assertEq(env.output.join(','), '10', 'REPEAT 体应该恰好执行一次');
+    assertEq(env.output.join(','), '10', 'the REPEAT body should run exactly once');
   }],
-  ['STEP 与倒着数', () => {
+  ['STEP and counting down', () => {
     const { env } = runProgram(
       'DECLARE i : INTEGER\nFOR i ← 10 TO 1 STEP -3\n  OUTPUT i\nNEXT i', '');
-    assertEq(env.output.join(','), '10,7,4,1', 'STEP -3 序列不对');
+    assertEq(env.output.join(','), '10,7,4,1', 'wrong sequence for STEP -3');
   }],
-  ['数组下标从 1 开始', () => {
+  ['array indices start at 1', () => {
     assertThrows(() => runProgram(
       'DECLARE a : ARRAY[1:3] OF INTEGER\na[0] ← 5', ''),
-      '下标从 1 开始', '访问 a[0] 应该给出 CIE 专属提示');
+      'indices start at 1', 'accessing a[0] should give the CIE-specific message');
   }],
-  ['数组正常读写', () => {
+  ['reading and writing an array', () => {
     const { env } = runProgram(
       'DECLARE a : ARRAY[1:3] OF INTEGER\nDECLARE i : INTEGER\nFOR i ← 1 TO 3\n  a[i] ← i * i\nNEXT i\nOUTPUT a[3]', '');
-    assertEq(env.output.join(','), '9', 'a[3] 应该是 9');
+    assertEq(env.output.join(','), '9', 'a[3] should be 9');
   }],
-  ['未声明变量要报错', () => {
-    assertThrows(() => runProgram('x ← 1', ''), '未声明', '用没 DECLARE 的变量应该报错');
+  ['using an undeclared variable is an error', () => {
+    assertThrows(() => runProgram('x ← 1', ''), 'not declared', 'using a variable without DECLARE should be an error');
   }],
-  ['把 = 当赋值要报错', () => {
-    assertThrows(() => runProgram('DECLARE x : INTEGER\nx = 1', ''), '←', '= 赋值应该提示用 ←');
+  ['using = for assignment is an error', () => {
+    assertThrows(() => runProgram('DECLARE x : INTEGER\nx = 1', ''), '←', 'assigning with = should point at ←');
   }],
-  ['少写 ENDIF 要指出起始行', () => {
+  ['a missing ENDIF names the opening line', () => {
     assertThrows(() => runProgram('DECLARE x : INTEGER\nx ← 1\nIF x = 1\n  OUTPUT x', ''),
-      'ENDIF', '缺 ENDIF 应该报错');
+      'ENDIF', 'a missing ENDIF should be an error');
   }],
-  ['死循环有上限保护', () => {
+  ['infinite loops hit the step limit', () => {
     assertThrows(() => runProgram(
       'DECLARE x : INTEGER\nx ← 1\nWHILE x = 1 DO\n  x ← 1\nENDWHILE', ''),
-      '死循环', '无限 WHILE 应该被步数上限拦下');
+      'infinite loop', 'an endless WHILE should be stopped by the step limit');
   }],
-  ['INPUT 按顺序取值', () => {
+  ['INPUT takes values in order', () => {
     const { env } = runProgram(
       'DECLARE a : INTEGER\nDECLARE b : INTEGER\nINPUT a\nINPUT b\nOUTPUT a + b', '4\n5');
-    assertEq(env.output.join(','), '9', 'INPUT 应该依次取 4 和 5');
+    assertEq(env.output.join(','), '9', 'INPUT should take 4 then 5');
   }],
-  ['INPUT 值不够要报错', () => {
-    assertThrows(() => runProgram('DECLARE a : INTEGER\nINPUT a', ''), '没有输入值', '输入耗尽应该报错');
+  ['running out of INPUT values is an error', () => {
+    assertThrows(() => runProgram('DECLARE a : INTEGER\nINPUT a', ''), 'no value available', 'exhausted input should be an error');
   }],
   ['CASE OF', () => {
     const { env } = runProgram(
       'DECLARE g : INTEGER\ng ← 2\nCASE OF g\n1 : OUTPUT "one"\n2 : OUTPUT "two"\nOTHERWISE OUTPUT "other"\nENDCASE', '');
-    assertEq(env.output.join(','), 'two', 'CASE 应该走到 2 这一支');
+    assertEq(env.output.join(','), 'two', 'CASE should take the 2 branch');
   }],
-  ['字符串函数', () => {
+  ['string functions', () => {
     const { env } = runProgram(
       'DECLARE s : STRING\ns ← "Cambridge"\nOUTPUT LENGTH(s)\nOUTPUT MID(s, 1, 4)\nOUTPUT UCASE(s)', '');
-    assertEq(env.output.join('|'), '9|Camb|CAMBRIDGE', 'MID 应该从第 1 位开始数');
+    assertEq(env.output.join('|'), '9|Camb|CAMBRIDGE', 'MID should count from position 1');
   }],
-  ['全部内置示例都跑得出正确结果', () => {
+  ['every built-in example produces the right output', () => {
     for (const ex of EXAMPLES) {
       const { env } = runProgram(ex.code, ex.inputs);
-      assertEq(env.output.join(','), ex.expect, `示例「${ex.name}」输出不对`);
+      assertEq(env.output.join(','), ex.expect, `wrong output for example "${ex.name}"`);
     }
   }],
-  ['真值表：(A XOR B) AND NOT C', () => {
+  ['truth table: (A XOR B) AND NOT C', () => {
     const t = truthTable(SAMPLE_EXPR);
-    assertEq(t.vars.join(''), 'ABC', '变量应该是 A B C');
-    assertEq(t.cols.join(' | '), 'A | B | C | A XOR B | NOT C | (A XOR B) AND NOT C', '列顺序应含中间步骤');
-    assertEq(t.rows.length, 8, '3 个变量应该有 8 行');
-    // A B C 依次为 000..111，最终列只有 A≠B 且 C=0 时为真 → 行 010(2)、100(4)
-    assertEq(t.rows.map(r => (r[r.length - 1] ? 1 : 0)).join(''), '00101000', '最终结果列不对');
+    assertEq(t.vars.join(''), 'ABC', 'the variables should be A B C');
+    assertEq(t.cols.join(' | '), 'A | B | C | A XOR B | NOT C | (A XOR B) AND NOT C', 'the column order should include the intermediate steps');
+    assertEq(t.rows.length, 8, '3 variables should give 8 rows');
+    // A B C run 000..111; the final column is true only when A≠B and C=0 -> rows 010(2) and 100(4)
+    assertEq(t.rows.map(r => (r[r.length - 1] ? 1 : 0)).join(''), '00101000', 'wrong final result column');
   }],
-  ['运算优先级：AND 比 OR 紧', () => {
+  ['precedence: AND binds tighter than OR', () => {
     const t = truthTable('A OR B AND C');
-    // A=0,B=1,C=0 → 0 OR (1 AND 0) = 0；若错解成 (A OR B) AND C 会是 0，换 A=1,B=1,C=0 区分
+    // A=0,B=1,C=0 -> 0 OR (1 AND 0) = 0; a wrong parse as (A OR B) AND C also gives 0, so A=1,B=1,C=0 separates them
     const idx = 0b110;   // A=1 B=1 C=0
-    assertEq(t.rows[idx][t.rows[idx].length - 1], true, 'A OR B AND C 在 A=1 时应为 TRUE');
+    assertEq(t.rows[idx][t.rows[idx].length - 1], true, 'A OR B AND C should be TRUE when A=1');
   }],
   ['NAND / NOR', () => {
     const n = truthTable('A NAND B');
-    assertEq(n.rows.map(r => (r[r.length - 1] ? 1 : 0)).join(''), '1110', 'NAND 真值不对');
+    assertEq(n.rows.map(r => (r[r.length - 1] ? 1 : 0)).join(''), '1110', 'wrong NAND truth values');
     const r = truthTable('A NOR B');
-    assertEq(r.rows.map(x => (x[x.length - 1] ? 1 : 0)).join(''), '1000', 'NOR 真值不对');
+    assertEq(r.rows.map(x => (x[x.length - 1] ? 1 : 0)).join(''), '1000', 'wrong NOR truth values');
   }],
-  ['括号不配对要报错', () => {
-    assertThrows(() => truthTable('(A AND B'), '括号不配对', '缺右括号应该报错');
+  ['unbalanced brackets are an error', () => {
+    assertThrows(() => truthTable('(A AND B'), 'Unbalanced brackets', 'a missing closing bracket should be an error');
   }],
-  ['非法字符要报错', () => {
-    assertThrows(() => truthTable('A & B'), '非法字符', '& 不是合法布尔运算符');
+  ['illegal characters are an error', () => {
+    assertThrows(() => truthTable('A & B'), 'Illegal character', '& is not a valid boolean operator');
   }],
 ];
 
@@ -1187,33 +1187,33 @@ function runSelfTest() {
   return results;
 }
 
-// 让 Node 也能 require 这段逻辑（浏览器里 module 未定义，会走 catch）
+// Let Node require this logic too (in the browser module is undefined, so the catch runs)
 try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTable, runSelfTest, TESTS }; } catch (e) {}
 </script>
 
 <!-- =================================================================
-     SCRIPT 2 — 页面交互（只在浏览器里跑）
+     SCRIPT 2 — page interaction (browser only)
      ================================================================= -->
 <script>
 (function () {
   const $ = id => document.getElementById(id);
   const LINE_H = 20, PAD_T = 10;
 
-  /* ---------- 自检模式 ---------- */
+  /* ---------- Self-test mode ---------- */
   if (/[?&]selftest=1/.test(location.search)) {
     const res = runSelfTest();
     const pass = res.filter(r => r.ok).length;
     document.body.innerHTML =
-      `<div id="selftest"><h2 style="font:600 15px var(--sans)">自检结果：${pass} / ${res.length} 通过</h2>` +
+      `<div id="selftest"><h2 style="font:600 15px var(--sans)">Self-test: ${pass} / ${res.length} passed</h2>` +
       res.map(r => r.ok
         ? `<div class="p">✓ ${r.name}</div>`
         : `<div class="f">✗ ${r.name}<br><span style="white-space:pre-wrap;padding-left:2em">${r.err}</span></div>`
       ).join('') +
-      `<p style="margin-top:20px"><a href="./" style="color:var(--accent)">← 回到工具</a></p></div>`;
+      `<p style="margin-top:20px"><a href="./" style="color:var(--accent)">← Back to the toolkit</a></p></div>`;
     return;
   }
 
-  /* ---------- 提示条 ---------- */
+  /* ---------- Toast ---------- */
   let toastTimer = null;
   function toast(msg) {
     const t = $('toast');
@@ -1223,14 +1223,14 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   }
   async function copyText(text, okMsg) {
     try { await navigator.clipboard.writeText(text); toast(okMsg); }
-    catch (e) { toast('复制失败，请手动选中复制'); }
+    catch (e) { toast('Copy failed — please select and copy by hand'); }
   }
   function tableToTSV(tbl) {
     return [...tbl.querySelectorAll('tr')]
       .map(tr => [...tr.children].map(td => td.textContent).join('\t')).join('\n');
   }
 
-  /* ---------- Tab 切换 ---------- */
+  /* ---------- Tab switching ---------- */
   const TABS = [['tab-trace', 'p-trace'], ['tab-logic', 'p-logic']];
   TABS.forEach(([btnId, panelId]) => {
     $(btnId).addEventListener('click', () => {
@@ -1239,15 +1239,15 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
         $(b).setAttribute('aria-selected', String(on));
         $(p).hidden = !on;
       });
-      // 切到逻辑门那页直接生成，别让人对着一片空白再点一次按钮
+      // Generate on entering the logic tab, so nobody faces a blank panel and has to click again
       if (panelId === 'p-trace') resetTrace(); else generate();
     });
   });
 
-  /* ================= Tab 1：追踪表 ================= */
+  /* ================= Tab 1: trace table ================= */
   const code = $('code'), gutter = $('gutter'), hlbar = $('hlbar');
 
-  // 示例下拉菜单
+  // example dropdown
   const sel = $('example');
   sel.innerHTML = EXAMPLES.map((e, i) => `<option value="${i}">${esc(e.name)}</option>`).join('');
   sel.addEventListener('change', () => {
@@ -1276,10 +1276,10 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   }
   function renderTrace() {
     const box = $('trace-out');
-    if (cursor < 0) { box.innerHTML = '<div class="empty">还没有开始执行。</div>'; return; }
+    if (cursor < 0) { box.innerHTML = '<div class="empty">Nothing has been run yet.</div>'; return; }
     const shown = steps.slice(0, cursor + 1);
     const names = Object.keys(shown[shown.length - 1].vars);
-    let html = '<table><thead><tr><th class="n">行</th>' +
+    let html = '<table><thead><tr><th class="n">Line</th>' +
       names.map(n => `<th>${n}</th>`).join('') + '<th>OUTPUT</th></tr></thead><tbody>';
     shown.forEach((s, i) => {
       const prev = i > 0 ? shown[i - 1].vars : {};
@@ -1295,7 +1295,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     const cur = box.querySelector('tr.cur');
     if (cur) cur.scrollIntoView({ block:'nearest' });
   }
-  // 函数声明（不是 const），这样上面的示例下拉菜单也能用
+  // Function declaration (not const) so the example dropdown above can call it
   function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c])); }
 
   function setStatus(msg, cls) {
@@ -1312,7 +1312,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
       steps = []; cursor = -1;
       stopPlay();
       renderTrace(); renderGutter(); renderHighlight();
-      setStatus(e.line ? `第 ${e.line} 行：${e.message}` : e.message, 'err');
+      setStatus(e.line ? `Line ${e.line}: ${e.message}` : e.message, 'err');
       return false;
     }
   }
@@ -1320,43 +1320,43 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     if (!steps.length && !compile()) return;
     if (cursor >= steps.length - 1) {
       stopPlay();
-      setStatus(`执行结束，共 ${steps.length} 步。`, 'ok');
+      setStatus(`Finished — ${steps.length} steps in total.`, 'ok');
       return;
     }
     cursor++;
     renderTrace(); renderGutter(); renderHighlight();
-    setStatus(`第 ${cursor + 1} / ${steps.length} 步 —— 当前在第 ${steps[cursor].line} 行`);
+    setStatus(`Step ${cursor + 1} / ${steps.length} — now on line ${steps[cursor].line}`);
   }
   function resetTrace() {
     stopPlay(); steps = []; cursor = -1;
     renderTrace(); renderGutter(); renderHighlight();
-    setStatus('已重置。点「单步执行」重新开始。');
+    setStatus('Reset. Click "Step" to start again.');
   }
   function stopPlay() {
-    if (playTimer) { clearInterval(playTimer); playTimer = null; $('btn-play').textContent = '自动播放'; }
+    if (playTimer) { clearInterval(playTimer); playTimer = null; $('btn-play').textContent = 'Auto-play'; }
   }
   $('btn-step').addEventListener('click', step);
   $('btn-reset').addEventListener('click', resetTrace);
   $('btn-play').addEventListener('click', () => {
     if (playTimer) { stopPlay(); return; }
     if (!steps.length && !compile()) return;
-    $('btn-play').textContent = '暂停';
+    $('btn-play').textContent = 'Pause';
     playTimer = setInterval(() => {
-      if (cursor >= steps.length - 1) { stopPlay(); setStatus(`执行结束，共 ${steps.length} 步。`, 'ok'); return; }
+      if (cursor >= steps.length - 1) { stopPlay(); setStatus(`Finished — ${steps.length} steps in total.`, 'ok'); return; }
       step();
     }, 500);
   });
   $('btn-copy-trace').addEventListener('click', () => {
     const tbl = $('trace-out').querySelector('table');
-    if (!tbl) { toast('表格还是空的'); return; }
-    copyText(tableToTSV(tbl), '已复制到剪贴板');
+    if (!tbl) { toast('The table is still empty'); return; }
+    copyText(tableToTSV(tbl), 'Copied to clipboard');
   });
   code.addEventListener('input', () => { resetTrace(); });
   code.addEventListener('scroll', () => { gutter.scrollTop = code.scrollTop; renderHighlight(); });
   $('inputs').addEventListener('input', resetTrace);
   renderGutter();
 
-  /* ================= Tab 2：逻辑门 ================= */
+  /* ================= Tab 2: logic gates ================= */
   $('expr').value = SAMPLE_EXPR;
 
   function renderTruthTable(t) {
@@ -1370,7 +1370,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     $('tt-out').innerHTML = html + '</tbody></table>';
   }
 
-  /* ---- 电路图：手画 SVG 门符号（跟课本一致，不用 Mermaid 的方框） ---- */
+  /* ---- Circuit: hand-drawn SVG gate symbols (textbook shapes, not Mermaid boxes) ---- */
   const GW = 46, GH = 36, COLW = 132, ROWH = 62;
   function gateShape(op, x, y) {
     const neg = (op === 'NAND' || op === 'NOR' || op === 'NOT');
@@ -1385,7 +1385,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
       d = `M${x},${y + 3} L${x + GW - 10},${y + GH / 2} L${x},${y + GH - 3} Z`;
     }
     const bubble = neg ? `<circle class="gate" cx="${x + GW + 5}" cy="${y + GH / 2}" r="4.5"/>` : '';
-    // OR / XOR 的形状右半是尖的，标签要往左挪才落在实心区域里
+    // OR / XOR taper to a point on the right, so the label shifts left to stay inside the body
     const lx = x + (base === 'AND' ? GW / 2 - 2 : GW / 2 - 7);
     const label = `<text class="gl" x="${lx}" y="${y + GH / 2 + 3.5}" text-anchor="middle">${op}</text>`;
     return `${extra}<path class="gate" d="${d}"/>${bubble}${base === 'NOT' ? '' : label}`;
@@ -1393,7 +1393,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   function gateOutX(x, op) { return x + GW + ((op === 'NAND' || op === 'NOR' || op === 'NOT') ? 10 : 0); }
 
   function renderCircuit(t) {
-    // 用表达式字符串给节点去重，相同子表达式共用同一个门
+    // Deduplicate nodes by expression string, so identical sub-expressions share one gate
     const nodes = new Map();   // key -> {node, depth, x, y}
     function depth(n) {
       if (n.op === 'VAR') return 0;
@@ -1414,7 +1414,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     }
     walk(t.root);
 
-    // 变量强制排在第 0 列并按字母序摆放
+    // Variables are pinned to column 0 and laid out alphabetically
     const byDepth = new Map();
     for (const [k, v] of nodes) {
       const d = v.depth;
@@ -1436,7 +1436,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     const H = Math.max(24 + maxRows * ROWH + 20, 110);
 
     let svg = '';
-    // 先画线，再画门，避免线压在门上
+    // Draw wires first, then gates, so wires never sit on top of a gate
     for (const [, v] of nodes) {
       const n = v.node;
       if (n.op === 'VAR') continue;
@@ -1447,8 +1447,9 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
         const y1 = cv.y + GH / 2;
         const x2 = v.x;
         const y2 = v.y + (ins.length === 1 ? GH / 2 : (idx === 0 ? 10 : GH - 10));
-        // 每根线走自己的竖直通道。若两根线的竖直段落在同一个 x 上又首尾相接，
-        // 看起来就成了一根连通的线 —— 在电路图里那等于说这两个输入短路了。
+        // Each wire gets its own vertical lane. If two wires share an x for their
+        // vertical run and meet end to end, they read as one connected wire — which
+        // in a circuit diagram means those two inputs are shorted together.
         const chan = Math.round((v.y - 24) / ROWH);
         const mid = Math.max(x1 + 12, x2 - 10 - chan * 9 - idx * 4);
         svg += `<path class="wire" d="M${x1},${y1} H${mid} V${y2} H${x2}"/>`;
@@ -1463,15 +1464,15 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
         svg += gateShape(n.op, v.x, v.y);
       }
     }
-    // 输出引线 + 标签
+    // output lead + label
     const rv = nodes.get(bstrKey(t.root));
-    // 根节点可能就是一个变量（表达式只有 "A" 这种），那它的出线点是圆点不是门
+    // The root may be a bare variable (an expression like just "A"); then its exit point is a dot, not a gate
     const ox = rv.node.op === 'VAR' ? rv.x + 16 : gateOutX(rv.x, rv.node.op);
     svg += `<path class="wire" d="M${ox},${rv.y + GH / 2} H${ox + 34}"/>` +
            `<text x="${ox + 40}" y="${rv.y + GH / 2 + 4}" style="fill:var(--accent)">Q</text>`;
 
     $('circ-out').innerHTML =
-      `<svg class="circuit" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="逻辑门电路图">${svg}</svg>`;
+      `<svg class="circuit" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Logic gate circuit diagram">${svg}</svg>`;
   }
 
   function generate() {
@@ -1480,7 +1481,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
       const t = truthTable($('expr').value);
       renderTruthTable(t);
       renderCircuit(t);
-      st.textContent = `${t.vars.length} 个变量，${t.rows.length} 行，${t.steps.length} 个运算步骤。`;
+      st.textContent = `${t.vars.length} variables, ${t.rows.length} rows, ${t.steps.length} operation steps.`;
       st.className = 'status ok';
     } catch (e) {
       $('tt-out').innerHTML = '<div class="empty">—</div>';
@@ -1493,27 +1494,27 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   $('expr').addEventListener('keydown', e => { if (e.key === 'Enter') generate(); });
   $('btn-copy-tt').addEventListener('click', () => {
     const tbl = $('tt-out').querySelector('table');
-    if (!tbl) { toast('先生成真值表'); return; }
-    copyText(tableToTSV(tbl), '已复制到剪贴板');
+    if (!tbl) { toast('Generate the truth table first'); return; }
+    copyText(tableToTSV(tbl), 'Copied to clipboard');
   });
 
-  generate();   // 打开页面就有东西看
+  generate();   // something to look at as soon as the page opens
 })();
 </script>
 
 <!--
 =========================================================================
-本地预览：
-    直接用浏览器打开 index.html 即可，没有任何依赖，也不需要联网。
-    跑内置自检：在地址栏后面加 ?selftest=1
+Local preview:
+    Just open index.html in a browser — no dependencies, no network needed.
+    Run the built-in self-test: add ?selftest=1 to the address
         file:///.../index.html?selftest=1
 
-部署到 Vercel：
-    1. 把这个文件夹推到 GitHub（仓库里只要有 index.html 就够了）
-    2. 打开 vercel.com → Add New → Project → Import 这个仓库
-    3. Framework Preset 选 "Other"，Build Command 和 Output Directory 全部留空
-    4. Deploy，完成后会给一个 xxx.vercel.app 的网址
-    以后 git push 到 main，Vercel 会自动重新部署。
+Deploy to Vercel:
+    1. Push this folder to GitHub (index.html alone is enough)
+    2. Open vercel.com -> Add New -> Project -> Import this repo
+    3. Framework Preset "Other"; leave Build Command and Output Directory empty
+    4. Deploy; you get an xxx.vercel.app address when it finishes
+    Every later git push to main redeploys automatically.
 =========================================================================
 -->
 </body>
