@@ -150,6 +150,9 @@
       <div class="card">
         <h2>伪代码</h2>
         <div class="body">
+          <label class="fld" for="example">加载示例（考题常见题型，可直接单步跟踪）</label>
+          <select id="example" class="plain" style="margin-bottom:12px"></select>
+
           <div class="editor">
             <div class="gutter" id="gutter"></div>
             <div class="ed-wrap">
@@ -925,6 +928,141 @@ OUTPUT total`;
 
 const SAMPLE_EXPR = '(A XOR B) AND NOT C';
 
+/* 内置示例：既是下拉菜单的选项，也是自检用例。
+   expect = 所有 OUTPUT 用逗号连起来的结果。 */
+const EXAMPLES = [
+  { name:'求和 + 判断偶数（入门）', inputs:'', expect:'2,4,15', code: SAMPLE_CODE },
+
+  { name:'冒泡排序 Bubble Sort', inputs:'', expect:'1,3,4,5,8', code:
+`DECLARE a : ARRAY[1:5] OF INTEGER
+DECLARE i : INTEGER
+DECLARE j : INTEGER
+DECLARE temp : INTEGER
+a[1] ← 5
+a[2] ← 3
+a[3] ← 8
+a[4] ← 1
+a[5] ← 4
+FOR i ← 1 TO 4
+    FOR j ← 1 TO 5 - i
+        IF a[j] > a[j + 1] THEN
+            temp ← a[j]
+            a[j] ← a[j + 1]
+            a[j + 1] ← temp
+        ENDIF
+    NEXT j
+NEXT i
+FOR i ← 1 TO 5
+    OUTPUT a[i]
+NEXT i` },
+
+  { name:'线性查找 Linear Search', inputs:'', expect:'3', code:
+`DECLARE a : ARRAY[1:5] OF INTEGER
+DECLARE i : INTEGER
+DECLARE found : BOOLEAN
+DECLARE target : INTEGER
+a[1] ← 10
+a[2] ← 20
+a[3] ← 30
+a[4] ← 40
+a[5] ← 50
+target ← 30
+found ← FALSE
+i ← 1
+WHILE i <= 5 AND found = FALSE DO
+    IF a[i] = target THEN
+        found ← TRUE
+        OUTPUT i
+    ENDIF
+    i ← i + 1
+ENDWHILE` },
+
+  { name:'哨兵值求和（用到 INPUT）', inputs:'4\n8\n15\n-1', expect:'Total: 27,Count: 3', code:
+`DECLARE n : INTEGER
+DECLARE total : INTEGER
+DECLARE count : INTEGER
+total ← 0
+count ← 0
+INPUT n
+WHILE n <> -1 DO
+    total ← total + n
+    count ← count + 1
+    INPUT n
+ENDWHILE
+OUTPUT "Total: ", total
+OUTPUT "Count: ", count` },
+
+  { name:'找最大值与最小值', inputs:'', expect:'9,1', code:
+`DECLARE a : ARRAY[1:6] OF INTEGER
+DECLARE i : INTEGER
+DECLARE max : INTEGER
+DECLARE min : INTEGER
+a[1] ← 7
+a[2] ← 2
+a[3] ← 9
+a[4] ← 4
+a[5] ← 9
+a[6] ← 1
+max ← a[1]
+min ← a[1]
+FOR i ← 2 TO 6
+    IF a[i] > max THEN
+        max ← a[i]
+    ENDIF
+    IF a[i] < min THEN
+        min ← a[i]
+    ENDIF
+NEXT i
+OUTPUT max
+OUTPUT min` },
+
+  { name:'十进制转二进制（REPEAT）', inputs:'', expect:'1101', code:
+`DECLARE n : INTEGER
+DECLARE b : STRING
+b ← ""
+n ← 13
+REPEAT
+    b ← n MOD 2 & b
+    n ← n DIV 2
+UNTIL n = 0
+OUTPUT b` },
+
+  { name:'字符串反转（MID + 倒序 FOR）', inputs:'', expect:'EIC', code:
+`DECLARE s : STRING
+DECLARE r : STRING
+DECLARE i : INTEGER
+s ← "CIE"
+r ← ""
+FOR i ← LENGTH(s) TO 1 STEP -1
+    r ← r & MID(s, i, 1)
+NEXT i
+OUTPUT r` },
+
+  { name:'成绩分级（嵌套 IF ELSE）', inputs:'', expect:'B', code:
+`DECLARE m : INTEGER
+DECLARE g : CHAR
+m ← 72
+IF m >= 80 THEN
+    g ← 'A'
+ELSE
+    IF m >= 70 THEN
+        g ← 'B'
+    ELSE
+        g ← 'C'
+    ENDIF
+ENDIF
+OUTPUT g` },
+
+  { name:'嵌套循环乘法表', inputs:'', expect:'1x1=1,1x2=2,1x3=3,2x1=2,2x2=4,2x3=6,3x1=3,3x2=6,3x3=9', code:
+`DECLARE i : INTEGER
+DECLARE j : INTEGER
+FOR i ← 1 TO 3
+    FOR j ← 1 TO 3
+        OUTPUT i, "x", j, "=", i * j
+    NEXT j
+NEXT i` },
+];
+
 function assert(cond, msg) { if (!cond) throw new Error(msg); }
 function assertEq(got, want, msg) {
   if (got !== want) throw new Error(`${msg}\n  期望：${JSON.stringify(want)}\n  实际：${JSON.stringify(got)}`);
@@ -1005,6 +1143,12 @@ const TESTS = [
     const { env } = runProgram(
       'DECLARE s : STRING\ns ← "Cambridge"\nOUTPUT LENGTH(s)\nOUTPUT MID(s, 1, 4)\nOUTPUT UCASE(s)', '');
     assertEq(env.output.join('|'), '9|Camb|CAMBRIDGE', 'MID 应该从第 1 位开始数');
+  }],
+  ['全部内置示例都跑得出正确结果', () => {
+    for (const ex of EXAMPLES) {
+      const { env } = runProgram(ex.code, ex.inputs);
+      assertEq(env.output.join(','), ex.expect, `示例「${ex.name}」输出不对`);
+    }
   }],
   ['真值表：(A XOR B) AND NOT C', () => {
     const t = truthTable(SAMPLE_EXPR);
@@ -1101,7 +1245,18 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
 
   /* ================= Tab 1：追踪表 ================= */
   const code = $('code'), gutter = $('gutter'), hlbar = $('hlbar');
-  code.value = SAMPLE_CODE;
+
+  // 示例下拉菜单
+  const sel = $('example');
+  sel.innerHTML = EXAMPLES.map((e, i) => `<option value="${i}">${esc(e.name)}</option>`).join('');
+  sel.addEventListener('change', () => {
+    const ex = EXAMPLES[sel.value];
+    code.value = ex.code;
+    $('inputs').value = ex.inputs;
+    resetTrace();
+    renderGutter();
+  });
+  code.value = EXAMPLES[0].code;
 
   let steps = [], cursor = -1, playTimer = null;
 
@@ -1139,7 +1294,8 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     const cur = box.querySelector('tr.cur');
     if (cur) cur.scrollIntoView({ block:'nearest' });
   }
-  const esc = s => String(s).replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c]));
+  // 函数声明（不是 const），这样上面的示例下拉菜单也能用
+  function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c])); }
 
   function setStatus(msg, cls) {
     const el = $('trace-status');
