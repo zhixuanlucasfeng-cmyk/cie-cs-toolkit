@@ -2,7 +2,7 @@
 
 给 Cambridge Computer Science（9618 / 9608 / 0478）考生用的两个复习工具，单文件、纯前端、零依赖、可离线使用。
 
-**在线使用：** _(部署后补链接)_
+**在线使用：** https://cie-cs-toolkit.vercel.app　·　[跑自检](https://cie-cs-toolkit.vercel.app/?selftest=1)
 
 ## 两个模块
 
