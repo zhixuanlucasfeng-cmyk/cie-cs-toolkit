@@ -163,7 +163,7 @@
 
           <div style="margin-top:12px">
             <label class="fld" for="inputs">INPUT 用的输入值（每行一个，按顺序取用）</label>
-            <textarea id="inputs" class="plain" rows="2" spellcheck="false" placeholder="例如：&#10;7&#10;Hello"></textarea>
+            <textarea id="inputs" class="plain" rows="2" spellcheck="false" placeholder="一行一个值，例如 7"></textarea>
           </div>
 
           <div class="btns">
@@ -1239,7 +1239,8 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
         $(b).setAttribute('aria-selected', String(on));
         $(p).hidden = !on;
       });
-      if (panelId === 'p-trace') resetTrace(); else resetLogic();
+      // 切到逻辑门那页直接生成，别让人对着一片空白再点一次按钮
+      if (panelId === 'p-trace') resetTrace(); else generate();
     });
   });
 
@@ -1384,7 +1385,9 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
       d = `M${x},${y + 3} L${x + GW - 10},${y + GH / 2} L${x},${y + GH - 3} Z`;
     }
     const bubble = neg ? `<circle class="gate" cx="${x + GW + 5}" cy="${y + GH / 2}" r="4.5"/>` : '';
-    const label = `<text class="gl" x="${x + GW / 2 - 2}" y="${y + GH / 2 + 3.5}" text-anchor="middle">${op}</text>`;
+    // OR / XOR 的形状右半是尖的，标签要往左挪才落在实心区域里
+    const lx = x + (base === 'AND' ? GW / 2 - 2 : GW / 2 - 7);
+    const label = `<text class="gl" x="${lx}" y="${y + GH / 2 + 3.5}" text-anchor="middle">${op}</text>`;
     return `${extra}<path class="gate" d="${d}"/>${bubble}${base === 'NOT' ? '' : label}`;
   }
   function gateOutX(x, op) { return x + GW + ((op === 'NAND' || op === 'NOR' || op === 'NOT') ? 10 : 0); }
@@ -1444,7 +1447,10 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
         const y1 = cv.y + GH / 2;
         const x2 = v.x;
         const y2 = v.y + (ins.length === 1 ? GH / 2 : (idx === 0 ? 10 : GH - 10));
-        const mid = x1 + Math.max(14, (x2 - x1) / 2);
+        // 每根线走自己的竖直通道。若两根线的竖直段落在同一个 x 上又首尾相接，
+        // 看起来就成了一根连通的线 —— 在电路图里那等于说这两个输入短路了。
+        const chan = Math.round((v.y - 24) / ROWH);
+        const mid = Math.max(x1 + 12, x2 - 10 - chan * 9 - idx * 4);
         svg += `<path class="wire" d="M${x1},${y1} H${mid} V${y2} H${x2}"/>`;
       });
     }
@@ -1482,12 +1488,6 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
       st.textContent = e.message;
       st.className = 'status err';
     }
-  }
-  function resetLogic() {
-    $('tt-out').innerHTML = '<div class="empty">点「生成」查看。</div>';
-    $('circ-out').innerHTML = '<div class="empty">点「生成」查看。</div>';
-    $('logic-status').textContent = '';
-    $('logic-status').className = 'status';
   }
   $('btn-gen').addEventListener('click', generate);
   $('expr').addEventListener('keydown', e => { if (e.key === 'Enter') generate(); });
