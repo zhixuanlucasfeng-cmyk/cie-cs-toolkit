@@ -75,9 +75,24 @@ Type a flowchart one box per line — each box written either as CIE pseudocode 
 
 `START` and `STOP` lines are optional decoration, indentation says what sits inside a loop or a decision, and `FOR` loops are drawn the way the textbook does it: an initial box, a test diamond, the body, and an increment box on the way back round. `CASE OF` is refused with a note to rewrite it as `IF … ELSE`, rather than drawn wrongly.
 
+## Practice mode
+
+The button in the top right corner swaps the tools for practice questions. Questions are **generated**, not a fixed bank: five algorithm templates with random constants, driven by a seed, so you can keep going indefinitely — and the seed is shown, so you and a teacher can pull up the same question.
+
+Nothing is stored as a right answer. The interpreter works the answer out, which is what makes per-cell marking possible.
+
+| Question type | How it is marked |
+|---|---|
+| Fill in the trace table | Every cell, with the first mistake named by row and column (a blank cell counts as "unchanged", the way trace tables are filled in by hand) |
+| What does this program output? | The output sequence, with any spacing |
+| Complete the truth table | Row by row; `1/0`, `T/F` and `TRUE/FALSE` all accepted |
+| Write the pseudocode | Your program is **run**: any program that produces the right output is correct, whatever you called your variables. A syntax error comes back as the normal CIE message |
+
+"Show answer" fills in the worked answer but does not count the question as correct. The tally (attempted / fully correct) is kept in your own browser and is never uploaded.
+
 ## Built-in self-test
 
-Correctness is covered by 40 assertions (interpreter semantics, the CIE-specific errors, truth tables, operator precedence, NAND/NOR, the English sentence forms, flowchart drawing and escaping, and a round trip that turns each built-in example into a trace table and back into a program).
+Correctness is covered by 48 assertions (interpreter semantics, the CIE-specific errors, truth tables, operator precedence, NAND/NOR, the English sentence forms, flowchart drawing and escaping, a round trip that turns each built-in example into a trace table and back into a program, and the question generator and every marker).
 
 Add `?selftest=1` to the URL to run them:
 

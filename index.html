@@ -143,6 +143,15 @@
   svg.flow text.lbl { fill:var(--warn); font:11px var(--mono); }
   svg.flow polyline { fill:none; stroke:var(--muted); stroke-width:1.5; }
   svg.flow marker path { fill:var(--muted); stroke:none; }
+  #btn-practice { margin-left:auto; }
+  #btn-practice[aria-pressed="true"] { background:var(--accent-dim); border-color:var(--accent); color:var(--text); }
+  #q-prompt pre { margin:0; font:13px/20px var(--mono); white-space:pre; overflow-x:auto; }
+  #q-answer table input { width:100%; min-width:58px; background:transparent; color:var(--text);
+    border:1px solid transparent; border-radius:3px; padding:2px 4px; font:13px/18px var(--mono); }
+  #q-answer table input:focus { border-color:var(--accent-dim); outline:none; background:var(--panel2); }
+  #q-answer table input.right { color:var(--ok); }
+  #q-answer table input.wrong { color:var(--err); background:rgba(240,119,108,.14); }
+  .qscore { margin-top:6px; font:12px/1.6 var(--mono); color:var(--dim); }
 </style>
 </head>
 <body>
@@ -150,6 +159,7 @@
 <header>
   <h1>CIE CS Revision Toolkit</h1>
   <span class="sub">9618 / 9608 · 0478 &nbsp;|&nbsp; Trace tables · Logic gates</span>
+  <button class="act" id="btn-practice" aria-pressed="false">Practice mode</button>
 </header>
 
 <div class="tabs" role="tablist">
@@ -346,6 +356,39 @@ Comments: start the line with //<br><br>
         <div class="card">
           <h2>Trace Table</h2>
           <div class="body"><div class="tbl-scroll" id="flow-trace"><div class="empty">Nothing traced yet.</div></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- ============ Practice ============ -->
+  <section id="p-practice" role="tabpanel" aria-labelledby="btn-practice" hidden>
+    <div class="cols">
+      <div class="card">
+        <h2>Question</h2>
+        <div class="body">
+          <label class="fld" for="q-kind">Question type</label>
+          <select id="q-kind" class="plain">
+            <option value="trace">Fill in the trace table</option>
+            <option value="output">What does this program output?</option>
+            <option value="truth">Complete the truth table</option>
+            <option value="topseudo">Write the pseudocode</option>
+          </select>
+          <div class="btns">
+            <button class="act primary" id="btn-q-new">New question</button>
+          </div>
+          <div id="q-prompt" style="margin-top:14px"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Your Answer</h2>
+        <div class="body">
+          <div id="q-answer"></div>
+          <div class="btns">
+            <button class="act primary" id="btn-q-check">Check answer</button>
+            <button class="act" id="btn-q-show">Show answer</button>
+          </div>
+          <div class="status" id="q-status"></div>
+          <div class="qscore" id="q-score"></div>
         </div>
       </div>
     </div>
@@ -1596,6 +1639,227 @@ function flowchartToPseudo(text) {
 }
 
 /* ======================================================================
+   Module F: practice questions
+   Questions are generated from templates with a seeded random number
+   generator, so the same seed always gives the same question. Nothing is
+   stored as a "right answer" — the interpreter works it out.
+   ====================================================================== */
+
+// mulberry32: unlike a bare xorshift it scatters well for seeds 1, 2, 3 …,
+// which matters because question seeds are consecutive.
+function pqRandom(seed) {
+  let a = (seed >>> 0) + 0x6D2B79F5;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const pqPick = (rnd, arr) => arr[Math.floor(rnd() * arr.length)];
+const pqInt = (rnd, lo, hi) => lo + Math.floor(rnd() * (hi - lo + 1));
+
+// Each template gives the same algorithm twice: as CIE pseudocode and as the
+// structured English of module C, so one bank feeds every question type.
+const PRACTICE_TEMPLATES = [
+  { name:'Sum of 1 to n', build(rnd) {
+      const n = pqInt(rnd, 3, 6);
+      return {
+        code:`DECLARE total : INTEGER
+DECLARE i : INTEGER
+total ← 0
+FOR i ← 1 TO ${n}
+    total ← total + i
+NEXT i
+OUTPUT total`,
+        english:`Set total to 0
+For each i from 1 to ${n}
+    Add i to total
+Next i
+Output total`
+      };
+    } },
+  { name:'Counting down', build(rnd) {
+      const start = pqInt(rnd, 4, 8), step = pqPick(rnd, [1, 2]);
+      return {
+        code:`DECLARE n : INTEGER
+n ← ${start}
+WHILE n > 0 DO
+    OUTPUT n
+    n ← n - ${step}
+ENDWHILE`,
+        english:`Set n to ${start}
+While n is greater than 0 do
+    Output n
+    Decrease n by ${step}
+End while`
+      };
+    } },
+  { name:'Doubling until it passes a limit', build(rnd) {
+      const x = pqPick(rnd, [1, 2, 3]), limit = pqPick(rnd, [20, 30, 50]);
+      return {
+        code:`DECLARE x : INTEGER
+x ← ${x}
+REPEAT
+    x ← x * 2
+UNTIL x > ${limit}
+OUTPUT x`,
+        english:`Set x to ${x}
+Repeat
+    Multiply x by 2
+Until x is greater than ${limit}
+Output x`
+      };
+    } },
+  { name:'Counting multiples', build(rnd) {
+      const n = pqInt(rnd, 5, 9), m = pqPick(rnd, [2, 3]);
+      return {
+        code:`DECLARE count : INTEGER
+DECLARE i : INTEGER
+count ← 0
+FOR i ← 1 TO ${n}
+    IF i MOD ${m} = 0 THEN
+        count ← count + 1
+        OUTPUT i
+    ENDIF
+NEXT i
+OUTPUT count`,
+        english:`Set count to 0
+For each i from 1 to ${n}
+    If i MOD ${m} is equal to 0 then
+        Add 1 to count
+        Output i
+    End if
+Next i
+Output count`
+      };
+    } },
+  { name:'The larger of two numbers', build(rnd) {
+      const a = pqInt(rnd, 10, 60);
+      let b = pqInt(rnd, 10, 60);
+      if (b === a) b = a + 7;
+      return {
+        code:`DECLARE a : INTEGER
+DECLARE b : INTEGER
+DECLARE larger : INTEGER
+a ← ${a}
+b ← ${b}
+IF a > b THEN
+    larger ← a
+ELSE
+    larger ← b
+ENDIF
+OUTPUT larger`,
+        english:`Set a to ${a}
+Set b to ${b}
+If a is greater than b then
+    Set larger to a
+Otherwise
+    Set larger to b
+End if
+Output larger`
+      };
+    } }
+];
+
+const PQ_KINDS = ['trace', 'output', 'truth', 'topseudo'];
+
+function pqExpression(rnd) {
+  const op = () => pqPick(rnd, ['AND', 'OR', 'XOR', 'NAND', 'NOR']);
+  return pqPick(rnd, [
+    `A ${op()} B`,
+    `(A ${op()} B) ${op()} C`,
+    `NOT A ${op()} B`,
+    `(A ${op()} B) AND NOT C`,
+    `A ${op()} (B ${op()} C)`
+  ]);
+}
+
+function makeQuestion(kind, seed) {
+  if (!PQ_KINDS.includes(kind)) throw new CIEError(`Unknown question type "${kind}"`, 1);
+  const rnd = pqRandom(seed);
+  if (kind === 'truth') {
+    const expr = pqExpression(rnd);
+    const t = truthTable(expr);
+    return {
+      kind, seed, expr, table: t,
+      answer: t.rows.map(r => (r[r.length - 1] ? 1 : 0)).join('')
+    };
+  }
+  const tpl = PRACTICE_TEMPLATES[Math.floor(rnd() * PRACTICE_TEMPLATES.length)];
+  const built = tpl.build(rnd);
+  const { steps, env } = runProgram(built.code, '');
+  return {
+    kind, seed, name: tpl.name, code: built.code, english: built.english,
+    steps, output: env.output.map(fmt),
+    vars: Object.keys(steps[steps.length - 1].vars)
+  };
+}
+
+/* ---------- Marking. The interpreter is the mark scheme. ---------- */
+
+// A cell may be left blank when the value did not change — that is how trace
+// tables are filled in by hand, so both ways are accepted.
+function markTrace(q, rows) {
+  const names = q.vars;
+  let total = 0, correct = 0, firstWrong = null, wrong = [];
+  q.steps.forEach((s, i) => {
+    const row = rows[i] || {};
+    const values = row.values || {};
+    names.forEach(n => {
+      const want = s.vars[n] === undefined ? '' : s.vars[n];
+      const prev = i > 0 ? (q.steps[i - 1].vars[n] === undefined ? '' : q.steps[i - 1].vars[n]) : '';
+      const got = String(values[n] == null ? '' : values[n]).trim();
+      total++;
+      if (got === want || (got === '' && want === prev)) correct++;
+      else {
+        wrong.push({ row:i, col:n });
+        if (!firstWrong) firstWrong = { row:i + 1, col:n, want, got };
+      }
+    });
+    const wantOut = s.out || '';
+    const gotOut = String(row.output == null ? '' : row.output).trim();
+    total++;
+    if (gotOut === wantOut) correct++;
+    else {
+      wrong.push({ row:i, col:'OUTPUT' });
+      if (!firstWrong) firstWrong = { row:i + 1, col:'OUTPUT', want:wantOut, got:gotOut };
+    }
+  });
+  return { total, correct, wrong, firstWrong, ok: correct === total };
+}
+
+const pqCleanList = s => String(s == null ? '' : s).split(/[,\n]/).map(x => x.trim()).filter(x => x !== '').join(',');
+
+function markOutput(q, text) {
+  const want = q.output.join(',');
+  return { ok: pqCleanList(text) === pqCleanList(want), want: q.output.join(', '), got: pqCleanList(text) };
+}
+
+function markTruth(q, text) {
+  const got = String(text == null ? '' : text).toUpperCase()
+    .replace(/TRUE/g, '1').replace(/FALSE/g, '0')
+    .replace(/T/g, '1').replace(/F/g, '0').replace(/[^01]/g, '');
+  const want = q.answer;
+  let correct = 0;
+  for (let i = 0; i < want.length; i++) if (got[i] === want[i]) correct++;
+  return { total: want.length, correct, ok: got === want, want, got };
+}
+
+// Any program that produces the right output is right — wording and variable
+// names are the student's business.
+function markPseudocode(q, code) {
+  let env;
+  try { env = runProgram(code, '').env; }
+  catch (e) {
+    return { ok:false, error: (e.line && !/^Line /.test(e.message)) ? `Line ${e.line}: ${e.message}` : e.message };
+  }
+  const got = env.output.map(fmt).join(',');
+  return { ok: got === q.output.join(','), want: q.output.join(', '), got: env.output.map(fmt).join(', ') };
+}
+
+/* ======================================================================
    Module B: boolean expression -> truth table + circuit diagram
    ====================================================================== */
 
@@ -2088,6 +2352,76 @@ const TESTS = [
       assert(/viewBox="0 0 \d/.test(svg), `"${ex.name}" should have a sized viewBox`);
     }
   }],
+  /* ---- Module F: practice questions ---- */
+  ['Practice: the same seed gives the same question, different seeds vary', () => {
+    assertEq(makeQuestion('trace', 42).code, makeQuestion('trace', 42).code, 'one seed should give one question');
+    const seen = new Set();
+    for (let s = 1; s <= 20; s++) seen.add(makeQuestion('trace', s).code);
+    assert(seen.size >= 5, `20 seeds should give several different questions, got ${seen.size}`);
+  }],
+  ['Practice: every generated question runs and produces output', () => {
+    for (const kind of ['trace', 'output', 'topseudo']) {
+      for (let s = 1; s <= 40; s++) {
+        const q = makeQuestion(kind, s);
+        assert(q.output.length >= 1, `${kind} seed ${s} produced no output`);
+        assert(q.steps.length > 0 && q.steps.length < 200, `${kind} seed ${s} has ${q.steps.length} steps`);
+      }
+    }
+  }],
+  ['Practice: each template says the same thing in English and in pseudocode', () => {
+    for (let s = 1; s <= 40; s++) {
+      const q = makeQuestion('topseudo', s);
+      const { code } = structuredEnglishToPseudo(q.english);
+      assertEq(runProgram(code, '').env.output.map(fmt).join(','), q.output.join(','),
+        `the English version of "${q.name}" does not match its pseudocode`);
+    }
+  }],
+  ['Practice: a perfect trace scores full marks, either way of filling it', () => {
+    const q = makeQuestion('trace', 7);
+    const full = q.steps.map(s => ({ values: Object.assign({}, s.vars), output: s.out }));
+    assert(markTrace(q, full).ok, 'every cell filled in should be full marks');
+    const changesOnly = q.steps.map((s, i) => {
+      const values = {};
+      q.vars.forEach(n => {
+        const prev = i > 0 ? q.steps[i - 1].vars[n] : undefined;
+        if (s.vars[n] !== prev) values[n] = s.vars[n];
+      });
+      return { values, output: s.out };
+    });
+    assert(markTrace(q, changesOnly).ok, 'filling in only the changes should also be full marks');
+  }],
+  ['Practice: one wrong cell costs one mark and is named', () => {
+    const q = makeQuestion('trace', 9);
+    const rows = q.steps.map(s => ({ values: Object.assign({}, s.vars), output: s.out }));
+    const target = rows.length - 1, col = q.vars[0];
+    rows[target].values[col] = '999';
+    const m = markTrace(q, rows);
+    assertEq(m.correct, m.total - 1, 'exactly one mark should be lost');
+    assertEq(m.firstWrong.row, target + 1, 'the wrong row should be named');
+    assertEq(m.firstWrong.col, col, 'the wrong column should be named');
+  }],
+  ['Practice: the output question accepts either spacing', () => {
+    const q = makeQuestion('output', 3);
+    assert(markOutput(q, q.output.join(', ')).ok, '"2, 4, 15" should be accepted');
+    assert(markOutput(q, q.output.join(',')).ok, '"2,4,15" should be accepted');
+    assert(markOutput(q, q.output.slice(1).join(',')).ok === false, 'a missing value should fail');
+  }],
+  ['Practice: the truth table question marks per row', () => {
+    const q = makeQuestion('truth', 5);
+    assert(markTruth(q, q.answer).ok, 'the right column should be full marks');
+    const flipped = (q.answer[0] === '1' ? '0' : '1') + q.answer.slice(1);
+    const m = markTruth(q, flipped);
+    assert(!m.ok && m.correct === m.total - 1, 'one flipped bit should cost exactly one mark');
+    assert(markTruth(q, q.answer.replace(/1/g, 'T').replace(/0/g, 'F')).ok, 'T / F should be accepted too');
+  }],
+  ['Practice: any working program is accepted, a broken one is not', () => {
+    const q = makeQuestion('topseudo', 11);
+    assert(markPseudocode(q, q.code).ok, 'the reference program should pass');
+    const rewritten = 'DECLARE zzz : INTEGER\n' + q.output.map(v => `OUTPUT ${/^-?\d+$/.test(v) ? v : '"' + v + '"'}`).join('\n');
+    assert(markPseudocode(q, rewritten).ok, 'a different program with the same output should pass');
+    assert(!markPseudocode(q, 'DECLARE x : INTEGER\nx ← 1\nOUTPUT x').ok, 'a wrong program should fail');
+    assertEq(typeof markPseudocode(q, 'x ← 1').error, 'string', 'a broken program should come back with the CIE error');
+  }],
   ['Trace table: round trip through every non-array example', () => {
     for (const ex of EXAMPLES) {
       if (/ARRAY/.test(ex.code)) continue;
@@ -2113,7 +2447,8 @@ function runSelfTest() {
 // Let Node require this logic too (in the browser module is undefined, so the catch runs)
 try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTable, runSelfTest, TESTS,
   structuredEnglishToPseudo, traceTableToPseudo, checkPseudoAgainstTable,
-  flowchartSVG, flowchartToPseudo }; } catch (e) {}
+  flowchartSVG, flowchartToPseudo,
+  makeQuestion, markTrace, markOutput, markTruth, markPseudocode, PQ_KINDS }; } catch (e) {}
 </script>
 
 <!-- =================================================================
@@ -2157,18 +2492,23 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
 
   /* ---------- Tab switching ---------- */
   const TABS = [['tab-trace', 'p-trace'], ['tab-logic', 'p-logic'], ['tab-eng', 'p-eng'],
-                ['tab-tt', 'p-tt'], ['tab-flow', 'p-flow']];
+                ['tab-tt', 'p-tt'], ['tab-flow', 'p-flow'], ['btn-practice', 'p-practice']];
   function showTab(btnId) {
     TABS.forEach(([b, p]) => {
       const on = b === btnId;
-      $(b).setAttribute('aria-selected', String(on));
+      if (b === 'btn-practice') $(b).setAttribute('aria-pressed', String(on));
+      else $(b).setAttribute('aria-selected', String(on));
       $(p).hidden = !on;
     });
     // Refresh on entry, so nobody faces a blank panel and has to click again
     if (btnId === 'tab-trace') { resetTrace(); renderGutter(); }
     else if (btnId === 'tab-logic') generate();
   }
-  TABS.forEach(([btnId]) => $(btnId).addEventListener('click', () => showTab(btnId)));
+  TABS.forEach(([btnId]) => $(btnId).addEventListener('click', () => {
+    // The practice button toggles: press it again to go back to the tools
+    if (btnId === 'btn-practice' && $('btn-practice').getAttribute('aria-pressed') === 'true') showTab('tab-trace');
+    else showTab(btnId);
+  }));
 
   /* ================= Tab 1: trace table ================= */
   const code = $('code'), gutter = $('gutter'), hlbar = $('hlbar');
@@ -2607,6 +2947,172 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     showTab('tab-trace');
   });
   drawFlowchart();
+
+  /* ================= Practice mode ================= */
+  let pq = null;                       // the question on screen
+  let pqSeed = Math.floor(Math.random() * 1e9);
+  let pqChecked = false;
+
+  const PQ_STORE = 'cie-practice-score';
+  function pqLoadScore() {
+    try { return JSON.parse(localStorage.getItem(PQ_STORE)) || { asked:0, right:0 }; }
+    catch (e) { return { asked:0, right:0 }; }
+  }
+  function pqSaveScore(sc) { try { localStorage.setItem(PQ_STORE, JSON.stringify(sc)); } catch (e) {} }
+  function pqShowScore() {
+    const sc = pqLoadScore();
+    $('q-score').textContent = sc.asked
+      ? `Questions attempted: ${sc.asked} · fully correct: ${sc.right}` + (pq ? `  ·  seed ${pq.seed}` : '')
+      : 'Nothing attempted yet.' + (pq ? `  ·  seed ${pq.seed}` : '');
+  }
+  function pqStatus(msg, cls) {
+    const el = $('q-status');
+    el.textContent = msg;
+    el.className = 'status' + (cls ? ' ' + cls : '');
+  }
+  function pqCountAttempt(allRight) {
+    if (pqChecked) return;             // one question counts once
+    pqChecked = true;
+    const sc = pqLoadScore();
+    sc.asked++;
+    if (allRight) sc.right++;
+    pqSaveScore(sc);
+  }
+
+  function newQuestion() {
+    pqSeed = (pqSeed + 1) >>> 0;
+    pqChecked = false;
+    pq = makeQuestion($('q-kind').value, pqSeed);
+    renderQuestion();
+    pqStatus('');
+    pqShowScore();
+  }
+
+  function renderQuestion() {
+    const prompt = $('q-prompt'), answer = $('q-answer');
+    if (pq.kind === 'truth') {
+      prompt.innerHTML = `<div class="fld">Complete the final column of the truth table for</div>` +
+        `<pre>${esc(pq.expr)}</pre>`;
+      const t = pq.table;
+      let html = '<table><thead><tr>' + t.vars.map(v => `<th>${esc(v)}</th>`).join('') +
+        `<th>${esc(t.cols[t.cols.length - 1])}</th></tr></thead><tbody>`;
+      t.rows.forEach((row, i) => {
+        html += '<tr>' + t.vars.map((v, k) => `<td>${row[k] ? 1 : 0}</td>`).join('') +
+          `<td><input data-r="${i}" inputmode="numeric" maxlength="5"></td></tr>`;
+      });
+      answer.innerHTML = html + '</tbody></table>';
+      return;
+    }
+    if (pq.kind === 'output') {
+      prompt.innerHTML = `<div class="fld">What does this program output?</div><pre>${esc(pq.code)}</pre>`;
+      answer.innerHTML = '<label class="fld" for="q-out">Write the outputs in order, separated by commas</label>' +
+        '<input id="q-out" class="plain" spellcheck="false">';
+      return;
+    }
+    if (pq.kind === 'topseudo') {
+      prompt.innerHTML = '<div class="fld">Write this algorithm as CIE pseudocode</div>' +
+        `<pre>${esc(pq.english)}</pre>`;
+      answer.innerHTML = '<label class="fld" for="q-code">Your pseudocode (any working program is accepted)</label>' +
+        '<textarea id="q-code" class="plain" rows="12" spellcheck="false" wrap="off"></textarea>';
+      return;
+    }
+    // trace
+    prompt.innerHTML = '<div class="fld">Complete the trace table for this program. ' +
+      'The Line column is filled in for you; leave a cell blank if that variable does not change.</div>' +
+      `<pre>${esc(pq.code)}</pre>`;
+    let html = '<div class="tbl-scroll"><table><thead><tr><th class="n">Line</th>' +
+      pq.vars.map(n => `<th>${esc(n)}</th>`).join('') + '<th>OUTPUT</th></tr></thead><tbody>';
+    pq.steps.forEach((s, i) => {
+      html += `<tr><td class="n">${s.line}</td>` +
+        pq.vars.map(n => `<td><input data-r="${i}" data-v="${esc(n)}" spellcheck="false"></td>`).join('') +
+        `<td><input data-r="${i}" data-f="output" spellcheck="false"></td></tr>`;
+    });
+    answer.innerHTML = html + '</tbody></table></div>';
+  }
+
+  function pqReadTrace() {
+    const rows = pq.steps.map(() => ({ values:{}, output:'' }));
+    $('q-answer').querySelectorAll('input').forEach(el => {
+      const r = rows[Number(el.dataset.r)];
+      if (!r) return;
+      if (el.dataset.f === 'output') r.output = el.value;
+      else r.values[el.dataset.v] = el.value;
+    });
+    return rows;
+  }
+
+  function checkAnswer() {
+    if (!pq) return;
+    if (pq.kind === 'trace') {
+      const m = markTrace(pq, pqReadTrace());
+      const bad = new Set(m.wrong.map(w => w.row + '/' + w.col));
+      $('q-answer').querySelectorAll('input').forEach(el => {
+        const key = el.dataset.r + '/' + (el.dataset.f === 'output' ? 'OUTPUT' : el.dataset.v);
+        el.classList.toggle('wrong', bad.has(key));
+        el.classList.toggle('right', !bad.has(key));
+      });
+      pqCountAttempt(m.ok);
+      pqStatus(m.ok
+        ? `✓ All ${m.total} cells correct.`
+        : `${m.correct} / ${m.total} cells correct. First mistake: row ${m.firstWrong.row}, column ${m.firstWrong.col} — you wrote "${m.firstWrong.got}", it should be "${m.firstWrong.want}". Everything after a wrong cell usually follows from it.`,
+        m.ok ? 'ok' : 'err');
+    } else if (pq.kind === 'output') {
+      const m = markOutput(pq, $('q-out').value);
+      pqCountAttempt(m.ok);
+      pqStatus(m.ok ? '✓ Correct.' : `Not right yet — you wrote "${m.got}". Try stepping through it in the simulator.`, m.ok ? 'ok' : 'err');
+    } else if (pq.kind === 'truth') {
+      const bits = [];
+      $('q-answer').querySelectorAll('input').forEach(el => bits.push(el.value.trim() === '' ? '?' : el.value.trim()));
+      const m = markTruth(pq, bits.join(''));
+      $('q-answer').querySelectorAll('input').forEach((el, i) => {
+        const ok = m.got[i] === m.want[i];
+        el.classList.toggle('wrong', !ok);
+        el.classList.toggle('right', ok);
+      });
+      pqCountAttempt(m.ok);
+      pqStatus(m.ok ? `✓ All ${m.total} rows correct.` : `${m.correct} / ${m.total} rows correct.`, m.ok ? 'ok' : 'err');
+    } else {
+      const m = markPseudocode(pq, $('q-code').value);
+      pqCountAttempt(m.ok);
+      pqStatus(m.error ? 'Your pseudocode did not run — ' + m.error
+        : m.ok ? '✓ Correct — it outputs ' + m.want + '.'
+        : `Not right yet — yours outputs [${m.got || 'nothing'}], the algorithm should output [${m.want}].`,
+        m.ok ? 'ok' : 'err');
+    }
+    pqShowScore();
+  }
+
+  function showAnswer() {
+    if (!pq) return;
+    pqCountAttempt(false);
+    if (pq.kind === 'trace') {
+      $('q-answer').querySelectorAll('input').forEach(el => {
+        const s = pq.steps[Number(el.dataset.r)];
+        el.value = el.dataset.f === 'output' ? (s.out || '') : (s.vars[el.dataset.v] || '');
+        el.classList.remove('wrong', 'right');
+      });
+      pqStatus('This is the worked answer — press "New question" for a fresh one.');
+    } else if (pq.kind === 'output') {
+      $('q-out').value = pq.output.join(', ');
+      pqStatus('This is the answer — press "New question" for a fresh one.');
+    } else if (pq.kind === 'truth') {
+      $('q-answer').querySelectorAll('input').forEach((el, i) => {
+        el.value = pq.answer[i];
+        el.classList.remove('wrong', 'right');
+      });
+      pqStatus('This is the answer — press "New question" for a fresh one.');
+    } else {
+      $('q-code').value = pq.code;
+      pqStatus('One correct answer — yours may differ and still be right, as long as it outputs ' + pq.output.join(', ') + '.');
+    }
+    pqShowScore();
+  }
+
+  $('btn-q-new').addEventListener('click', newQuestion);
+  $('q-kind').addEventListener('change', newQuestion);
+  $('btn-q-check').addEventListener('click', checkAnswer);
+  $('btn-q-show').addEventListener('click', showAnswer);
+  newQuestion();
 
   generate();   // something to look at as soon as the page opens
 })();

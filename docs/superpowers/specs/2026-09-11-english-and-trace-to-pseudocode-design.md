@@ -82,3 +82,11 @@ A fifth tab takes a flowchart written one box per line and returns the drawn cha
 - **Drawing** (`flowchartSVG`) works from the parsed AST plus the original source line for each box's label, so the box text is exactly what the student wrote. Layout is a recursive block model: every block reports `left`/`right` from its vertical axis and a height, sequences stack on one axis, `IF … ELSE` puts its branches in two side columns that rejoin, and loops return up a lane of their own. `FOR` is decomposed into an init box, a test diamond, the body and an increment box.
 - **Shapes**: stadium for terminators, rectangle for processes, parallelogram for input/output, diamond for decisions, with `Yes` / `No` on the branches.
 - **Ceiling**: `CASE OF` is refused with advice to rewrite as `IF … ELSE` rather than drawn wrongly.
+
+## Addendum: practice mode
+
+A `Practice mode` button in the header swaps the tool panels for generated questions.
+
+- **Generation**: five templates (FOR accumulation, WHILE countdown, REPEAT doubling, FOR with an IF/MOD, larger of two) with random constants, driven by a seeded mulberry32 — chosen over a bare xorshift because consecutive seeds must give different questions. Each template carries both a pseudocode and a structured-English rendering, so one bank feeds all four question types. The seed is shown so a question can be reproduced.
+- **Marking** never stores an answer; the interpreter computes it. Trace tables are marked per cell (a blank cell means "unchanged"), outputs are compared as a list, truth tables row by row, and a written program is marked by *running it* — any program with the right output passes.
+- **Score** (attempted / fully correct) lives in localStorage, wrapped in try/catch; "Show answer" counts the question as attempted but not correct.
