@@ -1,10 +1,10 @@
 # CIE CS Revision Toolkit
 
-Two revision tools for Cambridge Computer Science (9618 / 9608 / 0478) candidates: a single file, pure front-end, zero dependencies, works offline.
+Four revision tools for Cambridge Computer Science (9618 / 9608 / 0478) candidates: a single file, pure front-end, zero dependencies, works offline.
 
 **Online:** https://cie-cs-toolkit.vercel.app　·　[run the self-test](https://cie-cs-toolkit.vercel.app/?selftest=1)
 
-## The two modules
+## The four modules
 
 ### 1. Pseudocode trace table simulator
 
@@ -45,9 +45,29 @@ Enter a boolean expression to get a full truth table **including the intermediat
 - The circuit is hand-drawn SVG using the standard gate symbols (the D-shape for AND, the curved shield for OR, the triangle-and-bubble for NOT, the double curve for XOR), so it looks like the textbook and the exam paper — not labelled rectangles
 - Identical sub-expressions share the same gate, exactly as in a real circuit
 
+### 3. Structured English → pseudocode
+
+Type the algorithm the way it is worded in a question and get CIE pseudocode back — plus **the full trace table of the generated program**, not just its final answer. A "Send to trace simulator" button drops the result into module 1 for stepping through.
+
+- Indentation decides what sits inside a loop or an `If`; explicit `End if` / `End while` / `Next x` also work
+- Understood sentence forms: `Set X to …`, `Add … to X`, `Subtract … from X`, `Multiply X by …`, `Increase/Decrease X by …`, `Input …`, `Output …`, `If … then` / `Otherwise` / `End if`, `Repeat` / `Until …`, `While … do` / `End while`, `For each X from A to B` / `Next X`
+- Wording is translated to symbols: `is greater than or equal to` → `>=`, `is not equal to` → `<>`, `plus` → `+`, `divided by` → `/`
+- `DECLARE` lines are worked out from the first value each variable receives
+- A sentence outside the list is reported by line number with the accepted forms listed — it is never guessed at
+
+### 4. Trace table → pseudocode
+
+The reverse direction: fill in a trace table by hand and get the program that would produce it.
+
+- Name the variable columns, then fill `Line | values | OUTPUT` row by row; a blank cell means "unchanged"
+- Repeated line numbers are detected as a loop, and a variable stepping by a fixed amount becomes the `FOR` control variable
+- Right-hand sides are inferred from a fixed candidate list (`X + k`, `X + Y`, `X * Y`, `Y`, literal…) and must hold on *every* pass of the loop
+- **Self-verification:** the generated pseudocode is run back through the interpreter and compared with your table — ✓ when it reproduces it, otherwise it names exactly which variable disagrees and where
+- No `IF` conditions are invented: a table containing a branch comes back as straight-line code
+
 ## Built-in self-test
 
-Correctness is covered by 21 assertions (interpreter semantics, the CIE-specific errors, truth tables, operator precedence, NAND/NOR).
+Correctness is covered by 33 assertions (interpreter semantics, the CIE-specific errors, truth tables, operator precedence, NAND/NOR, the English sentence forms, and a round trip that turns each built-in example into a trace table and back into a program).
 
 Add `?selftest=1` to the URL to run them:
 

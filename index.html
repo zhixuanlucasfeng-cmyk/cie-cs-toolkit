@@ -129,6 +129,14 @@
   #selftest .p { color:var(--ok); }
   #selftest .f { color:var(--err); }
   @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+  .tabs { flex-wrap:wrap; }
+  pre.outcode { margin:0; font:13px/20px var(--mono); color:var(--text); white-space:pre; overflow-x:auto; }
+  #tt-grid table input {
+    width:100%; min-width:60px; background:transparent; color:var(--text);
+    border:1px solid transparent; border-radius:3px; padding:2px 4px; font:13px/18px var(--mono);
+  }
+  #tt-grid table input:focus { border-color:var(--accent-dim); outline:none; background:var(--panel2); }
+  .cols3 { display:grid; grid-template-columns:1fr; gap:20px; min-width:0; }
 </style>
 </head>
 <body>
@@ -141,6 +149,8 @@
 <div class="tabs" role="tablist">
   <button role="tab" id="tab-trace" aria-selected="true" aria-controls="p-trace">Pseudocode Trace Table Simulator</button>
   <button role="tab" id="tab-logic" aria-selected="false" aria-controls="p-logic">Logic Gates &amp; Truth Tables</button>
+  <button role="tab" id="tab-eng" aria-selected="false" aria-controls="p-eng">Structured English &rarr; Pseudocode</button>
+  <button role="tab" id="tab-tt" aria-selected="false" aria-controls="p-tt">Trace Table &rarr; Pseudocode</button>
 </div>
 
 <main>
@@ -233,6 +243,67 @@ Comments: start the line with //<br><br>
           <h2>Logic Gate Circuit</h2>
           <div class="body"><div class="tbl-scroll" id="circ-out"><div class="empty">Click "Generate" to see it.</div></div></div>
         </div>
+      </div>
+    </div>
+  </section>
+  <!-- ============ Tab 3 ============ -->
+  <section id="p-eng" role="tabpanel" aria-labelledby="tab-eng" hidden>
+    <div class="cols">
+      <div class="card">
+        <h2>Structured English</h2>
+        <div class="body">
+          <label class="fld" for="eng">One instruction per line. Indent whatever sits inside a loop or an If.</label>
+          <textarea id="eng" class="plain" rows="14" spellcheck="false" wrap="off"></textarea>
+          <div class="btns">
+            <button class="act primary" id="btn-eng">Convert to pseudocode</button>
+            <button class="act" id="btn-eng-copy">Copy pseudocode</button>
+            <button class="act" id="btn-eng-send">Send to trace simulator</button>
+          </div>
+          <div class="status" id="eng-status"></div>
+          <details class="help">
+            <summary>Which sentences are understood? (click to expand)</summary>
+            <div class="inner" id="eng-forms"></div>
+          </details>
+        </div>
+      </div>
+      <div class="cols3">
+        <div class="card">
+          <h2>CIE Pseudocode</h2>
+          <div class="body"><pre class="outcode" id="eng-code"></pre></div>
+        </div>
+        <div class="card">
+          <h2>Trace Table</h2>
+          <div class="body"><div class="tbl-scroll" id="eng-trace"><div class="empty">Nothing converted yet.</div></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Tab 4 ============ -->
+  <section id="p-tt" role="tabpanel" aria-labelledby="tab-tt" hidden>
+    <div class="cols">
+      <div class="card">
+        <h2>Your Trace Table</h2>
+        <div class="body">
+          <label class="fld" for="tt-vars">Variable columns (separate them with commas)</label>
+          <div style="display:flex;gap:8px">
+            <input id="tt-vars" class="plain" spellcheck="false" value="i, total">
+            <button class="act" id="btn-tt-cols">Apply</button>
+          </div>
+          <div class="tbl-scroll" id="tt-grid" style="margin-top:12px"></div>
+          <div class="btns">
+            <button class="act" id="btn-tt-add">Add row</button>
+            <button class="act" id="btn-tt-del">Remove last row</button>
+            <button class="act primary" id="btn-tt-gen">Generate pseudocode</button>
+            <button class="act" id="btn-tt-copy">Copy pseudocode</button>
+            <button class="act" id="btn-tt-send">Send to trace simulator</button>
+          </div>
+          <div class="status" id="tt-status">Fill the table in, then click Generate. Leave a cell blank when that variable does not change.</div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>CIE Pseudocode</h2>
+        <div class="body"><pre class="outcode" id="tt-code"></pre></div>
       </div>
     </div>
   </section>
@@ -808,6 +879,462 @@ function runProgram(codeText, inputText) {
 }
 
 /* ======================================================================
+   Module C: Structured English -> CIE pseudocode
+   A whitelist of textbook sentence forms. Anything outside it is reported,
+   never guessed at.
+   ====================================================================== */
+
+const ENG_FORMS = [
+  'Set <var> to <expression>', 'Add <expression> to <var>', 'Subtract <expression> from <var>',
+  'Multiply <var> by <expression>', 'Increase/Decrease <var> by <expression>',
+  'Input <var>', 'Output <expression>', 'If <condition> then', 'Otherwise', 'End if',
+  'Repeat', 'Until <condition>', 'While <condition> do', 'End while',
+  'For each <var> from <a> to <b>', 'Next <var>'
+];
+
+function engName(phrase) {
+  const words = String(phrase).trim().replace(/^(?:a|an|the)\s+/i, '')
+    .replace(/[^A-Za-z0-9 ]/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return '';
+  return words[0].toLowerCase() +
+    words.slice(1).map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join('');
+}
+
+// Comparison and arithmetic wording -> CIE symbols. Longest phrase first.
+const ENG_WORDS = [
+  [/\bis\s+greater\s+than\s+or\s+equal\s+to\b/gi, ' >= '],
+  [/\bis\s+less\s+than\s+or\s+equal\s+to\b/gi,    ' <= '],
+  [/\bis\s+not\s+equal\s+to\b/gi,                 ' <> '],
+  [/\bis\s+greater\s+than\b/gi,                   ' > '],
+  [/\bis\s+less\s+than\b/gi,                      ' < '],
+  [/\bis\s+equal\s+to\b/gi,                       ' = '],
+  [/\bis\s+not\b/gi,                              ' <> '],
+  [/\bdoes\s+not\s+equal\b/gi,                    ' <> '],
+  [/\bequals\b/gi,                                ' = '],
+  [/\bis\b/gi,                                    ' = '],
+  [/\bmultiplied\s+by\b/gi,                       ' * '],
+  [/\bdivided\s+by\b/gi,                          ' / '],
+  [/\bthe\s+remainder\s+of\b/gi,                  ' MOD '],
+  [/\btimes\b/gi,                                 ' * '],
+  [/\bplus\b/gi,                                  ' + '],
+  [/\bminus\b/gi,                                 ' - ']
+];
+
+const ENG_SPLIT = /(\s*(?:<=|>=|<>|[-+*/&=<>(),]|\bAND\b|\bOR\b|\bNOT\b|\bMOD\b|\bDIV\b)\s*)/i;
+const ENG_OPWORD = /^(?:AND|OR|NOT|MOD|DIV)$/i;
+const ENG_HELD = /^~STR(\d+)~$/;
+
+// Turn one English fragment into a CIE expression / condition.
+function engExpr(text, lineNo) {
+  const held = [];
+  let s = String(text).trim().replace(/"[^"]*"/g, m => { held.push(m); return ' ~STR' + (held.length - 1) + '~ '; });
+  for (const [re, rep] of ENG_WORDS) s = s.replace(re, rep);
+
+  const parts = s.split(ENG_SPLIT).map(part => {
+    const t = String(part).trim();
+    if (t === '') return '';
+    if (ENG_HELD.test(t)) return held[Number(t.match(ENG_HELD)[1])];
+    if (ENG_OPWORD.test(t) || /^(?:<=|>=|<>|[-+*/&=<>(),])$/.test(t)) return ' ' + t.toUpperCase() + ' ';
+    if (/^-?\d+(?:\.\d+)?$/.test(t)) return t;
+    if (/^(?:TRUE|FALSE)$/i.test(t)) return t.toUpperCase();
+    const n = engName(t);
+    if (!n) throw new CIEError(`Line ${lineNo}: cannot read "${part.trim()}" as a value or a variable`, lineNo);
+    return n;
+  });
+
+  const expr = parts.join('').replace(/\s+/g, ' ').trim()
+    .replace(/([-+*/&<>=(,])\s+-\s+(\d)/g, '$1 -$2')   // "= - 1" reads as "= -1"
+    .replace(/^-\s+(\d)/, '-$1');
+  if (!expr) throw new CIEError(`Line ${lineNo}: this sentence has no value in it`, lineNo);
+  return expr;
+}
+
+const ENG_RULES = [
+  { k:'assign',   re:/^set\s+(.+?)\s+to\s+(.+)$/i },
+  { k:'addto',    re:/^add\s+(.+?)\s+to\s+(.+)$/i },
+  { k:'subfrom',  re:/^subtract\s+(.+?)\s+from\s+(.+)$/i },
+  { k:'mulby',    re:/^multiply\s+(.+?)\s+by\s+(.+)$/i },
+  { k:'divby',    re:/^divide\s+(.+?)\s+by\s+(.+)$/i },
+  { k:'incby',    re:/^increase\s+(.+?)\s+by\s+(.+)$/i },
+  { k:'decby',    re:/^decrease\s+(.+?)\s+by\s+(.+)$/i },
+  { k:'for',      re:/^for\s+(?:each\s+)?(.+?)\s+from\s+(.+?)\s+to\s+(.+?)(?:\s+step\s+(.+))?$/i },
+  { k:'next',     re:/^(?:next\s+(.+)|next|end\s*for)$/i },
+  { k:'input',    re:/^(?:input|read|get)\s+(.+)$/i },
+  { k:'output',   re:/^(?:output|print|display|write)\s+(.+)$/i },
+  { k:'else',     re:/^(?:otherwise|else)$/i },
+  { k:'endif',    re:/^end\s*if$/i },
+  { k:'if',       re:/^if\s+(.+?)(?:\s+then)?$/i },
+  { k:'repeat',   re:/^repeat$/i },
+  { k:'until',    re:/^until\s+(.+)$/i },
+  { k:'endwhile', re:/^end\s*while$/i },
+  { k:'while',    re:/^while\s+(.+?)(?:\s+do)?$/i }
+];
+
+function engTypeOf(expr) {
+  if (/^"/.test(expr)) return 'STRING';
+  if (/^(?:TRUE|FALSE)$/.test(expr)) return 'BOOLEAN';
+  if (/^-?\d+$/.test(expr)) return 'INTEGER';
+  if (/^-?\d+\.\d+$/.test(expr)) return 'REAL';
+  return null;
+}
+
+function structuredEnglishToPseudo(text) {
+  const src = String(text || '').replace(/\t/g, '    ').split('\n');
+  const lines = [];
+  src.forEach((raw, i) => {
+    const t = raw.trim().replace(/[.;]+$/, '');
+    if (t && !t.startsWith('//')) lines.push({ indent: raw.match(/^ */)[0].length, text: t, no: i + 1 });
+  });
+  if (!lines.length) throw new CIEError('No structured English has been written yet', 1);
+
+  const body = [];                 // {depth, code}
+  const stack = [];                // blocks still open
+  const types = new Map();         // variable -> declared type, in first-use order
+  const notes = [];
+  const emit = code => body.push({ depth: stack.length, code });
+  const note = msg => { if (!notes.includes(msg)) notes.push(msg); };
+
+  function declare(name, type, lineNo) {
+    if (!name) throw new CIEError(`Line ${lineNo}: this sentence does not name a variable`, lineNo);
+    if (!types.has(name)) {
+      if (!type) { type = 'INTEGER'; note(`${name} had no obvious type, so it is declared INTEGER — change it if that is wrong`); }
+      types.set(name, type);
+    }
+  }
+  function closerFor(b) {
+    return b.k === 'if' ? 'ENDIF' : b.k === 'while' ? 'ENDWHILE' : b.k === 'for' ? `NEXT ${b.v}` : null;
+  }
+  // Close every block opened deeper than `indent`; `keepEqual` leaves a block
+  // that starts at exactly this indent open (for Otherwise / End if / Next).
+  function autoClose(indent, keepEqual) {
+    while (stack.length) {
+      const top = stack[stack.length - 1];
+      if (top.k === 'repeat') break;
+      if (keepEqual ? top.indent <= indent : top.indent < indent) break;
+      stack.pop();
+      emit(closerFor(top));
+    }
+  }
+  function popBlock(want, lineNo) {
+    const b = stack[stack.length - 1];
+    const english = { if:'If', while:'While', for:'For', repeat:'Repeat' }[want];
+    if (!b || b.k !== want) throw new CIEError(`Line ${lineNo}: there is no open ${english} for this line`, lineNo);
+    stack.pop();
+    return b;
+  }
+
+  for (const ln of lines) {
+    const rule = ENG_RULES.find(r => r.re.test(ln.text));
+    if (!rule) {
+      throw new CIEError(
+        `Line ${ln.no}: "${ln.text}" is not a sentence form this tool knows. Accepted forms: ${ENG_FORMS.join('; ')}`, ln.no);
+    }
+    const m = ln.text.match(rule.re);
+
+    if (rule.k === 'else' || rule.k === 'endif' || rule.k === 'endwhile' || rule.k === 'next' || rule.k === 'until') {
+      autoClose(ln.indent, true);
+      if (rule.k === 'else')     { const b = popBlock('if', ln.no); emit('ELSE'); stack.push(b); continue; }
+      if (rule.k === 'endif')    { popBlock('if', ln.no); emit('ENDIF'); continue; }
+      if (rule.k === 'endwhile') { popBlock('while', ln.no); emit('ENDWHILE'); continue; }
+      if (rule.k === 'next')     { const b = popBlock('for', ln.no); emit(`NEXT ${b.v}`); continue; }
+      const b = popBlock('repeat', ln.no);
+      emit(`UNTIL ${engExpr(m[1], ln.no)}`);
+      continue;
+    }
+
+    autoClose(ln.indent, false);
+
+    switch (rule.k) {
+      case 'assign': {
+        const v = engName(m[1]), e = engExpr(m[2], ln.no);
+        declare(v, engTypeOf(e), ln.no); emit(`${v} ← ${e}`); break;
+      }
+      case 'addto':   { const v = engName(m[2]), e = engExpr(m[1], ln.no); declare(v, 'INTEGER', ln.no); emit(`${v} ← ${v} + ${e}`); break; }
+      case 'subfrom': { const v = engName(m[2]), e = engExpr(m[1], ln.no); declare(v, 'INTEGER', ln.no); emit(`${v} ← ${v} - ${e}`); break; }
+      case 'mulby':   { const v = engName(m[1]), e = engExpr(m[2], ln.no); declare(v, 'INTEGER', ln.no); emit(`${v} ← ${v} * ${e}`); break; }
+      case 'divby':   { const v = engName(m[1]), e = engExpr(m[2], ln.no); declare(v, 'REAL', ln.no);    emit(`${v} ← ${v} / ${e}`); break; }
+      case 'incby':   { const v = engName(m[1]), e = engExpr(m[2], ln.no); declare(v, 'INTEGER', ln.no); emit(`${v} ← ${v} + ${e}`); break; }
+      case 'decby':   { const v = engName(m[1]), e = engExpr(m[2], ln.no); declare(v, 'INTEGER', ln.no); emit(`${v} ← ${v} - ${e}`); break; }
+      case 'input':   { const v = engName(m[1]); declare(v, 'INTEGER', ln.no); emit(`INPUT ${v}`); break; }
+      case 'output':  { emit(`OUTPUT ${engExpr(m[1], ln.no)}`); break; }
+      case 'if':      { emit(`IF ${engExpr(m[1], ln.no)} THEN`); stack.push({ k:'if', indent:ln.indent }); break; }
+      case 'while':   { emit(`WHILE ${engExpr(m[1], ln.no)} DO`); stack.push({ k:'while', indent:ln.indent }); break; }
+      case 'repeat':  { emit('REPEAT'); stack.push({ k:'repeat', indent:ln.indent }); break; }
+      case 'for': {
+        const v = engName(m[1]), from = engExpr(m[2], ln.no), to = engExpr(m[3], ln.no);
+        const step = m[4] ? engExpr(m[4], ln.no) : null;
+        declare(v, 'INTEGER', ln.no);
+        emit(`FOR ${v} ← ${from} TO ${to}${step ? ' STEP ' + step : ''}`);
+        stack.push({ k:'for', indent:ln.indent, v });
+        break;
+      }
+    }
+  }
+
+  while (stack.length) {
+    const top = stack[stack.length - 1];
+    if (top.k === 'repeat') throw new CIEError('A Repeat was never closed by an Until', lines[lines.length - 1].no);
+    stack.pop();
+    emit(closerFor(top));
+  }
+
+  const head = [...types.entries()].map(([n, t]) => `DECLARE ${n} : ${t}`);
+  const code = head.concat(body.map(b => '    '.repeat(b.depth) + b.code)).join('\n');
+  return { code, notes };
+}
+
+/* ======================================================================
+   Module D: trace table -> CIE pseudocode
+   Straight-line code, with a FOR loop folded back in when the line numbers
+   repeat and one variable steps by a fixed amount. Nothing else is guessed.
+   ====================================================================== */
+
+function ttValue(text) {
+  const t = String(text == null ? '' : text).trim();
+  if (t === '') return undefined;
+  if (/^-?\d+(?:\.\d+)?$/.test(t)) return parseFloat(t);
+  if (/^TRUE$/i.test(t)) return true;
+  if (/^FALSE$/i.test(t)) return false;
+  return t.replace(/^"(.*)"$/, '$1');
+}
+function ttLit(v) {
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
+  return '"' + String(v) + '"';
+}
+function ttType(values) {
+  if (values.some(v => typeof v === 'string')) return 'STRING';
+  if (values.some(v => typeof v === 'boolean')) return 'BOOLEAN';
+  if (values.some(v => typeof v === 'number' && !Number.isInteger(v))) return 'REAL';
+  return 'INTEGER';
+}
+
+// Expressions that would explain `target` given the values in `before`.
+// Most readable first; a plain literal is always the last resort.
+function ttCandidates(name, before, target) {
+  const out = [];
+  const self = before[name];
+  if (typeof target === 'number') {
+    if (typeof self === 'number') {
+      const k = target - self;
+      if (k !== 0) out.push({ text: k > 0 ? `${name} + ${k}` : `${name} - ${-k}`, fn: b => b[name] + k });
+      if (self !== 0 && Number.isInteger(target / self) && target / self !== 1) {
+        const mult = target / self;
+        out.push({ text: `${name} * ${mult}`, fn: b => b[name] * mult });
+      }
+    }
+    for (const o of Object.keys(before)) {
+      if (o === name) continue;
+      const ov = before[o];
+      if (typeof ov !== 'number') continue;
+      if (typeof self === 'number') {
+        if (self + ov === target) out.push({ text: `${name} + ${o}`, fn: b => b[name] + b[o] });
+        if (self - ov === target) out.push({ text: `${name} - ${o}`, fn: b => b[name] - b[o] });
+        if (self * ov === target) out.push({ text: `${name} * ${o}`, fn: b => b[name] * b[o] });
+      }
+      if (ov === target) out.push({ text: o, fn: b => b[o] });
+      const k2 = target - ov;
+      if (k2 !== 0) out.push({ text: k2 > 0 ? `${o} + ${k2}` : `${o} - ${-k2}`, fn: b => b[o] + k2 });
+    }
+  }
+  out.push({ text: ttLit(target), fn: () => target });
+  return out;
+}
+
+// The values a reader would hold just before statement `ri` of repetition `rep`.
+function ttRepState(rows, loop, ctrl, rep, ri) {
+  const st = {};
+  for (let i = 0; i < loop.s + rep * loop.p + ri; i++) {
+    for (const a of rows[i].assigns) st[a.v] = a.to;
+  }
+  st[ctrl.v] = ctrl.from + rep * ctrl.step;
+  return st;
+}
+
+function traceTableToPseudo(table) {
+  const vars = (table && table.vars ? table.vars : []).map(v => String(v).trim()).filter(Boolean);
+  const rawRows = (table && table.rows ? table.rows : []);
+  if (!vars.length) throw new CIEError('Name at least one variable column first', 1);
+  if (!rawRows.length) throw new CIEError('The trace table has no rows yet', 1);
+
+  const notes = [];
+  const note = msg => { if (!notes.includes(msg)) notes.push(msg); };
+
+  // Each row becomes the changes it records. A blank cell means "unchanged".
+  const seen = {};
+  const rows = rawRows.map((r, idx) => {
+    const assigns = [];
+    for (const v of vars) {
+      const val = ttValue(r.values ? r.values[v] : undefined);
+      if (val === undefined) continue;
+      if (typeof val === 'string' && /^\[.*\]$/.test(val)) {
+        throw new CIEError(`Row ${idx + 1}: array cells like ${val} are not supported — give each element its own column`, idx + 1);
+      }
+      if (seen[v] !== val) { assigns.push({ v, to: val }); seen[v] = val; }
+    }
+    return {
+      assigns,
+      out: String(r.output == null ? '' : r.output).trim(),
+      lineNo: String(r.line == null ? '' : r.line).trim()
+    };
+  }).filter(r => r.assigns.length || r.out);
+  if (!rows.length) throw new CIEError('Every row is empty — fill in some values first', 1);
+
+  // Loop detection: the longest block of line numbers that repeats back to back.
+  // ponytail: O(n^2) scan over candidate periods; exam tables are tiny.
+  let loop = null;
+  const seq = rows.map(r => r.lineNo);
+  if (seq.every(x => x !== '')) {
+    let best = null;
+    for (let p = 1; p <= Math.floor(rows.length / 2); p++) {
+      for (let s = 0; s + 2 * p <= rows.length; s++) {
+        let reps = 1;
+        while (s + (reps + 1) * p <= rows.length &&
+               seq.slice(s + reps * p, s + (reps + 1) * p).join('|') === seq.slice(s, s + p).join('|')) reps++;
+        if (reps >= 2 && (!best || p * reps > best.p * best.reps)) best = { s, p, reps };
+      }
+    }
+    if (best) {
+      const shape = i => rows.slice(best.s + i * best.p, best.s + (i + 1) * best.p)
+        .map(r => r.assigns.map(a => a.v).join(',') + '/' + (r.out ? '1' : '0')).join('|');
+      if ([...Array(best.reps).keys()].every(i => shape(i) === shape(0))) loop = best;
+      else note('The repeated lines do not change the same variables each time, so the loop was written out in full');
+    }
+  } else {
+    note('Some rows have no line number, so no loop could be detected');
+  }
+
+  // Control variable: changed exactly once per repetition, by a fixed step,
+  // and never touched outside the loop.
+  let ctrl = null;
+  if (loop) {
+    for (const v of vars) {
+      const vals = [];
+      let ok = true;
+      for (let i = 0; i < loop.reps && ok; i++) {
+        const hits = rows.slice(loop.s + i * loop.p, loop.s + (i + 1) * loop.p)
+          .filter(r => r.assigns.some(a => a.v === v));
+        if (hits.length !== 1) ok = false;
+        else vals.push(hits[0].assigns.find(a => a.v === v).to);
+      }
+      if (!ok) continue;
+      const outside = rows.some((r, i) =>
+        (i < loop.s || i >= loop.s + loop.p * loop.reps) && r.assigns.some(a => a.v === v));
+      if (outside) continue;
+      if (!vals.every(x => typeof x === 'number')) continue;
+      const step = vals[1] - vals[0];
+      if (step === 0 || !vals.every((x, i) => x === vals[0] + i * step)) continue;
+      ctrl = { v, from: vals[0], to: vals[vals.length - 1], step };
+      break;
+    }
+    if (!ctrl) {
+      note('The repeated lines had no variable stepping by a fixed amount, so the loop was written out in full');
+      loop = null;
+    }
+  }
+
+  const sim = {};
+  const body = [];
+  const emit = (depth, code) => body.push({ depth, code });
+
+  function statementsFor(row, depth, skipVar, reps) {
+    for (const a of row.assigns) {
+      if (skipVar && a.v === skipVar) { sim[a.v] = a.to; continue; }
+      const before = Object.assign({}, sim);
+      let chosen = null;
+      for (const c of ttCandidates(a.v, before, a.to)) {
+        const holds = !reps || reps.every(rep => {
+          const want = rep.want(a.v);
+          if (want === undefined) return true;
+          try { return c.fn(rep.state) === want; } catch (e) { return false; }
+        });
+        if (holds) { chosen = c; break; }
+      }
+      if (!chosen) {
+        chosen = { text: ttLit(a.to) };
+        note(`${a.v} could not be explained as a formula on every pass, so its value was written in directly`);
+      }
+      emit(depth, `${a.v} ← ${chosen.text}`);
+      sim[a.v] = a.to;
+    }
+    if (row.out) {
+      const named = vars.find(v => sim[v] !== undefined && fmt(sim[v]) === row.out);
+      emit(depth, `OUTPUT ${named ? named : ttLit(ttValue(row.out))}`);
+    }
+  }
+
+  if (!loop) {
+    rows.forEach(r => statementsFor(r, 0));
+  } else {
+    rows.slice(0, loop.s).forEach(r => statementsFor(r, 0));
+    emit(0, `FOR ${ctrl.v} ← ${ctrl.from} TO ${ctrl.to}${ctrl.step === 1 ? '' : ' STEP ' + ctrl.step}`);
+    sim[ctrl.v] = ctrl.from;
+    const firstRep = rows.slice(loop.s, loop.s + loop.p);
+    firstRep.forEach((row, ri) => {
+      const reps = [];
+      for (let i = 1; i < loop.reps; i++) {
+        const slice = rows.slice(loop.s + i * loop.p, loop.s + (i + 1) * loop.p);
+        reps.push({
+          state: ttRepState(rows, loop, ctrl, i, ri),
+          want: name => { const hit = slice[ri].assigns.find(a => a.v === name); return hit ? hit.to : undefined; }
+        });
+      }
+      statementsFor(row, 1, ctrl.v, reps);
+    });
+    emit(0, `NEXT ${ctrl.v}`);
+    // After the loop a reader holds the values from its LAST pass, not its first
+    for (let i = loop.s; i < loop.s + loop.p * loop.reps; i++) {
+      for (const a of rows[i].assigns) sim[a.v] = a.to;
+    }
+    rows.slice(loop.s + loop.p * loop.reps).forEach(r => statementsFor(r, 0));
+  }
+
+  const used = vars.filter(v => rows.some(r => r.assigns.some(a => a.v === v)));
+  const head = used.map(v => {
+    const vals = rows.reduce((acc, r) => acc.concat(r.assigns.filter(a => a.v === v).map(a => a.to)), []);
+    return `DECLARE ${v} : ${ttType(vals)}`;
+  });
+  return { code: head.concat(body.map(b => '    '.repeat(b.depth) + b.code)).join('\n'), notes };
+}
+
+// Run the generated pseudocode and check it really reproduces the table.
+function checkPseudoAgainstTable(code, table) {
+  const problems = [];
+  let steps, env;
+  try { ({ steps, env } = runProgram(code, '')); }
+  catch (e) { return { ok:false, problems:['the generated pseudocode did not run: ' + e.message] }; }
+
+  const wantOut = (table.rows || []).map(r => String(r.output == null ? '' : r.output).trim()).filter(Boolean);
+  const gotOut = env.output.map(fmt);
+  if (wantOut.join('|') !== gotOut.join('|')) {
+    problems.push(`OUTPUT differs — your table says [${wantOut.join(', ')}] but the code produces [${gotOut.join(', ')}]`);
+  }
+
+  // Every value a variable takes in the table must occur, in the same order, in
+  // the run. The run may hold extra values — a FOR loop ends one step past the
+  // last row of the table, which is correct and not a disagreement.
+  for (const v of (table.vars || [])) {
+    const want = [];
+    for (const r of (table.rows || [])) {
+      const val = ttValue(r.values ? r.values[v] : undefined);
+      if (val !== undefined && fmt(val) !== want[want.length - 1]) want.push(fmt(val));
+    }
+    if (!want.length) continue;
+    const got = [];
+    for (const st of steps) {
+      const val = st.vars[v];
+      if (val !== undefined && val !== '' && val !== got[got.length - 1]) got.push(val);
+    }
+    let i = 0;
+    for (const g of got) if (g === want[i]) i++;
+    if (i < want.length) {
+      problems.push(`${v} goes ${want.join(' → ')} in your table, but ${got.join(' → ') || '(never set)'} in the code`);
+    }
+  }
+  return { ok: problems.length === 0, problems };
+}
+
+/* ======================================================================
    Module B: boolean expression -> truth table + circuit diagram
    ====================================================================== */
 
@@ -1176,6 +1703,93 @@ const TESTS = [
   ['illegal characters are an error', () => {
     assertThrows(() => truthTable('A & B'), 'Illegal character', '& is not a valid boolean operator');
   }],
+  /* ---- Module C: structured English ---- */
+  ['English: Set / Add / Output', () => {
+    const { code } = structuredEnglishToPseudo('Set total to 0\nAdd 5 to total\nOutput total');
+    assertEq(code, 'DECLARE total : INTEGER\ntotal ← 0\ntotal ← total + 5\nOUTPUT total', 'wrong pseudocode');
+    assertEq(runProgram(code, '').env.output.join(','), '5', 'generated code should output 5');
+  }],
+  ['English: Repeat / Until with Input', () => {
+    const { code } = structuredEnglishToPseudo(
+      'Set total to 0\nRepeat\n    Input a number\n    Add the number to total\nUntil the number is -1\nOutput total');
+    assertEq(runProgram(code, '4\n8\n-1').env.output.join(','), '11', 'sentinel sum should be 11');
+    assert(/^REPEAT$/m.test(code) && /^UNTIL number = -1$/m.test(code), 'should use REPEAT … UNTIL');
+  }],
+  ['English: If / Otherwise by indentation', () => {
+    const { code } = structuredEnglishToPseudo(
+      'Set mark to 70\nIf mark is greater than or equal to 60 then\n    Output "pass"\nOtherwise\n    Output "fail"\nEnd if');
+    assertEq(runProgram(code, '').env.output.join(','), 'pass', 'should take the THEN branch');
+    assert(/IF mark >= 60 THEN/.test(code) && /ELSE/.test(code) && /ENDIF/.test(code), 'should be IF … ELSE … ENDIF');
+  }],
+  ['English: For each … from … to …', () => {
+    const { code } = structuredEnglishToPseudo(
+      'Set total to 0\nFor each i from 1 to 5\n    Add i to total\nNext i\nOutput total');
+    assert(/FOR i ← 1 TO 5/.test(code) && /NEXT i/.test(code), 'should be a FOR loop');
+    assertEq(runProgram(code, '').env.output.join(','), '15', '1..5 should total 15');
+  }],
+  ['English: While … do', () => {
+    const { code } = structuredEnglishToPseudo(
+      'Set count to 3\nWhile count is greater than 0 do\n    Output count\n    Decrease count by 1\nEnd while');
+    assertEq(runProgram(code, '').env.output.join(','), '3,2,1', 'WHILE should count down');
+  }],
+  ['English: unknown sentence is reported, not guessed', () => {
+    assertThrows(() => structuredEnglishToPseudo('Do something clever with the numbers'),
+      'not a sentence form', 'an unknown sentence should be rejected');
+  }],
+  ['English: declarations come out in first-use order', () => {
+    const { code } = structuredEnglishToPseudo('Set total to 0\nSet name to "Ada"\nOutput name');
+    assertEq(code.split('\n').slice(0, 2).join('|'),
+      'DECLARE total : INTEGER|DECLARE name : STRING', 'types should follow the first value assigned');
+  }],
+
+  /* ---- Module D: trace table -> pseudocode ---- */
+  ['Trace table: a FOR loop is folded back in', () => {
+    const table = { vars:['i', 'total'], rows:[
+      { line:'2', values:{ total:'0' }, output:'' },
+      { line:'3', values:{ i:'1' }, output:'' },
+      { line:'4', values:{ total:'1' }, output:'' },
+      { line:'3', values:{ i:'2' }, output:'' },
+      { line:'4', values:{ total:'3' }, output:'' },
+      { line:'3', values:{ i:'3' }, output:'' },
+      { line:'4', values:{ total:'6' }, output:'' },
+      { line:'6', values:{}, output:'6' }
+    ] };
+    const { code } = traceTableToPseudo(table);
+    assert(/FOR i ← 1 TO 3/.test(code), 'should detect FOR i ← 1 TO 3, got:\n' + code);
+    assert(/total ← total \+ i/.test(code), 'should infer total ← total + i, got:\n' + code);
+    assert(/OUTPUT total$/m.test(code), 'the output should name the variable, got:\n' + code);
+    assertEq(runProgram(code, '').env.output.join(','), '6', 'regenerated code should output 6');
+    assert(checkPseudoAgainstTable(code, table).ok, 'the generated code should match the table');
+  }],
+  ['Trace table: straight-line code when nothing repeats', () => {
+    const table = { vars:['x'], rows:[
+      { line:'1', values:{ x:'5' }, output:'' },
+      { line:'2', values:{ x:'8' }, output:'8' }
+    ] };
+    const { code } = traceTableToPseudo(table);
+    assertEq(runProgram(code, '').env.output.join(','), '8', 'should reproduce the output');
+    assert(!/FOR|WHILE|REPEAT/.test(code), 'no loop should be invented');
+  }],
+  ['Trace table: a wrong table is reported, not accepted', () => {
+    const table = { vars:['x'], rows:[{ line:'1', values:{ x:'5' }, output:'' }] };
+    const bad = checkPseudoAgainstTable('DECLARE x : INTEGER\nx ← 9', table);
+    assert(!bad.ok && /x goes 5/.test(bad.problems.join(' ')), 'a mismatch should be named');
+  }],
+  ['Trace table: array cells are refused with a hint', () => {
+    assertThrows(() => traceTableToPseudo({ vars:['a'], rows:[{ line:'1', values:{ a:'[1, 2, 3]' }, output:'' }] }),
+      'array cells', 'array columns should be refused');
+  }],
+  ['Trace table: round trip through every non-array example', () => {
+    for (const ex of EXAMPLES) {
+      if (/ARRAY/.test(ex.code)) continue;
+      const { steps, env } = runProgram(ex.code, ex.inputs);
+      const names = Object.keys(steps[steps.length - 1].vars);
+      const table = { vars:names, rows:steps.map(s => ({ line:String(s.line), values:s.vars, output:s.out })) };
+      const { code } = traceTableToPseudo(table);
+      const back = runProgram(code, '').env;
+      assertEq(back.output.join(','), env.output.join(','), `round trip changed the output of "${ex.name}"`);
+    }
+  }],
 ];
 
 function runSelfTest() {
@@ -1188,7 +1802,8 @@ function runSelfTest() {
 }
 
 // Let Node require this logic too (in the browser module is undefined, so the catch runs)
-try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTable, runSelfTest, TESTS }; } catch (e) {}
+try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTable, runSelfTest, TESTS,
+  structuredEnglishToPseudo, traceTableToPseudo, checkPseudoAgainstTable }; } catch (e) {}
 </script>
 
 <!-- =================================================================
@@ -1231,18 +1846,18 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   }
 
   /* ---------- Tab switching ---------- */
-  const TABS = [['tab-trace', 'p-trace'], ['tab-logic', 'p-logic']];
-  TABS.forEach(([btnId, panelId]) => {
-    $(btnId).addEventListener('click', () => {
-      TABS.forEach(([b, p]) => {
-        const on = b === btnId;
-        $(b).setAttribute('aria-selected', String(on));
-        $(p).hidden = !on;
-      });
-      // Generate on entering the logic tab, so nobody faces a blank panel and has to click again
-      if (panelId === 'p-trace') resetTrace(); else generate();
+  const TABS = [['tab-trace', 'p-trace'], ['tab-logic', 'p-logic'], ['tab-eng', 'p-eng'], ['tab-tt', 'p-tt']];
+  function showTab(btnId) {
+    TABS.forEach(([b, p]) => {
+      const on = b === btnId;
+      $(b).setAttribute('aria-selected', String(on));
+      $(p).hidden = !on;
     });
-  });
+    // Refresh on entry, so nobody faces a blank panel and has to click again
+    if (btnId === 'tab-trace') { resetTrace(); renderGutter(); }
+    else if (btnId === 'tab-logic') generate();
+  }
+  TABS.forEach(([btnId]) => $(btnId).addEventListener('click', () => showTab(btnId)));
 
   /* ================= Tab 1: trace table ================= */
   const code = $('code'), gutter = $('gutter'), hlbar = $('hlbar');
@@ -1274,16 +1889,14 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     hlbar.style.display = 'block';
     hlbar.style.top = (PAD_T + (steps[cursor].line - 1) * LINE_H - code.scrollTop) + 'px';
   }
-  function renderTrace() {
-    const box = $('trace-out');
-    if (cursor < 0) { box.innerHTML = '<div class="empty">Nothing has been run yet.</div>'; return; }
-    const shown = steps.slice(0, cursor + 1);
+  // Shared by tab 1 (step by step) and tab 3 (the whole run at once)
+  function traceHTML(shown, markLast) {
     const names = Object.keys(shown[shown.length - 1].vars);
     let html = '<table><thead><tr><th class="n">Line</th>' +
       names.map(n => `<th>${n}</th>`).join('') + '<th>OUTPUT</th></tr></thead><tbody>';
     shown.forEach((s, i) => {
       const prev = i > 0 ? shown[i - 1].vars : {};
-      html += `<tr${i === shown.length - 1 ? ' class="cur"' : ''}><td class="n">${s.line}</td>` +
+      html += `<tr${markLast && i === shown.length - 1 ? ' class="cur"' : ''}><td class="n">${s.line}</td>` +
         names.map(n => {
           const v = s.vars[n] === undefined ? '' : s.vars[n];
           const changed = prev[n] !== undefined && prev[n] !== v;
@@ -1291,7 +1904,12 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
         }).join('') +
         `<td class="out">${esc(s.out)}</td></tr>`;
     });
-    box.innerHTML = html + '</tbody></table>';
+    return html + '</tbody></table>';
+  }
+  function renderTrace() {
+    const box = $('trace-out');
+    if (cursor < 0) { box.innerHTML = '<div class="empty">Nothing has been run yet.</div>'; return; }
+    box.innerHTML = traceHTML(steps.slice(0, cursor + 1), true);
     const cur = box.querySelector('tr.cur');
     if (cur) cur.scrollIntoView({ block:'nearest' });
   }
@@ -1497,6 +2115,127 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     if (!tbl) { toast('Generate the truth table first'); return; }
     copyText(tableToTSV(tbl), 'Copied to clipboard');
   });
+
+  /* ================= Tab 3: structured English -> pseudocode ================= */
+  $('eng-forms').innerHTML = ENG_FORMS.map(esc).join('<br>');
+  $('eng').value = 'Set total to 0\nFor each i from 1 to 5\n    Add i to total\nNext i\nOutput total';
+
+  function engStatus(msg, cls) {
+    const el = $('eng-status');
+    el.textContent = msg;
+    el.className = 'status' + (cls ? ' ' + cls : '');
+  }
+  function convertEnglish() {
+    try {
+      const { code: out, notes } = structuredEnglishToPseudo($('eng').value);
+      $('eng-code').textContent = out;
+      const run = runProgram(out, '');
+      $('eng-trace').innerHTML = run.steps.length
+        ? traceHTML(run.steps, false)
+        : '<div class="empty">This program has no steps to trace.</div>';
+      engStatus(notes.length
+        ? 'Converted. ' + notes.join(' ')
+        : 'Converted. The table below is the generated program actually running.', 'ok');
+    } catch (e) {
+      $('eng-trace').innerHTML = '<div class="empty">Nothing to trace yet.</div>';
+      engStatus(/^Line /.test(e.message) || !e.line ? e.message : `Line ${e.line}: ${e.message}`, 'err');
+    }
+  }
+  $('btn-eng').addEventListener('click', convertEnglish);
+  $('btn-eng-copy').addEventListener('click', () => {
+    const c = $('eng-code').textContent;
+    if (!c.trim()) { toast('Convert something first'); return; }
+    copyText(c, 'Copied to clipboard');
+  });
+  $('btn-eng-send').addEventListener('click', () => {
+    const c = $('eng-code').textContent.trim();
+    if (!c) { toast('Convert something first'); return; }
+    code.value = c;
+    $('inputs').value = '';
+    showTab('tab-trace');
+  });
+
+  /* ================= Tab 4: trace table -> pseudocode ================= */
+  let ttCols = ['i', 'total'];
+  let ttRows = [
+    { line:'2', values:{ total:'0' }, output:'' },
+    { line:'3', values:{ i:'1' },     output:'' },
+    { line:'4', values:{ total:'1' }, output:'' },
+    { line:'3', values:{ i:'2' },     output:'' },
+    { line:'4', values:{ total:'3' }, output:'' },
+    { line:'3', values:{ i:'3' },     output:'' },
+    { line:'4', values:{ total:'6' }, output:'' },
+    { line:'6', values:{},            output:'6' }
+  ];
+
+  function ttStatus(msg, cls) {
+    const el = $('tt-status');
+    el.textContent = msg;
+    el.className = 'status' + (cls ? ' ' + cls : '');
+  }
+  function ttRender() {
+    let html = '<table><thead><tr><th class="n">Line</th>' +
+      ttCols.map(c => `<th>${esc(c)}</th>`).join('') + '<th>OUTPUT</th></tr></thead><tbody>';
+    ttRows.forEach((r, i) => {
+      html += `<tr><td class="n"><input data-r="${i}" data-f="line" value="${esc(r.line)}"></td>` +
+        ttCols.map(c => `<td><input data-r="${i}" data-v="${esc(c)}" value="${esc(r.values[c] || '')}"></td>`).join('') +
+        `<td><input data-r="${i}" data-f="output" value="${esc(r.output)}"></td></tr>`;
+    });
+    $('tt-grid').innerHTML = html + '</tbody></table>';
+  }
+  $('tt-grid').addEventListener('input', ev => {
+    const el = ev.target;
+    if (el.tagName !== 'INPUT') return;
+    const row = ttRows[Number(el.dataset.r)];
+    if (!row) return;
+    if (el.dataset.f === 'line') row.line = el.value;
+    else if (el.dataset.f === 'output') row.output = el.value;
+    else row.values[el.dataset.v] = el.value;
+  });
+  $('btn-tt-cols').addEventListener('click', () => {
+    const cols = $('tt-vars').value.split(',').map(x => x.trim()).filter(Boolean);
+    if (!cols.length) { toast('Name at least one variable'); return; }
+    ttCols = cols;
+    ttRows.forEach(r => {
+      const kept = {};
+      cols.forEach(c => { if (r.values[c] !== undefined) kept[c] = r.values[c]; });
+      r.values = kept;
+    });
+    ttRender();
+  });
+  $('btn-tt-add').addEventListener('click', () => { ttRows.push({ line:'', values:{}, output:'' }); ttRender(); });
+  $('btn-tt-del').addEventListener('click', () => { ttRows.pop(); ttRender(); });
+  function ttGenerate() {
+    const table = { vars: ttCols, rows: ttRows };
+    try {
+      const { code: out, notes } = traceTableToPseudo(table);
+      $('tt-code').textContent = out;
+      const check = checkPseudoAgainstTable(out, table);
+      const extra = notes.length ? ' — ' + notes.join(' ') : '';
+      if (check.ok) ttStatus('✓ This pseudocode reproduces your table exactly.' + extra, 'ok');
+      else ttStatus('⚠ The generated code does not match your table: ' + check.problems.join('; ') + extra, 'err');
+    } catch (e) {
+      $('tt-code').textContent = '';
+      ttStatus(e.message, 'err');
+    }
+  }
+  $('btn-tt-gen').addEventListener('click', ttGenerate);
+  $('btn-tt-copy').addEventListener('click', () => {
+    const c = $('tt-code').textContent;
+    if (!c.trim()) { toast('Generate something first'); return; }
+    copyText(c, 'Copied to clipboard');
+  });
+  $('btn-tt-send').addEventListener('click', () => {
+    const c = $('tt-code').textContent.trim();
+    if (!c) { toast('Generate something first'); return; }
+    code.value = c;
+    $('inputs').value = '';
+    showTab('tab-trace');
+  });
+
+  ttRender();
+  ttGenerate();
+  convertEnglish();
 
   generate();   // something to look at as soon as the page opens
 })();
