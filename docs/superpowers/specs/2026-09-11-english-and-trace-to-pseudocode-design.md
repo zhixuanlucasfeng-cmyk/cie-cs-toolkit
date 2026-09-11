@@ -73,3 +73,12 @@ The built-in self-test grows from 21 assertions to roughly 35:
 - Structured English only understands the whitelist; a freely worded sentence is rejected, not guessed.
 - A trace table containing an `IF` branch yields straight-line code, not an `IF` (the user chose not to guess conditions).
 - Right-hand-side inference searches a fixed candidate list, so an unusual expression falls back to a literal value.
+
+## Addendum (same day): flowchart module
+
+A fifth tab takes a flowchart written one box per line and returns the drawn chart, the pseudocode and the trace table.
+
+- **Input**: each box is either CIE pseudocode or module 3's structured English. The two are told apart by trying the pseudocode parser first and falling back to the English engine — unless the text clearly is pseudocode (`←`, `DECLARE`, `ENDIF`, `ENDWHILE`), in which case the pseudocode error is the honest one to report. `START` / `STOP` / `BEGIN` / `END` lines are stripped.
+- **Drawing** (`flowchartSVG`) works from the parsed AST plus the original source line for each box's label, so the box text is exactly what the student wrote. Layout is a recursive block model: every block reports `left`/`right` from its vertical axis and a height, sequences stack on one axis, `IF … ELSE` puts its branches in two side columns that rejoin, and loops return up a lane of their own. `FOR` is decomposed into an init box, a test diamond, the body and an increment box.
+- **Shapes**: stadium for terminators, rectangle for processes, parallelogram for input/output, diamond for decisions, with `Yes` / `No` on the branches.
+- **Ceiling**: `CASE OF` is refused with advice to rewrite as `IF … ELSE` rather than drawn wrongly.

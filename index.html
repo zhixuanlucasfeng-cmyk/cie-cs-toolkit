@@ -137,6 +137,12 @@
   }
   #tt-grid table input:focus { border-color:var(--accent-dim); outline:none; background:var(--panel2); }
   .cols3 { display:grid; grid-template-columns:1fr; gap:20px; min-width:0; }
+  svg.flow { max-width:100%; height:auto; display:block; }
+  svg.flow rect, svg.flow polygon { fill:var(--panel2); stroke:var(--muted); stroke-width:1.5; }
+  svg.flow text { fill:var(--text); font:12px var(--mono); }
+  svg.flow text.lbl { fill:var(--warn); font:11px var(--mono); }
+  svg.flow polyline { fill:none; stroke:var(--muted); stroke-width:1.5; }
+  svg.flow marker path { fill:var(--muted); stroke:none; }
 </style>
 </head>
 <body>
@@ -151,6 +157,7 @@
   <button role="tab" id="tab-logic" aria-selected="false" aria-controls="p-logic">Logic Gates &amp; Truth Tables</button>
   <button role="tab" id="tab-eng" aria-selected="false" aria-controls="p-eng">Structured English &rarr; Pseudocode</button>
   <button role="tab" id="tab-tt" aria-selected="false" aria-controls="p-tt">Trace Table &rarr; Pseudocode</button>
+  <button role="tab" id="tab-flow" aria-selected="false" aria-controls="p-flow">Flowchart &rarr; Everything</button>
 </div>
 
 <main>
@@ -304,6 +311,42 @@ Comments: start the line with //<br><br>
       <div class="card">
         <h2>CIE Pseudocode</h2>
         <div class="body"><pre class="outcode" id="tt-code"></pre></div>
+      </div>
+    </div>
+  </section>
+  <!-- ============ Tab 5 ============ -->
+  <section id="p-flow" role="tabpanel" aria-labelledby="tab-flow" hidden>
+    <div class="cols">
+      <div class="card">
+        <h2>Your Flowchart</h2>
+        <div class="body">
+          <label class="fld" for="flow-in">One box per line, top to bottom. Write each box as CIE pseudocode or as plain structured English — START and STOP are optional. Indent whatever sits inside a loop or a decision.</label>
+          <textarea id="flow-in" class="plain" rows="14" spellcheck="false" wrap="off"></textarea>
+          <div style="margin-top:12px">
+            <label class="fld" for="flow-inputs">Values for INPUT (one per line, used in order)</label>
+            <textarea id="flow-inputs" class="plain" rows="2" spellcheck="false" placeholder="One value per line, e.g. 4"></textarea>
+          </div>
+          <div class="btns">
+            <button class="act primary" id="btn-flow">Draw and convert</button>
+            <button class="act" id="btn-flow-copy">Copy pseudocode</button>
+            <button class="act" id="btn-flow-send">Send to trace simulator</button>
+          </div>
+          <div class="status" id="flow-status"></div>
+        </div>
+      </div>
+      <div class="cols3">
+        <div class="card">
+          <h2>Flowchart</h2>
+          <div class="body"><div class="tbl-scroll" id="flow-svg"><div class="empty">Nothing drawn yet.</div></div></div>
+        </div>
+        <div class="card">
+          <h2>CIE Pseudocode</h2>
+          <div class="body"><pre class="outcode" id="flow-code"></pre></div>
+        </div>
+        <div class="card">
+          <h2>Trace Table</h2>
+          <div class="body"><div class="tbl-scroll" id="flow-trace"><div class="empty">Nothing traced yet.</div></div></div>
+        </div>
       </div>
     </div>
   </section>
@@ -1335,6 +1378,224 @@ function checkPseudoAgainstTable(code, table) {
 }
 
 /* ======================================================================
+   Module E: pseudocode -> flowchart (hand-drawn SVG, textbook shapes)
+   Boxes are laid out on one vertical axis; branches take a side lane and
+   rejoin, loops return up a lane of their own.
+   ====================================================================== */
+
+const FLOW = { h:38, dh:56, gap:26, lane:30, pad:16, char:7.3, min:96 };
+const fbR = n => Math.round(n * 10) / 10;
+function fbEsc(s) { return String(s).replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c])); }
+function fbW(label, extra) { return Math.max(FLOW.min, String(label).length * FLOW.char + 2 * FLOW.pad + (extra || 0)); }
+
+function fbTextSVG(cx, y, h, label, cls) {
+  return `<text x="${fbR(cx)}" y="${fbR(y + h / 2)}" text-anchor="middle" dominant-baseline="central"` +
+    `${cls ? ` class="${cls}"` : ''}>${fbEsc(label)}</text>`;
+}
+function fbShape(kind, cx, y, w, h, label) {
+  const l = cx - w / 2, rt = cx + w / 2;
+  if (kind === 'terminator') {
+    return `<rect x="${fbR(l)}" y="${fbR(y)}" width="${fbR(w)}" height="${fbR(h)}" rx="${fbR(h / 2)}"/>` + fbTextSVG(cx, y, h, label);
+  }
+  if (kind === 'process') {
+    return `<rect x="${fbR(l)}" y="${fbR(y)}" width="${fbR(w)}" height="${fbR(h)}" rx="3"/>` + fbTextSVG(cx, y, h, label);
+  }
+  if (kind === 'io') {
+    return `<polygon points="${fbR(l + 10)},${fbR(y)} ${fbR(rt + 10)},${fbR(y)} ${fbR(rt - 10)},${fbR(y + h)} ${fbR(l - 10)},${fbR(y + h)}"/>` +
+      fbTextSVG(cx, y, h, label);
+  }
+  return `<polygon points="${fbR(cx)},${fbR(y)} ${fbR(rt)},${fbR(y + h / 2)} ${fbR(cx)},${fbR(y + h)} ${fbR(l)},${fbR(y + h / 2)}"/>` +
+    fbTextSVG(cx, y, h, label);
+}
+const fbPts = pts => pts.map(p => fbR(p[0]) + ',' + fbR(p[1])).join(' ');
+function fbArrow(out, pts) { out.push(`<polyline points="${fbPts(pts)}" marker-end="url(#fbArrow)"/>`); }
+function fbLine(out, pts) { out.push(`<polyline points="${fbPts(pts)}"/>`); }
+function fbLabel(out, x, y, s) {
+  out.push(`<text x="${fbR(x)}" y="${fbR(y)}" class="lbl" text-anchor="middle" dominant-baseline="central">${fbEsc(s)}</text>`);
+}
+
+// Every block owns a box: `left`/`right` measure from its vertical axis, the
+// entry is at (cx, y) and the exit at (cx, y + h).
+function fbBox(kind, label) {
+  const w = fbW(label), ext = kind === 'io' ? 10 : 0;
+  return {
+    left: w / 2 + ext, right: w / 2 + ext, h: FLOW.h,
+    draw(cx, y, out) { out.push(fbShape(kind, cx, y, w, FLOW.h, label)); }
+  };
+}
+function fbSeq(list) {
+  const blocks = list.filter(Boolean);
+  if (!blocks.length) return { left:0, right:0, h:0, draw() {} };
+  return {
+    left: Math.max(...blocks.map(b => b.left)),
+    right: Math.max(...blocks.map(b => b.right)),
+    h: blocks.reduce((a, b) => a + b.h, 0) + FLOW.gap * (blocks.length - 1),
+    draw(cx, y, out) {
+      let yy = y;
+      blocks.forEach((b, i) => {
+        b.draw(cx, yy, out);
+        yy += b.h;
+        if (i < blocks.length - 1) { fbArrow(out, [[cx, yy], [cx, yy + FLOW.gap]]); yy += FLOW.gap; }
+      });
+    }
+  };
+}
+
+function fbIf(cond, thenB, elseB) {
+  const dw = fbW(cond, 44), dh = FLOW.dh;
+  if (!elseB) {
+    const lane = Math.max(dw / 2, thenB.right) + FLOW.lane;
+    return {
+      left: Math.max(dw / 2, thenB.left),
+      right: lane + 8,
+      h: dh + FLOW.gap + thenB.h + FLOW.gap,
+      draw(cx, y, out) {
+        out.push(fbShape('decision', cx, y, dw, dh, cond));
+        fbLabel(out, cx - 15, y + dh + 12, 'Yes');
+        fbArrow(out, [[cx, y + dh], [cx, y + dh + FLOW.gap]]);
+        thenB.draw(cx, y + dh + FLOW.gap, out);
+        const joinY = y + this.h;
+        fbArrow(out, [[cx, y + dh + FLOW.gap + thenB.h], [cx, joinY]]);
+        fbLabel(out, cx + dw / 2 + 16, y + dh / 2 - 10, 'No');
+        fbLine(out, [[cx + dw / 2, y + dh / 2], [cx + lane, y + dh / 2], [cx + lane, joinY], [cx, joinY]]);
+      }
+    };
+  }
+  const off = Math.max(dw / 2 + 30, thenB.right + 16, elseB.left + 16);
+  return {
+    left: off + thenB.left, right: off + elseB.right,
+    h: dh + FLOW.gap + Math.max(thenB.h, elseB.h) + FLOW.gap,
+    draw(cx, y, out) {
+      out.push(fbShape('decision', cx, y, dw, dh, cond));
+      const topY = y + dh + FLOW.gap, joinY = y + this.h;
+      fbLabel(out, cx - off + 18, y + dh / 2 - 10, 'Yes');
+      fbLine(out, [[cx - dw / 2, y + dh / 2], [cx - off, y + dh / 2]]);
+      fbArrow(out, [[cx - off, y + dh / 2], [cx - off, topY]]);
+      thenB.draw(cx - off, topY, out);
+      fbLine(out, [[cx - off, topY + thenB.h], [cx - off, joinY], [cx, joinY]]);
+
+      fbLabel(out, cx + off - 18, y + dh / 2 - 10, 'No');
+      fbLine(out, [[cx + dw / 2, y + dh / 2], [cx + off, y + dh / 2]]);
+      fbArrow(out, [[cx + off, y + dh / 2], [cx + off, topY]]);
+      elseB.draw(cx + off, topY, out);
+      fbLine(out, [[cx + off, topY + elseB.h], [cx + off, joinY], [cx, joinY]]);
+    }
+  };
+}
+
+// WHILE, and the loop half of FOR: test first, body below, return up the left lane.
+function fbWhileLoop(cond, bodyB) {
+  const dw = fbW(cond, 44), dh = FLOW.dh;
+  const back = Math.max(dw / 2, bodyB.left) + FLOW.lane;
+  const exit = Math.max(dw / 2, bodyB.right) + FLOW.lane;
+  return {
+    left: back + 8, right: exit + 8,
+    h: dh + FLOW.gap + bodyB.h + FLOW.gap,
+    draw(cx, y, out) {
+      out.push(fbShape('decision', cx, y, dw, dh, cond));
+      fbLabel(out, cx - 15, y + dh + 12, 'Yes');
+      fbArrow(out, [[cx, y + dh], [cx, y + dh + FLOW.gap]]);
+      const bodyY = y + dh + FLOW.gap;
+      bodyB.draw(cx, bodyY, out);
+      const bottom = bodyY + bodyB.h, exitY = y + this.h;
+      fbArrow(out, [[cx, bottom], [cx - back, bottom], [cx - back, y - 13], [cx, y - 13]]);
+      fbLabel(out, cx + dw / 2 + 16, y + dh / 2 - 10, 'No');
+      fbLine(out, [[cx + dw / 2, y + dh / 2], [cx + exit, y + dh / 2], [cx + exit, exitY], [cx, exitY]]);
+    }
+  };
+}
+
+// REPEAT: body first, test at the bottom, "No" returns to above the body.
+function fbRepeatLoop(cond, bodyB) {
+  const dw = fbW(cond, 44), dh = FLOW.dh;
+  const back = Math.max(dw / 2, bodyB.left) + FLOW.lane;
+  return {
+    left: back + 8, right: Math.max(dw / 2, bodyB.right) + 24,
+    h: bodyB.h + FLOW.gap + dh,
+    draw(cx, y, out) {
+      bodyB.draw(cx, y, out);
+      const dY = y + bodyB.h + FLOW.gap;
+      fbArrow(out, [[cx, y + bodyB.h], [cx, dY]]);
+      out.push(fbShape('decision', cx, dY, dw, dh, cond));
+      fbLabel(out, cx - 15, dY + dh + 12, 'Yes');
+      fbLabel(out, cx - back + 18, dY + dh / 2 - 10, 'No');
+      fbArrow(out, [[cx - dw / 2, dY + dh / 2], [cx - back, dY + dh / 2], [cx - back, y - 13], [cx, y - 13]]);
+    }
+  };
+}
+
+function fbStmt(s, text) {
+  switch (s.type) {
+    case 'DECLARE': case 'CONST': case 'NOP': return null;   // declarations are not drawn
+    case 'ASSIGN':  return fbBox('process', text(s.line));
+    case 'INPUT': case 'OUTPUT': return fbBox('io', text(s.line));
+    case 'IF': {
+      const cond = text(s.line).replace(/^IF\s+/i, '').replace(/\s+THEN$/i, '');
+      const thenB = fbSeq(s.then.map(x => fbStmt(x, text)));
+      const elseB = s.else && s.else.length ? fbSeq(s.else.map(x => fbStmt(x, text))) : null;
+      return fbIf(cond, thenB, elseB);
+    }
+    case 'WHILE': {
+      const cond = text(s.line).replace(/^WHILE\s+/i, '').replace(/\s+DO$/i, '');
+      return fbWhileLoop(cond, fbSeq(s.body.map(x => fbStmt(x, text))));
+    }
+    case 'REPEAT': {
+      const cond = text(s.untilLine).replace(/^UNTIL\s+/i, '');
+      return fbRepeatLoop(cond, fbSeq(s.body.map(x => fbStmt(x, text))));
+    }
+    case 'FOR': {
+      const m = text(s.line).match(/^FOR\s+(\S+)\s*(?:←|<-)\s*(.+?)\s+TO\s+(.+?)(?:\s+STEP\s+(.+?))?$/i);
+      const v = m ? m[1] : s.v, from = m ? m[2] : '?', to = m ? m[3] : '?';
+      const step = m && m[4] ? m[4].trim() : '1';
+      const cond = `${v} ${step.startsWith('-') ? '>=' : '<='} ${to}`;
+      const inner = fbSeq(s.body.map(x => fbStmt(x, text)).concat([
+        fbBox('process', `${v} ← ${v} ${step.startsWith('-') ? '- ' + step.slice(1) : '+ ' + step}`)
+      ]));
+      return fbSeq([fbBox('process', `${v} ← ${from}`), fbWhileLoop(cond, inner)]);
+    }
+    case 'CASE':
+      throw new CIEError('CASE OF cannot be drawn as a flowchart — rewrite it as IF … ELSE', s.line);
+    default:
+      throw new CIEError(`${s.type} cannot be drawn as a flowchart`, s.line);
+  }
+}
+
+function flowchartSVG(codeText) {
+  const src = String(codeText).split('\n');
+  const text = ln => (src[ln - 1] || '').trim();
+  const ast = parseProgram(tokenize(codeText));
+  const root = fbSeq([fbBox('terminator', 'START')]
+    .concat(ast.map(s => fbStmt(s, text)))
+    .concat([fbBox('terminator', 'STOP')]));
+
+  const out = [];
+  const cx = root.left + 22, W = root.left + root.right + 44, H = root.h + 44;
+  root.draw(cx, 22, out);
+  return `<svg class="flow" viewBox="0 0 ${fbR(W)} ${fbR(H)}" width="${fbR(W)}" height="${fbR(H)}" ` +
+    `role="img" aria-label="Flowchart of the program">` +
+    `<defs><marker id="fbArrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">` +
+    `<path d="M0,0 L8,4 L0,8 z"/></marker></defs>` + out.join('') + '</svg>';
+}
+
+// One flowchart box per line, written either as CIE pseudocode or as the
+// structured English of module C. START / STOP lines are decoration.
+function flowchartToPseudo(text) {
+  const stripped = String(text || '').split('\n')
+    .filter(l => !/^\s*(?:START|BEGIN|STOP|END)\s*$/i.test(l)).join('\n');
+  if (!stripped.trim()) throw new CIEError('The flowchart is empty', 1);
+  try {
+    parseProgram(tokenize(stripped));
+    return { code: stripped.replace(/^\n+|\n+$/g, ''), notes: [], from: 'pseudocode' };
+  } catch (e) {
+    // Clearly pseudocode already? Then report its own error rather than
+    // pretending the line was meant as English.
+    if (/←|<-|\bDECLARE\b|\bENDIF\b|\bENDWHILE\b/i.test(stripped)) throw e;
+    const r = structuredEnglishToPseudo(stripped);
+    return { code: r.code, notes: r.notes, from: 'english' };
+  }
+}
+
+/* ======================================================================
    Module B: boolean expression -> truth table + circuit diagram
    ====================================================================== */
 
@@ -1779,6 +2040,54 @@ const TESTS = [
     assertThrows(() => traceTableToPseudo({ vars:['a'], rows:[{ line:'1', values:{ a:'[1, 2, 3]' }, output:'' }] }),
       'array cells', 'array columns should be refused');
   }],
+  /* ---- Module E: flowcharts ---- */
+  ['Flowchart: a FOR loop draws a decision, a return path and both labels', () => {
+    const svg = flowchartSVG('DECLARE i : INTEGER\nDECLARE total : INTEGER\ntotal ← 0\nFOR i ← 1 TO 5\n    total ← total + i\nNEXT i\nOUTPUT total');
+    assert(/<svg class="flow"/.test(svg), 'should be an SVG');
+    assert(svg.includes('START') && svg.includes('STOP'), 'needs terminators');
+    assert((svg.match(/<polygon/g) || []).length >= 2, 'needs a decision diamond and an IO shape');
+    assert(svg.includes('>Yes<') && svg.includes('>No<'), 'both branch labels should be drawn');
+    assert(svg.includes('i ← i + 1'), 'the FOR increment should be its own box');
+    assert(svg.includes('marker-end'), 'the flow should have arrowheads');
+  }],
+  ['Flowchart: IF … ELSE draws both branches', () => {
+    const svg = flowchartSVG('DECLARE m : INTEGER\nm ← 70\nIF m >= 60 THEN\n    OUTPUT "pass"\nELSE\n    OUTPUT "fail"\nENDIF');
+    assert(svg.includes('OUTPUT &quot;pass&quot;') || svg.includes('OUTPUT "pass"'), 'the THEN branch should be drawn');
+    assert(svg.includes('OUTPUT &quot;fail&quot;') || svg.includes('OUTPUT "fail"'), 'the ELSE branch should be drawn');
+    assert(svg.includes('>Yes<') && svg.includes('>No<'), 'both branch labels should be drawn');
+  }],
+  ['Flowchart: text with < and > is escaped, not broken', () => {
+    const svg = flowchartSVG('DECLARE a : INTEGER\nDECLARE b : INTEGER\na ← 1\nb ← 2\nIF a < b THEN\n    OUTPUT a\nENDIF');
+    assert(svg.includes('a &lt; b'), 'the condition should be escaped');
+    assert(!/<text[^>]*>[^<]*<(?![/a-z!])/.test(svg), 'no raw angle bracket should leak into the markup');
+  }],
+  ['Flowchart: WHILE and REPEAT both draw a loop back', () => {
+    const w = flowchartSVG('DECLARE n : INTEGER\nn ← 3\nWHILE n > 0 DO\n    OUTPUT n\n    n ← n - 1\nENDWHILE');
+    const r = flowchartSVG('DECLARE n : INTEGER\nn ← 3\nREPEAT\n    OUTPUT n\n    n ← n - 1\nUNTIL n = 0');
+    assert((w.match(/<polyline/g) || []).length >= 4, 'a WHILE needs its return path');
+    assert((r.match(/<polyline/g) || []).length >= 4, 'a REPEAT needs its return path');
+    assert(w.includes('n &gt; 0') && r.includes('n = 0'), 'the conditions should be drawn');
+  }],
+  ['Flowchart: CASE OF is refused with a usable message', () => {
+    assertThrows(() => flowchartSVG('DECLARE g : INTEGER\ng ← 1\nCASE OF g\n1 : OUTPUT "one"\nENDCASE'),
+      'IF … ELSE', 'CASE should be refused with advice');
+  }],
+  ['Flowchart input: pseudocode and English are both accepted', () => {
+    const a = flowchartToPseudo('START\nDECLARE x : INTEGER\nx ← 1\nOUTPUT x\nSTOP');
+    assertEq(a.from, 'pseudocode', 'pseudocode should be taken as pseudocode');
+    assert(!/START|STOP/.test(a.code), 'terminators should be stripped');
+    const b = flowchartToPseudo('START\nSet total to 0\nAdd 5 to total\nOutput total\nSTOP');
+    assertEq(b.from, 'english', 'English should be converted');
+    assertEq(runProgram(b.code, '').env.output.join(','), '5', 'the converted program should run');
+  }],
+  ['Flowchart: every built-in example without CASE can be drawn', () => {
+    for (const ex of EXAMPLES) {
+      if (/CASE\s+OF/i.test(ex.code)) continue;
+      const svg = flowchartSVG(ex.code);
+      assert(svg.startsWith('<svg') && svg.endsWith('</svg>'), `"${ex.name}" should produce a complete SVG`);
+      assert(/viewBox="0 0 \d/.test(svg), `"${ex.name}" should have a sized viewBox`);
+    }
+  }],
   ['Trace table: round trip through every non-array example', () => {
     for (const ex of EXAMPLES) {
       if (/ARRAY/.test(ex.code)) continue;
@@ -1803,7 +2112,8 @@ function runSelfTest() {
 
 // Let Node require this logic too (in the browser module is undefined, so the catch runs)
 try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTable, runSelfTest, TESTS,
-  structuredEnglishToPseudo, traceTableToPseudo, checkPseudoAgainstTable }; } catch (e) {}
+  structuredEnglishToPseudo, traceTableToPseudo, checkPseudoAgainstTable,
+  flowchartSVG, flowchartToPseudo }; } catch (e) {}
 </script>
 
 <!-- =================================================================
@@ -1846,7 +2156,8 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   }
 
   /* ---------- Tab switching ---------- */
-  const TABS = [['tab-trace', 'p-trace'], ['tab-logic', 'p-logic'], ['tab-eng', 'p-eng'], ['tab-tt', 'p-tt']];
+  const TABS = [['tab-trace', 'p-trace'], ['tab-logic', 'p-logic'], ['tab-eng', 'p-eng'],
+                ['tab-tt', 'p-tt'], ['tab-flow', 'p-flow']];
   function showTab(btnId) {
     TABS.forEach(([b, p]) => {
       const on = b === btnId;
@@ -2236,6 +2547,66 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   ttRender();
   ttGenerate();
   convertEnglish();
+
+  /* ================= Tab 5: flowchart -> pseudocode + trace table ================= */
+  $('flow-in').value = [
+    'START',
+    'INPUT n',
+    'Set total to 0',
+    'While n is greater than 0 do',
+    '    Add n to total',
+    '    Decrease n by 1',
+    'End while',
+    'Output total',
+    'STOP'
+  ].join('\n');
+
+  $('flow-inputs').value = '4';
+
+  function flowStatus(msg, cls) {
+    const el = $('flow-status');
+    el.textContent = msg;
+    el.className = 'status' + (cls ? ' ' + cls : '');
+  }
+  function drawFlowchart() {
+    try {
+      const { code: out, notes, from } = flowchartToPseudo($('flow-in').value);
+      $('flow-code').textContent = out;
+      $('flow-svg').innerHTML = flowchartSVG(out);
+      let msg = from === 'english'
+        ? 'Read as structured English, then drawn and traced.'
+        : 'Read as CIE pseudocode, then drawn and traced.';
+      try {
+        const run = runProgram(out, $('flow-inputs').value);
+        $('flow-trace').innerHTML = run.steps.length
+          ? traceHTML(run.steps, false)
+          : '<div class="empty">This program has no steps to trace.</div>';
+      } catch (e) {
+        $('flow-trace').innerHTML = '<div class="empty">Not traced.</div>';
+        msg += ' The flowchart drew fine, but it could not be run: ' + e.message;
+      }
+      flowStatus(notes.length ? msg + ' ' + notes.join(' ') : msg, 'ok');
+    } catch (e) {
+      $('flow-svg').innerHTML = '<div class="empty">Nothing drawn yet.</div>';
+      $('flow-trace').innerHTML = '<div class="empty">Nothing traced yet.</div>';
+      $('flow-code').textContent = '';
+      flowStatus(/^Line /.test(e.message) || !e.line ? e.message : `Line ${e.line}: ${e.message}`, 'err');
+    }
+  }
+  $('btn-flow').addEventListener('click', drawFlowchart);
+  $('btn-flow-copy').addEventListener('click', () => {
+    const c = $('flow-code').textContent;
+    if (!c.trim()) { toast('Draw something first'); return; }
+    copyText(c, 'Copied to clipboard');
+  });
+  $('btn-flow-send').addEventListener('click', () => {
+    const c = $('flow-code').textContent.trim();
+    if (!c) { toast('Draw something first'); return; }
+    code.value = c;
+    $('inputs').value = $('flow-inputs').value;
+    showTab('tab-trace');
+  });
+  drawFlowchart();
 
   generate();   // something to look at as soon as the page opens
 })();

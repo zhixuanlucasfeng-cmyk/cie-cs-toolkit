@@ -1,10 +1,10 @@
 # CIE CS Revision Toolkit
 
-Four revision tools for Cambridge Computer Science (9618 / 9608 / 0478) candidates: a single file, pure front-end, zero dependencies, works offline.
+Five revision tools for Cambridge Computer Science (9618 / 9608 / 0478) candidates: a single file, pure front-end, zero dependencies, works offline.
 
 **Online:** https://cie-cs-toolkit.vercel.app　·　[run the self-test](https://cie-cs-toolkit.vercel.app/?selftest=1)
 
-## The four modules
+## The five modules
 
 ### 1. Pseudocode trace table simulator
 
@@ -65,9 +65,19 @@ The reverse direction: fill in a trace table by hand and get the program that wo
 - **Self-verification:** the generated pseudocode is run back through the interpreter and compared with your table — ✓ when it reproduces it, otherwise it names exactly which variable disagrees and where
 - No `IF` conditions are invented: a table containing a branch comes back as straight-line code
 
+### 5. Flowchart → pseudocode, trace table and a drawn chart
+
+Type a flowchart one box per line — each box written either as CIE pseudocode or as the structured English of module 3 — and get three things at once:
+
+- the **flowchart drawn properly in SVG**: stadium terminators, rectangles for processes, parallelograms for input/output, diamonds with `Yes` / `No` branches, loops returning up their own lane
+- the **CIE pseudocode**
+- the **full trace table** of that program running (with a box for the `INPUT` values)
+
+`START` and `STOP` lines are optional decoration, indentation says what sits inside a loop or a decision, and `FOR` loops are drawn the way the textbook does it: an initial box, a test diamond, the body, and an increment box on the way back round. `CASE OF` is refused with a note to rewrite it as `IF … ELSE`, rather than drawn wrongly.
+
 ## Built-in self-test
 
-Correctness is covered by 33 assertions (interpreter semantics, the CIE-specific errors, truth tables, operator precedence, NAND/NOR, the English sentence forms, and a round trip that turns each built-in example into a trace table and back into a program).
+Correctness is covered by 40 assertions (interpreter semantics, the CIE-specific errors, truth tables, operator precedence, NAND/NOR, the English sentence forms, flowchart drawing and escaping, and a round trip that turns each built-in example into a trace table and back into a program).
 
 Add `?selftest=1` to the URL to run them:
 
