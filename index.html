@@ -2329,6 +2329,413 @@ function questionsFor(qualification) {
 }
 
 /* ======================================================================
+   Module H: syllabus registry
+
+   Cambridge revises these syllabuses, and the revisions differ in what
+   they ask for — notably 0478, which drops pseudocode for Python from
+   2029. So a qualification is always stored with its version and the
+   years that version is examined, never as one timeless "CIE syllabus".
+
+   Topic names and objectives here are this project's own summaries of
+   publicly listed content. No syllabus or past-paper text is reproduced.
+   ====================================================================== */
+
+const SYLLABUSES = [
+  {
+    id:'0478-2026-2028',
+    qualification:'0478',
+    title:'Cambridge IGCSE Computer Science',
+    code:'0478',
+    versionLabel:'2026–2028 syllabus',
+    examYears:[2026, 2027, 2028],
+    levels:['IGCSE'],
+    current:true,
+    pseudocodeAssessed:true,
+    note:'',
+    papers:['Paper 1 — Computer systems', 'Paper 2 — Algorithms, programming and logic'],
+    topics:[
+      { code:'0478.7', name:'Algorithm design and problem-solving', paper:'Paper 2',
+        objectives:['Break a problem down into inputs, processes and outputs',
+                    'Read and complete a trace table for a given algorithm',
+                    'Find and correct errors in an algorithm'],
+        exerciseTypes:['trace', 'output', 'flowchart', 'english'] },
+      { code:'0478.8', name:'Programming concepts', paper:'Paper 2',
+        objectives:['Declare and use variables and constants of the basic data types',
+                    'Use sequence, selection and iteration',
+                    'Use totalling, counting and a sentinel value',
+                    'Store and process values in a one-dimensional array'],
+        exerciseTypes:['code', 'trace', 'output'] },
+      { code:'0478.9', name:'Databases', paper:'Paper 2',
+        objectives:['Describe a single-table database and its field types'],
+        exerciseTypes:[] },
+      { code:'0478.10', name:'Boolean logic', paper:'Paper 2',
+        objectives:['Use the logic gates NOT, AND, OR, NAND, NOR and XOR',
+                    'Build and read a logic circuit',
+                    'Complete a truth table, including the intermediate steps'],
+        exerciseTypes:['truth', 'logic'] }
+    ]
+  },
+  {
+    id:'9618-2026',
+    qualification:'9618',
+    title:'Cambridge International AS & A Level Computer Science',
+    code:'9618',
+    versionLabel:'2026 syllabus',
+    examYears:[2026],
+    levels:['AS', 'A Level'],
+    current:true,
+    pseudocodeAssessed:true,
+    note:'',
+    papers:['Paper 1 — Theory fundamentals', 'Paper 2 — Fundamental problem-solving and programming skills',
+            'Paper 3 — Advanced theory', 'Paper 4 — Practical'],
+    topics:[
+      { code:'9618.11', name:'Algorithm design and problem-solving', paper:'Paper 2',
+        objectives:['Write and refine an algorithm in pseudocode or as a flowchart',
+                    'Use a trace table to work out what an algorithm does',
+                    'Write structured English for a given algorithm'],
+        exerciseTypes:['trace', 'output', 'flowchart', 'english', 'code'] },
+      { code:'9618.12', name:'Data types and structures', paper:'Paper 2',
+        objectives:['Choose a data type for a given purpose',
+                    'Use one- and two-dimensional arrays',
+                    'Use records and files'],
+        exerciseTypes:['code', 'trace'] },
+      { code:'9618.13', name:'Programming', paper:'Paper 2',
+        objectives:['Use selection, iteration and nested structures',
+                    'Write and call a procedure or function, with parameters',
+                    'Distinguish passing by value from passing by reference'],
+        exerciseTypes:['code', 'trace'] },
+      { code:'9618.14', name:'Software development', paper:'Paper 2',
+        objectives:['Identify a syntax, logic or run-time error',
+                    'Choose test data, including normal, boundary and erroneous values'],
+        exerciseTypes:['code'] },
+      { code:'9618.3', name:'Boolean algebra and logic circuits', paper:'Paper 3',
+        objectives:['Simplify a Boolean expression',
+                    'Produce a truth table and the matching logic circuit'],
+        exerciseTypes:['truth', 'logic'] }
+    ]
+  },
+  {
+    id:'9618-2027-2029',
+    qualification:'9618',
+    title:'Cambridge International AS & A Level Computer Science',
+    code:'9618',
+    versionLabel:'2027–2029 syllabus',
+    examYears:[2027, 2028, 2029],
+    levels:['AS', 'A Level'],
+    current:true,
+    pseudocodeAssessed:true,
+    note:'This version has its own pseudocode guide. Check the wording of the guide issued for your exam year.',
+    papers:['Paper 1 — Theory fundamentals', 'Paper 2 — Fundamental problem-solving and programming skills',
+            'Paper 3 — Advanced theory', 'Paper 4 — Practical'],
+    topics:[
+      { code:'9618.11', name:'Algorithm design and problem-solving', paper:'Paper 2',
+        objectives:['Write and refine an algorithm in pseudocode or as a flowchart',
+                    'Use a trace table to work out what an algorithm does',
+                    'Write structured English for a given algorithm'],
+        exerciseTypes:['trace', 'output', 'flowchart', 'english', 'code'] },
+      { code:'9618.12', name:'Data types and structures', paper:'Paper 2',
+        objectives:['Choose a data type for a given purpose',
+                    'Use one- and two-dimensional arrays',
+                    'Use records and files'],
+        exerciseTypes:['code', 'trace'] },
+      { code:'9618.13', name:'Programming', paper:'Paper 2',
+        objectives:['Use selection, iteration and nested structures',
+                    'Write and call a procedure or function, with parameters',
+                    'Distinguish passing by value from passing by reference'],
+        exerciseTypes:['code', 'trace'] },
+      { code:'9618.14', name:'Software development', paper:'Paper 2',
+        objectives:['Identify a syntax, logic or run-time error',
+                    'Choose test data, including normal, boundary and erroneous values'],
+        exerciseTypes:['code'] },
+      { code:'9618.3', name:'Boolean algebra and logic circuits', paper:'Paper 3',
+        objectives:['Simplify a Boolean expression',
+                    'Produce a truth table and the matching logic circuit'],
+        exerciseTypes:['truth', 'logic'] }
+    ]
+  },
+  {
+    id:'0478-2029',
+    qualification:'0478',
+    title:'Cambridge IGCSE Computer Science',
+    code:'0478',
+    versionLabel:'2029 syllabus',
+    examYears:[2029],
+    levels:['IGCSE'],
+    current:true,
+    pseudocodeAssessed:false,
+    note:'From 2029 this syllabus assesses Python 3 rather than pseudocode. The pseudocode tools here are still useful for reasoning about algorithms, but they are not what your paper will ask for.',
+    papers:['Paper 1 — Computer systems', 'Paper 2 — Algorithms, programming and logic'],
+    topics:[
+      { code:'0478.7', name:'Algorithm design and problem-solving', paper:'Paper 2',
+        objectives:['Break a problem down into inputs, processes and outputs',
+                    'Read and complete a trace table for a given algorithm'],
+        exerciseTypes:['trace', 'output', 'flowchart'] },
+      { code:'0478.10', name:'Boolean logic', paper:'Paper 2',
+        objectives:['Use the logic gates NOT, AND, OR, NAND, NOR and XOR',
+                    'Complete a truth table, including the intermediate steps'],
+        exerciseTypes:['truth', 'logic'] }
+    ]
+  },
+  {
+    id:'9608-legacy',
+    qualification:'9608',
+    title:'Cambridge International AS & A Level Computer Science (withdrawn)',
+    code:'9608',
+    versionLabel:'legacy syllabus',
+    examYears:[],
+    levels:['AS', 'A Level'],
+    current:false,
+    pseudocodeAssessed:true,
+    note:'9608 has been replaced by 9618. It is kept here only so that older notes and past materials still make sense. Do not choose it if you are sitting an exam.',
+    papers:[],
+    topics:[]
+  }
+];
+
+const CURRENT_SYLLABUSES = SYLLABUSES.filter(s => s.current);
+const syllabusById = id => SYLLABUSES.find(s => s.id === id) || null;
+function syllabusesFor(qualification) {
+  return SYLLABUSES.filter(s => s.qualification === qualification && s.current);
+}
+function syllabusForYear(qualification, year) {
+  return SYLLABUSES.find(s => s.qualification === qualification && s.current && s.examYears.includes(Number(year))) || null;
+}
+function topicsOf(syllabusId) {
+  const s = syllabusById(syllabusId);
+  return s ? s.topics : [];
+}
+// Questions carry a topicId; a topic's question count comes from the bank so
+// the two can never disagree.
+function questionsForTopic(topicCode) {
+  return QUESTION_BANK.filter(q => q.topicId === topicCode);
+}
+function questionsForSyllabus(syllabusId) {
+  const s = syllabusById(syllabusId);
+  if (!s) return [];
+  const codes = new Set(s.topics.map(t => t.code));
+  return QUESTION_BANK.filter(q => codes.has(q.topicId));
+}
+
+/* ======================================================================
+   Module I: learning data
+
+   One storage interface, so the backing store can change later without
+   touching the UI. Everything is versioned and exportable, and a quota
+   failure is surfaced rather than swallowed.
+   ====================================================================== */
+
+const STORE_VERSION = 2;
+const STORE_KEY = 'dryrun.store.v2';
+const LEGACY_SCORE_KEY = 'cie-practice-score';
+
+const EVIDENCE = { UNSCOUTED:'UNSCOUTED', DEVELOPING:'DEVELOPING', SECURE:'SECURE', REVIEW_DUE:'REVIEW DUE' };
+
+function emptyStore() {
+  return {
+    version: STORE_VERSION,
+    profile: null,                 // set at onboarding; null means "not chosen yet"
+    attempts: [],
+    topics: {},                    // topicCode -> { attempts, correct, distinctCorrect:[], lastPractised }
+    reviews: {},                   // questionId -> { reason, box, dueAt, history:[] }
+    createdAt: null
+  };
+}
+
+// Migrations run oldest-first; each one returns the next shape.
+const MIGRATIONS = {
+  // v1 was the practice tally { asked, right } under its own key.
+  1: store => {
+    const next = Object.assign(emptyStore(), { createdAt: store.createdAt || Date.now() });
+    next.legacyScore = store.legacyScore || null;
+    return next;
+  }
+};
+
+function migrateStore(raw) {
+  let store = raw;
+  while (store.version < STORE_VERSION) {
+    const step = MIGRATIONS[store.version];
+    if (!step) return emptyStore();
+    store = step(store);
+    store.version = STORE_VERSION;
+  }
+  return store;
+}
+
+// The storage interface. `backend` is anything with getItem/setItem/removeItem,
+// so tests pass a plain object and the browser passes localStorage.
+function createStore(backend) {
+  let cache = null;
+  let lastError = null;
+
+  function read() {
+    if (cache) return cache;
+    let raw = null;
+    try { raw = backend.getItem(STORE_KEY); }
+    catch (e) { lastError = 'Could not read saved progress: ' + e.message; }
+    if (!raw) {
+      cache = emptyStore();
+      cache.createdAt = Date.now();
+      // Carry across the old practice tally so nobody loses their count.
+      try {
+        const old = backend.getItem(LEGACY_SCORE_KEY);
+        if (old) cache.legacyScore = JSON.parse(old);
+      } catch (e) {}
+      return cache;
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      cache = parsed.version === STORE_VERSION ? parsed : migrateStore(parsed);
+    } catch (e) {
+      // Never silently erase: keep the unreadable copy aside.
+      try { backend.setItem(STORE_KEY + '.corrupt.' + Date.now(), raw); } catch (e2) {}
+      lastError = 'Saved progress could not be read, so a fresh record was started. The old copy was kept.';
+      cache = emptyStore();
+      cache.createdAt = Date.now();
+    }
+    return cache;
+  }
+
+  function write() {
+    try { backend.setItem(STORE_KEY, JSON.stringify(cache)); lastError = null; return true; }
+    catch (e) {
+      lastError = /quota/i.test(e.name + e.message)
+        ? 'Your browser storage is full, so this attempt was not saved. Export your progress, then clear some space.'
+        : 'This attempt could not be saved: ' + e.message;
+      return false;
+    }
+  }
+
+  return {
+    get error() { return lastError; },
+    clearError() { lastError = null; },
+    all: () => read(),
+    getProfile: () => read().profile,
+    setProfile(profile) {
+      const s = read();
+      s.profile = Object.assign({}, s.profile, profile, { updatedAt: Date.now() });
+      write();
+      return s.profile;
+    },
+    recordAttempt(attempt) {
+      const s = read();
+      const entry = Object.assign({ timestamp: Date.now() }, attempt);
+      s.attempts.push(entry);
+      if (s.attempts.length > 500) s.attempts = s.attempts.slice(-500);
+
+      const code = attempt.topicId || 'unknown';
+      const t = s.topics[code] || { attempts:0, correct:0, distinctCorrect:[], lastPractised:null };
+      t.attempts++;
+      if (attempt.correct) {
+        t.correct++;
+        if (attempt.questionId && !t.distinctCorrect.includes(attempt.questionId)) {
+          t.distinctCorrect.push(attempt.questionId);
+        }
+      }
+      t.lastPractised = entry.timestamp;
+      t.lastCorrect = !!attempt.correct;
+      s.topics[code] = t;
+
+      scheduleReview(s, entry);
+      write();
+      return entry;
+    },
+    topicProgress: code => topicProgressOf(read(), code),
+    allTopicProgress: () => {
+      const s = read();
+      const out = {};
+      for (const code of Object.keys(s.topics)) out[code] = topicProgressOf(s, code);
+      return out;
+    },
+    dueReviews(now) {
+      const s = read();
+      const t = now || Date.now();
+      return Object.keys(s.reviews)
+        .filter(id => s.reviews[id].dueAt <= t)
+        .map(id => Object.assign({ questionId:id }, s.reviews[id]))
+        .sort((a, b) => a.dueAt - b.dueAt);
+    },
+    attempts: () => read().attempts.slice(),
+    exportJSON: () => JSON.stringify(read(), null, 2),
+    exportCSV() {
+      const s = read();
+      const head = 'timestamp,questionId,topicId,kind,correct,marksAwarded,marksAvailable,durationMs,misconceptions';
+      const rows = s.attempts.map(a => [
+        new Date(a.timestamp).toISOString(), a.questionId || '', a.topicId || '', a.kind || '',
+        a.correct ? 1 : 0, a.marksAwarded == null ? '' : a.marksAwarded,
+        a.marksAvailable == null ? '' : a.marksAvailable, a.durationMs == null ? '' : a.durationMs,
+        '"' + (a.misconceptions || []).join(' ') + '"'
+      ].join(','));
+      return [head].concat(rows).join('\n');
+    },
+    reset() { cache = emptyStore(); cache.createdAt = Date.now(); write(); }
+  };
+}
+
+// Leitner-style spacing, in days. A wrong answer goes back to box 0.
+const REVIEW_DAYS = [1, 3, 7, 16, 35];
+const DAY_MS = 86400000;
+
+function scheduleReview(store, attempt) {
+  if (!attempt.questionId) return;
+  const existing = store.reviews[attempt.questionId];
+  if (attempt.correct) {
+    if (!existing) return;                       // never wrong, so nothing to review
+    const box = Math.min(existing.box + 1, REVIEW_DAYS.length - 1);
+    existing.history.push({ at: attempt.timestamp, correct:true });
+    if (box >= REVIEW_DAYS.length - 1 && existing.box >= REVIEW_DAYS.length - 1) {
+      delete store.reviews[attempt.questionId];  // retired: right at the longest interval
+      return;
+    }
+    existing.box = box;
+    existing.dueAt = attempt.timestamp + REVIEW_DAYS[box] * DAY_MS;
+    return;
+  }
+  const reason = (attempt.misconceptions && attempt.misconceptions[0]) || attempt.status || 'incorrect';
+  if (existing) {
+    existing.box = 0;
+    existing.reason = reason;
+    existing.dueAt = attempt.timestamp + REVIEW_DAYS[0] * DAY_MS;
+    existing.history.push({ at: attempt.timestamp, correct:false });
+  } else {
+    store.reviews[attempt.questionId] = {
+      reason, box:0, dueAt: attempt.timestamp + REVIEW_DAYS[0] * DAY_MS,
+      topicId: attempt.topicId || null,
+      history:[{ at: attempt.timestamp, correct:false }]
+    };
+  }
+}
+
+/*
+  Evidence, not a percentage. With too little evidence the answer is
+  UNSCOUTED — never 0%, which would read as "you got everything wrong".
+    UNSCOUTED   fewer than 2 attempts
+    REVIEW DUE  something failed here is due for another go
+    SECURE      3+ attempts, 2+ different questions right, and the last one right
+    DEVELOPING  everything else
+*/
+function topicProgressOf(store, code, now) {
+  const t = store.topics[code];
+  const base = { topicId: code, attempts:0, correct:0, distinctCorrect:0, lastPractised:null,
+                 evidence: EVIDENCE.UNSCOUTED, dueCount:0 };
+  const at = now || Date.now();
+  const due = Object.keys(store.reviews).filter(id => {
+    const r = store.reviews[id];
+    return r.topicId === code && r.dueAt <= at;
+  }).length;
+  if (!t) return Object.assign(base, { dueCount: due, evidence: due ? EVIDENCE.REVIEW_DUE : EVIDENCE.UNSCOUTED });
+
+  const p = { topicId: code, attempts: t.attempts, correct: t.correct,
+              distinctCorrect: t.distinctCorrect.length, lastPractised: t.lastPractised,
+              dueCount: due, evidence: EVIDENCE.UNSCOUTED };
+  if (due > 0) p.evidence = EVIDENCE.REVIEW_DUE;
+  else if (t.attempts < 2) p.evidence = EVIDENCE.UNSCOUTED;
+  else if (t.attempts >= 3 && t.distinctCorrect.length >= 2 && t.lastCorrect) p.evidence = EVIDENCE.SECURE;
+  else p.evidence = EVIDENCE.DEVELOPING;
+  return p;
+}
+
+/* ======================================================================
    Module B: boolean expression -> truth table + circuit diagram
    ====================================================================== */
 
@@ -2583,6 +2990,16 @@ FOR i ← 1 TO 3
     NEXT j
 NEXT i` },
 ];
+
+function memoryBackend() {
+  const data = {};
+  return {
+    data,
+    getItem: k => (k in data ? data[k] : null),
+    setItem: (k, v) => { data[k] = String(v); },
+    removeItem: k => { delete data[k]; }
+  };
+}
 
 function assert(cond, msg) { if (!cond) throw new Error(msg); }
 function assertEq(got, want, msg) {
@@ -2997,6 +3414,106 @@ const TESTS = [
     assertThrows(() => runProgram('DECLARE i : INTEGER\nFOR i ← 1 TO 2000\n    OUTPUT i\nNEXT i', ''),
       'too much output', 'a program that prints forever should be stopped');
   }],
+  /* ---- Modules H and I: syllabus registry and learning data ---- */
+  ['Syllabus: 9608 is present but never offered as current', () => {
+    const legacy = syllabusById('9608-legacy');
+    assert(legacy, '9608 should still be listed so old notes make sense');
+    assertEq(legacy.current, false, '9608 must not be current');
+    assert(!CURRENT_SYLLABUSES.some(s => s.qualification === '9608'), '9608 must not appear among the current choices');
+    assert(CURRENT_SYLLABUSES.length >= 3, 'there should be several current syllabus versions');
+  }],
+  ['Syllabus: a qualification plus an exam year picks one version', () => {
+    assertEq(syllabusForYear('0478', 2027).id, '0478-2026-2028', '2027 is in the 2026–2028 version');
+    assertEq(syllabusForYear('9618', 2026).id, '9618-2026', '9618 has its own 2026 version');
+    assertEq(syllabusForYear('9618', 2028).id, '9618-2027-2029', '2028 is in the 2027–2029 version');
+    assertEq(syllabusForYear('0478', 2035), null, 'a year with no version returns nothing, not a guess');
+  }],
+  ['Syllabus: the 2029 IGCSE version is flagged as not pseudocode-assessed', () => {
+    const s = syllabusForYear('0478', 2029);
+    assertEq(s.pseudocodeAssessed, false, '0478 from 2029 assesses Python, not pseudocode');
+    assert(/Python/.test(s.note), 'the difference should be stated to the student');
+    const earlier = syllabusForYear('0478', 2026);
+    assertEq(earlier.pseudocodeAssessed, true, 'the 2026–2028 version still assesses pseudocode');
+  }],
+  ['Syllabus: every bank question belongs to a real topic', () => {
+    const codes = new Set();
+    for (const s of CURRENT_SYLLABUSES) for (const t of s.topics) codes.add(t.code);
+    for (const q of QUESTION_BANK) {
+      assert(codes.has(q.topicId), `question "${q.id}" points at unknown topic ${q.topicId}`);
+    }
+    assert(questionsForSyllabus('0478-2026-2028').length > 0, '0478 should have questions');
+    assert(questionsForSyllabus('9618-2026').length > 0, '9618 should have questions');
+  }],
+  ['Store: a profile survives a reload', () => {
+    const mem = memoryBackend();
+    const a = createStore(mem);
+    a.setProfile({ qualification:'9618', syllabusId:'9618-2027-2029', examYear:2028, level:'A Level' });
+    const b = createStore(mem);
+    assertEq(b.getProfile().examYear, 2028, 'the exam year should be remembered');
+    assertEq(b.getProfile().syllabusId, '9618-2027-2029', 'the syllabus version should be remembered');
+  }],
+  ['Store: evidence is UNSCOUTED with no attempts, never 0%', () => {
+    const s = createStore(memoryBackend());
+    assertEq(s.topicProgress('0478.8').evidence, 'UNSCOUTED', 'no attempts means unscouted');
+    assertEq(s.topicProgress('0478.8').attempts, 0, 'and no attempts recorded');
+  }],
+  ['Store: evidence moves DEVELOPING then SECURE on real attempts', () => {
+    const s = createStore(memoryBackend());
+    s.recordAttempt({ questionId:'q-a', topicId:'0478.8', correct:false, marksAwarded:1, marksAvailable:5 });
+    s.recordAttempt({ questionId:'q-a', topicId:'0478.8', correct:true,  marksAwarded:5, marksAvailable:5 });
+    assertEq(s.topicProgress('0478.8').evidence, 'DEVELOPING', 'two attempts, one question: developing');
+    s.recordAttempt({ questionId:'q-b', topicId:'0478.8', correct:true, marksAwarded:5, marksAvailable:5 });
+    assertEq(s.topicProgress('0478.8').evidence, 'SECURE', 'three attempts across two questions, last correct: secure');
+    s.recordAttempt({ questionId:'q-c', topicId:'0478.8', correct:false, marksAwarded:0, marksAvailable:5 });
+    assertEq(s.topicProgress('0478.8').evidence, 'DEVELOPING', 'a fresh failure drops it back to developing');
+    assertEq(topicProgressOf(s.all(), '0478.8', Date.now() + 2 * 86400000).evidence, 'REVIEW DUE',
+      'and once the spaced review comes round, the topic is flagged');
+  }],
+  ['Store: a failed attempt schedules its own review, no retyping', () => {
+    const s = createStore(memoryBackend());
+    s.recordAttempt({ questionId:'q-larger-of-two', topicId:'0478.8', correct:false,
+                      status:'incorrect-logic', misconceptions:['edge-case'] });
+    const due = s.dueReviews(Date.now() + 2 * 86400000);
+    assertEq(due.length, 1, 'the failure should come back for review');
+    assertEq(due[0].questionId, 'q-larger-of-two', 'the right question comes back');
+    assertEq(due[0].reason, 'edge-case', 'the reason is kept');
+    assertEq(s.dueReviews(Date.now()).length, 0, 'but not immediately — it is spaced');
+  }],
+  ['Store: getting it right pushes the review further away', () => {
+    const s = createStore(memoryBackend());
+    const t0 = Date.now();
+    s.recordAttempt({ questionId:'q-x', topicId:'0478.8', correct:false });
+    const first = s.dueReviews(t0 + 10 * 86400000)[0].dueAt;
+    s.recordAttempt({ questionId:'q-x', topicId:'0478.8', correct:true });
+    const second = s.dueReviews(t0 + 60 * 86400000)[0].dueAt;
+    assert(second > first, 'a correct answer should space the next review further out');
+  }],
+  ['Store: a full quota is reported, not swallowed', () => {
+    const full = { getItem:() => null, setItem:() => { const e = new Error('QuotaExceededError'); e.name = 'QuotaExceededError'; throw e; }, removeItem:() => {} };
+    const s = createStore(full);
+    s.recordAttempt({ questionId:'q-a', topicId:'0478.8', correct:true });
+    assert(/storage is full/i.test(s.error || ''), 'a quota failure must surface a message');
+  }],
+  ['Store: unreadable data is kept aside, not erased', () => {
+    const mem = memoryBackend();
+    mem.setItem('dryrun.store.v2', '{not json at all');
+    const s = createStore(mem);
+    assertEq(s.getProfile(), null, 'a fresh record is started');
+    assert(/kept/i.test(s.error || ''), 'the student should be told the old copy was kept');
+    assert(Object.keys(mem.data).some(k => /corrupt/.test(k)), 'the unreadable copy should still be there');
+  }],
+  ['Store: progress exports as JSON and CSV', () => {
+    const s = createStore(memoryBackend());
+    s.setProfile({ qualification:'0478', examYear:2027 });
+    s.recordAttempt({ questionId:'q-a', topicId:'0478.8', kind:'code', correct:true,
+                      marksAwarded:5, marksAvailable:5, durationMs:42000, misconceptions:[] });
+    const json = JSON.parse(s.exportJSON());
+    assertEq(json.attempts.length, 1, 'the attempt should be in the JSON export');
+    assertEq(json.version, 2, 'the export should carry its version');
+    const csv = s.exportCSV().split('\n');
+    assertEq(csv.length, 2, 'a header and one row');
+    assert(/q-a,0478\.8,code,1,5,5,42000/.test(csv[1]), 'the CSV row should hold the attempt, got: ' + csv[1]);
+  }],
   ['Trace table: round trip through every non-array example', () => {
     for (const ex of EXAMPLES) {
       if (/ARRAY/.test(ex.code)) continue;
@@ -3025,7 +3542,10 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   flowchartSVG, flowchartToPseudo,
   makeQuestion, markTrace, markOutput, markTruth, markPseudocode, PQ_KINDS,
   QUESTION_BANK, questionById, questionsFor, gradeSubmission, questionCases,
-  detectConstructs, runCase, GRADE_STATUS }; } catch (e) {}
+  detectConstructs, runCase, GRADE_STATUS,
+  SYLLABUSES, CURRENT_SYLLABUSES, syllabusById, syllabusesFor, syllabusForYear,
+  topicsOf, questionsForTopic, questionsForSyllabus,
+  createStore, EVIDENCE, STORE_VERSION, memoryBackend, topicProgressOf }; } catch (e) {}
 </script>
 
 <!-- =================================================================
