@@ -950,6 +950,56 @@ Comments: start the line with //
       </div>
     </section>
 
+    <!-- ================= Evidence ================= -->
+    <section class="view" id="view-evidence" aria-labelledby="ev-h">
+      <div class="page-head">
+        <h1 id="ev-h">Evidence</h1>
+        <p>Does this actually help anyone learn? This page only ever shows what has really been recorded on this device. Where there is no data, it says so rather than filling the space.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Learning gain</h2></div>
+        <div class="panel-body" id="ev-gain"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Retention</h2></div>
+        <div class="panel-body" id="ev-retention"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Tell us what you think</h2></div>
+        <div class="panel-body">
+          <p>Stored on this device and included in the export. Nothing is uploaded from here.</p>
+          <div class="field">
+            <label class="field-label" for="fb-role">You are a</label>
+            <select id="fb-role" class="control">
+              <option value="student">Student</option>
+              <option value="teacher">Teacher</option>
+              <option value="other">Someone else</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label" for="fb-rating">How useful was it? (1 = not at all, 5 = very)</label>
+            <select id="fb-rating" class="control">
+              <option>1</option><option>2</option><option selected>3</option><option>4</option><option>5</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field-label" for="fb-text">What worked, and what did not?</label>
+            <textarea id="fb-text" class="control" rows="4"></textarea>
+          </div>
+          <div class="btn-row">
+            <button class="btn primary" id="btn-fb-save">Save feedback</button>
+            <button class="btn" id="btn-ev-export">Export anonymised data</button>
+          </div>
+          <p class="status" id="ev-status" role="status" aria-live="polite"></p>
+          <div id="ev-feedback-list" style="margin-top:16px"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>How a study would be run</h2></div>
+        <div class="panel-body" id="ev-method"></div>
+      </div>
+    </section>
+
     <!-- ================= Settings ================= -->
     <section class="view" id="view-settings" aria-labelledby="set-h">
       <div class="page-head">
@@ -3594,6 +3644,8 @@ function emptyStore() {
     attempts: [],
     topics: {},                    // topicCode -> { attempts, correct, distinctCorrect:[], lastPractised }
     reviews: {},                   // questionId -> { reason, box, dueAt, history:[] }
+    diagnostics: [],               // { at, correct, total, kind: 'baseline' | 'repeat' }
+    feedback: [],                  // { at, role, rating, text } — kept locally, never sent
     createdAt: null
   };
 }
@@ -3713,6 +3765,42 @@ function createStore(backend) {
         .sort((a, b) => a.dueAt - b.dueAt);
     },
     attempts: () => read().attempts.slice(),
+    diagnostics: () => (read().diagnostics || []).slice(),
+    recordDiagnostic(d) {
+      const st = read();
+      if (!st.diagnostics) st.diagnostics = [];
+      st.diagnostics.push(Object.assign({ at: Date.now() }, d));
+      write();
+      return st.diagnostics[st.diagnostics.length - 1];
+    },
+    feedback: () => (read().feedback || []).slice(),
+    recordFeedback(f) {
+      const st = read();
+      if (!st.feedback) st.feedback = [];
+      st.feedback.push(Object.assign({ at: Date.now() }, f));
+      write();
+    },
+    // Everything an outside reader needs, with nothing that identifies anyone.
+    exportAnonymised() {
+      const st = read();
+      return JSON.stringify({
+        schema:'dryrun-anonymised', version: st.version,
+        qualification: st.profile ? st.profile.qualification : null,
+        examYear: st.profile ? st.profile.examYear : null,
+        firstUsed: st.createdAt,
+        diagnostics: st.diagnostics || [],
+        attempts: st.attempts.map(a => ({
+          t: a.timestamp - (st.createdAt || 0), q: a.questionId, topic: a.topicId,
+          kind: a.kind, correct: !!a.correct, marks: a.marksAwarded, outOf: a.marksAvailable,
+          ms: a.durationMs, tags: a.misconceptions || []
+        })),
+        reviewHistory: Object.keys(st.reviews).map(id => ({
+          q:id, reason:st.reviews[id].reason, box:st.reviews[id].box,
+          history:(st.reviews[id].history || []).map(h => ({ dt:h.at - (st.createdAt || 0), correct:h.correct }))
+        })),
+        feedback: (st.feedback || []).map(f => ({ role:f.role, rating:f.rating, text:f.text }))
+      }, null, 2);
+    },
     exportJSON: () => JSON.stringify(read(), null, 2),
     exportCSV() {
       const s = read();
@@ -4817,6 +4905,46 @@ const TESTS = [
     for (let i = 0; i < MAX_FILE_LINES; i++) env.writeFile('f.txt', 'x', 1);
     assertThrows(() => env.writeFile('f.txt', 'x', 1), 'at most', 'the file line limit should hold');
   }],
+  /* ---- Evidence: nothing is invented ---- */
+  ['Evidence: a learning gain needs two diagnostics, not one', () => {
+    const s = createStore(memoryBackend());
+    assertEq(s.diagnostics().length, 0, 'no diagnostics to begin with');
+    s.recordDiagnostic({ correct:3, total:8, kind:'baseline' });
+    assertEq(s.diagnostics().length, 1, 'the baseline is recorded');
+    assertEq(s.diagnostics()[0].kind, 'baseline', 'the first one is the baseline');
+    s.recordDiagnostic({ correct:6, total:8, kind:'repeat' });
+    const d = s.diagnostics();
+    assertEq(d.length, 2, 'a repeat is recorded separately');
+    assert(d[1].at >= d[0].at, 'diagnostics are kept in order');
+  }],
+  ['Evidence: the anonymised export carries no identifying fields', () => {
+    const s = createStore(memoryBackend());
+    s.setProfile({ qualification:'9618', syllabusId:'9618-2026', examYear:2026, level:'AS', confidence:'Just starting' });
+    s.recordAttempt({ questionId:'q-larger-of-two', topicId:'0478.8', kind:'code', correct:false,
+                      marksAwarded:2, marksAvailable:5, durationMs:31000, misconceptions:['edge-case'] });
+    s.recordFeedback({ role:'student', rating:4, text:'the hidden tests were the useful bit' });
+    const out = JSON.parse(s.exportAnonymised());
+    assertEq(out.schema, 'dryrun-anonymised', 'the export should say what it is');
+    assertEq(out.qualification, '9618', 'the course is kept, since it is not identifying');
+    assertEq(out.attempts.length, 1, 'attempts are exported');
+    assert(typeof out.attempts[0].t === 'number', 'times are relative to first use, not wall clock');
+    assertEq(out.attempts[0].q, 'q-larger-of-two', 'the question is kept');
+    const text = JSON.stringify(out);
+    assert(!/updatedAt|confidence|timestamp/.test(text), 'profile timestamps should not be exported');
+    assertEq(out.feedback[0].rating, 4, 'feedback comes across');
+  }],
+  ['Evidence: retention is computed from real review history only', () => {
+    const s = createStore(memoryBackend());
+    // wrong once, then right when it came back
+    s.recordAttempt({ questionId:'q-a', topicId:'0478.8', correct:false });
+    s.recordAttempt({ questionId:'q-a', topicId:'0478.8', correct:true });
+    const reviews = s.all().reviews;
+    assertEq(Object.keys(reviews).length, 1, 'one question is being tracked');
+    const h = reviews['q-a'].history;
+    assertEq(h.length, 2, 'both outcomes are kept');
+    assertEq(h[0].correct, false, 'the first was wrong');
+    assertEq(h[1].correct, true, 'the second was right');
+  }],
   ['Trace table: round trip through every non-array example', () => {
     for (const ex of EXAMPLES) {
       if (/ARRAY/.test(ex.code)) continue;
@@ -4933,7 +5061,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   const VIEWS = {
     onboarding:'view-onboarding', dashboard:'view-dashboard', practice:'view-practice',
     'lab-pseudocode':'view-lab-pseudocode', 'lab-logic':'view-lab-logic',
-    progress:'view-progress', settings:'view-settings', about:'view-about'
+    progress:'view-progress', evidence:'view-evidence', settings:'view-settings', about:'view-about'
   };
   const NAV = [
     { id:'dashboard',       label:'Dashboard' },
@@ -4941,6 +5069,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     { id:'lab-pseudocode',  label:'Pseudocode Lab' },
     { id:'lab-logic',       label:'Logic Lab' },
     { id:'progress',        label:'Progress' },
+    { id:'evidence',        label:'Evidence' },
     { id:'settings',        label:'Settings' },
     { id:'about',           label:'About' }
   ];
@@ -4956,6 +5085,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     closeDrawer();
     if (view === 'dashboard') renderDashboard();
     if (view === 'progress') renderProgress();
+    if (view === 'evidence') renderEvidence();
     if (view === 'settings') renderSettings();
     if (view === 'about') renderAbout();
     if (view === 'practice' && (!session || (opts && opts.fresh))) startSession(opts || {});
@@ -5235,7 +5365,9 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   function startSession(opts) {
     const items = buildSession(opts || {});
     if (!items.length) { toast('No questions for that topic yet'); go('dashboard'); return; }
-    session = { items, index:0, startedAt:Date.now(), label: opts.review ? 'Review session' : (opts.topicId ? 'Topic practice' : 'Mixed practice'), topicId: opts.topicId || null };
+    session = { items, index:0, startedAt:Date.now(),
+                label: opts.diagnostic ? 'Diagnostic' : opts.review ? 'Review session' : (opts.topicId ? 'Topic practice' : 'Mixed practice'),
+                topicId: opts.topicId || null, diagnostic: !!opts.diagnostic };
     lastSession = { label:session.label + ' · ' + items.length + ' questions', topicId:session.topicId };
     loadItem();
   }
@@ -5532,6 +5664,13 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     if (session.index >= session.items.length - 1) {
       const done = store.attempts().filter(a => a.timestamp >= session.startedAt);
       const right = done.filter(a => a.correct).length;
+      if (session.diagnostic && done.length) {
+        store.recordDiagnostic({
+          correct: right, total: session.items.length,
+          kind: store.diagnostics().length ? 'repeat' : 'baseline'
+        });
+        flagStoreError();
+      }
       session = null;
       go('dashboard');
       toast(`Session finished — ${right} of ${done.length} correct`);
@@ -5657,6 +5796,83 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   $('btn-export-csv').addEventListener('click', () => {
     download('dryrun-attempts.csv', store.exportCSV(), 'text/csv');
     say('prog-export-status', 'Exported as CSV.', 'ok');
+  });
+
+  function renderEvidence() {
+    const diags = store.diagnostics();
+    const pct = d => Math.round((d.correct / d.total) * 100);
+
+    if (!diags.length) {
+      $('ev-gain').innerHTML =
+        '<p><b>No diagnostic taken yet.</b> A learning gain needs two measurements: one before practising and one after. ' +
+        'Take the diagnostic now, practise for a couple of weeks, then take it again.</p>' +
+        '<div class="btn-row"><button class="btn primary" id="btn-ev-diag">Take the baseline diagnostic</button></div>';
+    } else {
+      const first = diags[0], last = diags[diags.length - 1];
+      const rows = diags.map((d, i) =>
+        `<tr><td>${i === 0 ? 'Baseline' : 'Repeat ' + i}</td>` +
+        `<td>${new Date(d.at).toLocaleDateString()}</td>` +
+        `<td class="n">${d.correct}/${d.total}</td><td class="n">${pct(d)}%</td></tr>`).join('');
+      const gain = diags.length >= 2
+        ? `<p><b>Change since the baseline:</b> ${pct(last) - pct(first) >= 0 ? '+' : ''}${pct(last) - pct(first)} percentage points ` +
+          `(${pct(first)}% → ${pct(last)}%), over ${Math.max(1, Math.round((last.at - first.at) / 86400000))} day(s). ` +
+          'One learner is not a study — this is your own record, not evidence about anybody else.</p>'
+        : '<p><b>One measurement so far.</b> A gain needs a second one; come back after some practice.</p>';
+      $('ev-gain').innerHTML =
+        '<div class="scroll-x"><table><thead><tr><th>Attempt</th><th>Date</th><th class="n">Score</th><th class="n">%</th></tr></thead><tbody>' +
+        rows + '</tbody></table></div>' + gain +
+        '<div class="btn-row"><button class="btn" id="btn-ev-diag">Take the diagnostic again</button></div>';
+    }
+    if ($('btn-ev-diag')) $('btn-ev-diag').onclick = () => go('practice', { fresh:true, diagnostic:true });
+
+    // Retention comes out of the review history: how often a question that was
+    // wrong once is right when it comes back.
+    const reviews = store.all().reviews;
+    const ids = Object.keys(reviews);
+    let returned = 0, rightOnReturn = 0;
+    ids.forEach(id => {
+      const h = reviews[id].history || [];
+      for (let i = 1; i < h.length; i++) { returned++; if (h[i].correct) rightOnReturn++; }
+    });
+    $('ev-retention').innerHTML = returned
+      ? `<p><b>${rightOnReturn} of ${returned}</b> return attempts on previously wrong questions were correct ` +
+        `(${Math.round((rightOnReturn / returned) * 100)}%). ${ids.length} question${ids.length === 1 ? ' is' : 's are'} in the queue.</p>`
+      : '<p><b>Nothing has come back for review yet.</b> A question enters the queue when you get it wrong, and returns after 1, 3, 7, 16 then 35 days.</p>';
+
+    const fb = store.feedback();
+    $('ev-feedback-list').innerHTML = fb.length
+      ? '<p><b>Feedback saved on this device: ' + fb.length + '</b></p>' +
+        fb.slice(-3).map(f => `<div class="q-example" style="margin-bottom:8px"><b>${esc(f.role)}</b>, rated ${esc(String(f.rating))}/5<br>${esc(f.text || '(no comment)')}</div>`).join('')
+      : '';
+
+    $('ev-method').innerHTML =
+      '<p>Three kinds of thing could appear on this page, and they are not the same:</p>' +
+      '<ul style="color:var(--text-secondary);font-size:14px">' +
+      '<li><b>Collected data</b> — everything above. It comes from your own attempts on this device, and from nowhere else.</li>' +
+      '<li><b>Sample or demo data</b> — none is used anywhere in this app. If a number is shown, something produced it.</li>' +
+      '<li><b>Planned methodology</b> — the study below has not been run. Nothing here claims it has.</li>' +
+      '</ul>' +
+      '<p><b>How a study would be run:</b> 20–40 students take the baseline diagnostic, use the app for two weeks, ' +
+      'then repeat the diagnostic, with a further retention check a week later. Two or three teachers review the ' +
+      'question bank for syllabus fit. What would be measured: change in diagnostic score, time taken to complete a ' +
+      'trace table, whether specific misconceptions become rarer, and whether a student can turn structured English ' +
+      'into a program that passes hidden tests.</p>' +
+      '<p><b>What would make it honest:</b> report the number of participants, report students who dropped out, ' +
+      'and do not present one cohort with no comparison group as proof that the app caused the change.</p>';
+  }
+
+  $('btn-fb-save').addEventListener('click', () => {
+    const text = $('fb-text').value.trim();
+    if (!text) { toast('Write a sentence first'); return; }
+    store.recordFeedback({ role:$('fb-role').value, rating:Number($('fb-rating').value), text });
+    flagStoreError();
+    $('fb-text').value = '';
+    say('ev-status', 'Saved on this device. It is included when you export.', 'ok');
+    renderEvidence();
+  });
+  $('btn-ev-export').addEventListener('click', () => {
+    download('dryrun-anonymised.json', store.exportAnonymised(), 'application/json');
+    say('ev-status', 'Exported with no name, email or device identifier in it.', 'ok');
   });
 
   function renderSettings() {

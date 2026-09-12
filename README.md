@@ -1,106 +1,87 @@
-# CIE CS Revision Toolkit
+# DryRun — Computer Science Reasoning Lab
 
-Five revision tools for Cambridge Computer Science (9618 / 9608 / 0478) candidates: a single file, pure front-end, zero dependencies, works offline.
+A reasoning workbench for Cambridge Computer Science (IGCSE 0478 and AS & A Level 9618). One self-contained HTML file: no framework, no build step, no dependencies, no network calls. It works offline and nothing you type leaves your browser.
 
-**Online:** https://cie-cs-toolkit.vercel.app　·　[run the self-test](https://cie-cs-toolkit.vercel.app/?selftest=1)
+**Live:** https://cie-cs-toolkit.vercel.app　·　[run the self-test](https://cie-cs-toolkit.vercel.app/?selftest=1)
 
-## The five modules
+> **Independent learning resource — not endorsed by Cambridge International Education.**
+> Cambridge International Education is not affiliated with this project. The syllabus codes are used only to say which courses this is aimed at. Every question is original, written against publicly listed syllabus content; no past-paper material is reproduced.
 
-### 1. Pseudocode trace table simulator
+## The idea
 
-Executes CIE pseudocode line by line and builds the trace table automatically — every executed line records the current value of every variable plus any output.
+The same algorithm can be looked at as structured English, as pseudocode, as a trace table, as a flowchart or as a logic circuit. Understanding usually breaks when you move between two of them. DryRun lets you move an algorithm across all five and see exactly where the versions stop agreeing — and then marks your work in a way that can tell understanding from pattern-matching.
 
-- 9 built-in exam-style programs (bubble sort, linear search, sum with a sentinel value, denary to binary, string reversal and more); pick one from the dropdown and step straight through it
-- Step / auto-play / reset, with the current line highlighted in the editor
-- Changed values are colour-marked in the table, so you can see at a glance what each line altered
-- One click copies the table as TSV, ready to paste into Word or Excel
-- Errors are reported the CIE way, not as a bare "SyntaxError":
-  - using a variable without `DECLARE`
-  - using `=` as the assignment operator (it should be `←`)
-  - indexing an array at 0 (CIE arrays start at 1)
-  - a missing `ENDIF` / `ENDFOR` / `ENDWHILE`, naming the line whose statement was left unclosed
-  - infinite-loop protection (aborts after 3000 steps)
+## Marking you can trust
 
-**Supported syntax**
+A question that asks for a program is graded by **running it against hidden test cases**, never by comparing one visible output.
+
+An earlier version compared a single output, so this passed "output the larger of two numbers":
+
+```
+OUTPUT 58
+```
+
+It no longer does. Every code question:
+
+- reads its values with `INPUT`, so there is something to vary;
+- carries hidden cases tagged **core** and **edge**, plus seeded random ones;
+- states the constructs it requires, checked on the **syntax tree** rather than by searching the text;
+- computes expected answers from its own reference solution, so stored answers cannot drift;
+- returns a mark breakdown and says what kind of wrong it is: syntax error, run-time error, missing construct, incorrect logic, incomplete, or correct.
+
+A failing hidden case is described in words ("when given two equal numbers") without handing over its inputs.
+
+## What is in it
+
+| Area | What it does |
+|---|---|
+| **Practice** | Generated and bank questions, marked against hidden cases. Run executes your program and awards nothing; Check answer marks it and records an attempt. Show answer stays locked until two attempts. |
+| **Pseudocode Lab** | Trace simulator, Structured English → pseudocode, trace table → pseudocode, and flowchart → pseudocode + trace table + drawn chart. |
+| **Logic Lab** | Truth tables with a column per intermediate step, and the circuit drawn with textbook gate symbols. |
+| **Progress** | Evidence per topic, the review queue, every attempt, and a page explaining exactly how each state is worked out. |
+| **Evidence** | Diagnostic scores, learning gain, retention, feedback, and an anonymised export. |
+
+## Progress is evidence, not a percentage
+
+| State | When |
+|---|---|
+| **UNSCOUTED** | Fewer than two attempts. Shown instead of 0%, which would read as "you got everything wrong". |
+| **DEVELOPING** | Attempted, but not yet three attempts with two different questions fully right. |
+| **SECURE** | At least three attempts, two different questions fully right, and the most recent attempt correct. |
+| **REVIEW DUE** | Something wrong here has come round again on the spacing schedule: 1, 3, 7, 16 then 35 days. |
+
+Failed questions enter the review queue by themselves. Nothing has to be re-entered by hand, and no number appears unless something produced it.
+
+## Syllabus versions
+
+The syllabuses change, and the changes matter, so a qualification is always stored with its version and exam years:
+
+- Cambridge IGCSE 0478 — 2026–2028
+- Cambridge IGCSE 0478 — 2029 *(assesses Python 3, not pseudocode — the app says so)*
+- Cambridge International AS & A Level 9618 — 2026
+- Cambridge International AS & A Level 9618 — 2027–2029
+- 9608 is kept so older notes still make sense, marked as withdrawn, and is never offered as a current choice.
+
+## Supported pseudocode
 
 | Category | Content |
 |---|---|
-| Declaration | `DECLARE x : INTEGER/REAL/BOOLEAN/CHAR/STRING`, `DECLARE a : ARRAY[1:10] OF INTEGER`, `CONSTANT` |
+| Declaration | `DECLARE x : INTEGER/REAL/BOOLEAN/CHAR/STRING`, `DECLARE a : ARRAY[1:10] OF INTEGER`, `DECLARE g : ARRAY[1:3, 1:4] OF INTEGER`, `CONSTANT` |
 | Operators | `+ - * / MOD DIV &`, comparison `= <> < > <= >=`, logic `AND OR NOT` |
-| Selection | `IF … THEN … ELSE … ENDIF` (`THEN` may be omitted), `CASE OF … OTHERWISE … ENDCASE` |
+| Selection | `IF … THEN … ELSE … ENDIF`, `CASE OF … OTHERWISE … ENDCASE` |
 | Loops | `FOR … TO … STEP … NEXT/ENDFOR`, `WHILE … DO … ENDWHILE`, `REPEAT … UNTIL` |
-| Input / output | `OUTPUT` (comma-joined), `INPUT` (takes values from the input queue in order) |
+| Routines | `PROCEDURE … ENDPROCEDURE` with `CALL`, `FUNCTION … RETURNS … RETURN … ENDFUNCTION`, `BYVALUE` and `BYREF` parameters, recursion |
+| Files | `OPENFILE … FOR READ/WRITE/APPEND`, `READFILE`, `WRITEFILE`, `CLOSEFILE`, `EOF` — simulated in memory for one run |
+| Input / output | `OUTPUT` (comma-joined), `INPUT` |
 | Functions | `LENGTH MID LEFT RIGHT UCASE LCASE INT ROUND` |
 
-User-defined `PROCEDURE` / `FUNCTION`, recursion, 2-D arrays and file handling are not supported — they hardly ever appear in trace table questions, and leaving them out keeps everything that *is* supported correct.
-
-### 2. Logic gate and truth table generator
-
-Enter a boolean expression to get a full truth table **including the intermediate steps**, plus the matching logic gate circuit diagram.
-
-- Operators: `AND OR NOT XOR NAND NOR` + brackets
-- Precedence: `( )` > `NOT` > `AND`/`NAND` > `XOR` > `OR`/`NOR`
-- The truth table does not just give the final answer — every intermediate operation gets its own column. For example `(A XOR B) AND NOT C` expands to
-  `A | B | C | A XOR B | NOT C | (A XOR B) AND NOT C`
-- The circuit is hand-drawn SVG using the standard gate symbols (the D-shape for AND, the curved shield for OR, the triangle-and-bubble for NOT, the double curve for XOR), so it looks like the textbook and the exam paper — not labelled rectangles
-- Identical sub-expressions share the same gate, exactly as in a real circuit
-
-### 3. Structured English → pseudocode
-
-Type the algorithm the way it is worded in a question and get CIE pseudocode back — plus **the full trace table of the generated program**, not just its final answer. A "Send to trace simulator" button drops the result into module 1 for stepping through.
-
-- Indentation decides what sits inside a loop or an `If`; explicit `End if` / `End while` / `Next x` also work
-- Understood sentence forms: `Set X to …`, `Add … to X`, `Subtract … from X`, `Multiply X by …`, `Increase/Decrease X by …`, `Input …`, `Output …`, `If … then` / `Otherwise` / `End if`, `Repeat` / `Until …`, `While … do` / `End while`, `For each X from A to B` / `Next X`
-- Wording is translated to symbols: `is greater than or equal to` → `>=`, `is not equal to` → `<>`, `plus` → `+`, `divided by` → `/`
-- `DECLARE` lines are worked out from the first value each variable receives
-- A sentence outside the list is reported by line number with the accepted forms listed — it is never guessed at
-
-### 4. Trace table → pseudocode
-
-The reverse direction: fill in a trace table by hand and get the program that would produce it.
-
-- Name the variable columns, then fill `Line | values | OUTPUT` row by row; a blank cell means "unchanged"
-- Repeated line numbers are detected as a loop, and a variable stepping by a fixed amount becomes the `FOR` control variable
-- Right-hand sides are inferred from a fixed candidate list (`X + k`, `X + Y`, `X * Y`, `Y`, literal…) and must hold on *every* pass of the loop
-- **Self-verification:** the generated pseudocode is run back through the interpreter and compared with your table — ✓ when it reproduces it, otherwise it names exactly which variable disagrees and where
-- No `IF` conditions are invented: a table containing a branch comes back as straight-line code
-
-### 5. Flowchart → pseudocode, trace table and a drawn chart
-
-Type a flowchart one box per line — each box written either as CIE pseudocode or as the structured English of module 3 — and get three things at once:
-
-- the **flowchart drawn properly in SVG**: stadium terminators, rectangles for processes, parallelograms for input/output, diamonds with `Yes` / `No` branches, loops returning up their own lane
-- the **CIE pseudocode**
-- the **full trace table** of that program running (with a box for the `INPUT` values)
-
-`START` and `STOP` lines are optional decoration, indentation says what sits inside a loop or a decision, and `FOR` loops are drawn the way the textbook does it: an initial box, a test diamond, the body, and an increment box on the way back round. `CASE OF` is refused with a note to rewrite it as `IF … ELSE`, rather than drawn wrongly.
-
-## Practice mode
-
-The button in the top right corner swaps the tools for practice questions. Questions are **generated**, not a fixed bank: five algorithm templates with random constants, driven by a seed, so you can keep going indefinitely — and the seed is shown, so you and a teacher can pull up the same question.
-
-Nothing is stored as a right answer. The interpreter works the answer out, which is what makes per-cell marking possible.
-
-| Question type | How it is marked |
-|---|---|
-| Fill in the trace table | Every cell, with the first mistake named by row and column (a blank cell counts as "unchanged", the way trace tables are filled in by hand) |
-| What does this program output? | The output sequence, with any spacing |
-| Complete the truth table | Row by row; `1/0`, `T/F` and `TRUE/FALSE` all accepted |
-| Write the pseudocode | Your program is **run**: any program that produces the right output is correct, whatever you called your variables. A syntax error comes back as the normal CIE message |
-
-"Show answer" fills in the worked answer but does not count the question as correct. The tally (attempted / fully correct) is kept in your own browser and is never uploaded.
+Limits that always hold: 3000 execution steps, 500 output lines, recursion depth 120, 20000 array elements, 2000 file lines. File names are stripped to a safe character set, so nothing can address anything outside the sandbox. There is no `eval()` anywhere.
 
 ## Built-in self-test
 
-Correctness is covered by 48 assertions (interpreter semantics, the CIE-specific errors, truth tables, operator precedence, NAND/NOR, the English sentence forms, flowchart drawing and escaping, a round trip that turns each built-in example into a trace table and back into a program, and the question generator and every marker).
+102 assertions covering the interpreter, the CIE-specific errors, both pseudocode converters, flowchart drawing, truth tables, hidden-case grading, the syllabus registry, the storage layer and its migrations, accessibility and the metadata. The contrast check reads the live custom properties, so the stylesheet itself is what gets tested.
 
-Add `?selftest=1` to the URL to run them:
-
-```
-index.html?selftest=1
-```
-
-Or from the command line:
+Add `?selftest=1` to the URL, or run it from the command line:
 
 ```bash
 node -e 'const fs=require("fs"),os=require("os"),p=require("path");
@@ -111,19 +92,14 @@ r.forEach(x=>console.log((x.ok?"PASS ":"FAIL ")+x.name));
 console.log(r.filter(x=>x.ok).length+"/"+r.length);'
 ```
 
-## Running locally
+Two tests are browser-only (contrast and the DOM checks) and pass trivially under Node, where there is no document.
 
-Just open `index.html` in a browser. No build step, no dependencies, no network needed.
+## Running and deploying
 
-## Deploying to Vercel
+Open `index.html` in a browser. That is the whole build.
 
-1. Push the repo to GitHub
-2. vercel.com → Add New → Project → Import this repo
-3. Framework Preset **Other**; leave Build Command and Output Directory **empty**
-4. Deploy
-
-Later pushes to `main` redeploy automatically.
+Deploy: push to GitHub, import the repo at vercel.com with Framework Preset **Other** and both Build Command and Output Directory left empty. Later pushes to `main` redeploy automatically.
 
 ## Note
 
-This is a revision aid for use outside the exam hall. It is not for use in a real examination.
+A revision aid for use outside the exam hall — not for use in a real examination.
