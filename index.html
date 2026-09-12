@@ -194,6 +194,8 @@
   .rail-item .dot.is-due { background:var(--danger); }
   .rail-item .label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13.5px; }
   .rail-item .count { font-size:11px; color:var(--text-muted); font-family:var(--font-mono); }
+  .rail-item.is-locked .label { color:var(--text-muted); }
+  .rail-item.is-locked .count { color:var(--warning); }
 
   .workspace { flex:1; min-width:0; padding:var(--s6); }
   .workspace.is-wide { max-width:none; }
@@ -3631,6 +3633,15 @@ function questionsForSyllabus(syllabusId) {
    failure is surfaced rather than swallowed.
    ====================================================================== */
 
+/*
+  Which destinations need a course chosen first. The two labs are free tools
+  and must stay off this list: gating them silently was what made the nav look
+  broken before anyone had onboarded.
+*/
+const VIEWS_NEEDING_COURSE = ['dashboard', 'practice', 'progress', 'evidence', 'settings'];
+const ALL_VIEWS = ['onboarding', 'dashboard', 'practice', 'lab-pseudocode', 'lab-logic',
+                   'progress', 'evidence', 'settings', 'about'];
+
 const STORE_VERSION = 2;
 const STORE_KEY = 'dryrun.store.v2';
 const LEGACY_SCORE_KEY = 'cie-practice-score';
@@ -4945,6 +4956,23 @@ const TESTS = [
     assertEq(h[0].correct, false, 'the first was wrong');
     assertEq(h[1].correct, true, 'the second was right');
   }],
+  /* ---- Navigation gating ---- */
+  ['Navigation: the labs work before a course is chosen', () => {
+    for (const v of ['lab-pseudocode', 'lab-logic', 'about', 'onboarding']) {
+      assert(!VIEWS_NEEDING_COURSE.includes(v),
+        `"${v}" must not need a course — it is a free tool, and gating it silently reads as broken`);
+    }
+    for (const v of ['dashboard', 'practice', 'progress', 'evidence', 'settings']) {
+      assert(VIEWS_NEEDING_COURSE.includes(v), `"${v}" reads the profile, so it does need a course`);
+    }
+    VIEWS_NEEDING_COURSE.forEach(v => assert(ALL_VIEWS.includes(v), `${v} should be a real view`));
+  }],
+  ['Navigation: every rail destination exists in the markup', () => {
+    if (typeof document === 'undefined') return;
+    for (const v of ALL_VIEWS) {
+      assert(document.getElementById('view-' + v), `the markup is missing view-${v}`);
+    }
+  }],
   ['Trace table: round trip through every non-array example', () => {
     for (const ex of EXAMPLES) {
       if (/ARRAY/.test(ex.code)) continue;
@@ -4977,6 +5005,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   SYLLABUSES, CURRENT_SYLLABUSES, syllabusById, syllabusesFor, syllabusForYear,
   topicsOf, questionsForTopic, questionsForSyllabus,
   createStore, EVIDENCE, STORE_VERSION, memoryBackend, topicProgressOf,
+  VIEWS_NEEDING_COURSE, ALL_VIEWS,
   contrastRatio, Env, MAX_FILE_LINES, MAX_DEPTH, hoistRoutines }; } catch (e) {}
 </script>
 
@@ -5075,9 +5104,21 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   ];
   let currentView = null;
 
+  // These read the profile, so they cannot render before a course is chosen.
+  // The labs are free tools and are deliberately NOT in this list.
+  const NEEDS_COURSE = new Set(VIEWS_NEEDING_COURSE);
+
   function go(view, opts) {
     if (!VIEWS[view]) view = 'dashboard';
-    if (!store.getProfile() && view !== 'onboarding' && view !== 'about') view = 'onboarding';
+    if (!store.getProfile() && NEEDS_COURSE.has(view)) {
+      // Bouncing silently is what made this look broken: say what is needed.
+      view = 'onboarding';
+      toast('Choose your course first — it takes a few seconds');
+      setTimeout(() => {
+        const first = document.querySelector('#course-choices .choice');
+        if (first) { first.scrollIntoView({ block:'center' }); first.focus(); }
+      }, 60);
+    }
     currentView = view;
     Object.keys(VIEWS).forEach(v => $(VIEWS[v]).classList.toggle('is-active', v === view));
     if (location.hash !== '#/' + view) history.replaceState(null, '', '#/' + view);
@@ -5108,9 +5149,17 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   function railFilterText() { return ($('rail-filter').value || '').trim().toLowerCase(); }
 
   function renderRail() {
-    $('rail-nav').innerHTML = NAV.map(n =>
-      `<button class="rail-item" role="listitem" data-go="${n.id}"${currentView === n.id ? ' aria-current="page"' : ''}>` +
-      `<span class="label">${esc(n.label)}</span></button>`).join('');
+    const noCourse = !store.getProfile();
+    $('rail-nav').innerHTML = NAV.map(n => {
+      const locked = noCourse && NEEDS_COURSE.has(n.id);
+      return `<button class="rail-item${locked ? ' is-locked' : ''}" role="listitem" data-go="${n.id}"` +
+        (currentView === n.id ? ' aria-current="page"' : '') +
+        (locked ? ' aria-describedby="rail-locked-note"' : '') +
+        `><span class="label">${esc(n.label)}</span>` +
+        (locked ? '<span class="count" aria-hidden="true">needs a course</span>' : '') +
+        '</button>';
+    }).join('') +
+    (noCourse ? '<p class="rail-label" id="rail-locked-note" style="text-transform:none;letter-spacing:0;padding-top:8px">Choose a course to unlock these. The two labs work straight away.</p>' : '');
 
     const profile = store.getProfile();
     const topics = profile ? topicsOf(profile.syllabusId) : [];
@@ -5142,6 +5191,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     else if (secure) { pill.textContent = `${secure} topic${secure === 1 ? '' : 's'} secure`; pill.className = 'pill is-secure'; }
     else if (store.attempts().length) { pill.textContent = 'Building evidence'; pill.className = 'pill is-developing'; }
     else { pill.textContent = 'No evidence yet'; pill.className = 'pill is-unscouted'; }
+    syncStartButton();
   }
 
   $('rail').addEventListener('click', ev => {
@@ -5912,6 +5962,10 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
      Header buttons
      ============================================================ */
   $('btn-start').addEventListener('click', () => go('practice', { fresh:true }));
+  // Before a course is chosen the primary button says what it will actually do.
+  function syncStartButton() {
+    $('btn-start').textContent = store.getProfile() ? 'Start practice' : 'Choose course';
+  }
   $('btn-settings').addEventListener('click', () => go('settings'));
   $('course-chip').addEventListener('click', () => go('settings'));
   /* ================= Tab 1: trace table ================= */
