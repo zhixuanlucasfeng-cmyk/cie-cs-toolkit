@@ -759,6 +759,7 @@
                 <div class="q-example" style="margin-top:8px" id="syntax-help">
 DECLARE x : INTEGER / REAL / BOOLEAN / CHAR / STRING<br>
 DECLARE a : ARRAY[1:10] OF INTEGER&nbsp;&nbsp;<span style="color:var(--warning)">indices start at 1</span><br>
+DECLARE g : ARRAY[1:3, 1:4] OF INTEGER&nbsp;&nbsp;then g[row, col]<br>
 CONSTANT PI = 3.14<br>
 x ← expression&nbsp;&nbsp;<span style="color:var(--warning)">always assign with ← (you may also type &lt;-)</span><br>
 Operators: + - * / MOD DIV &amp; (string join)<br>
@@ -769,6 +770,10 @@ FOR i ← 1 TO 5 STEP 2 … NEXT i (or ENDFOR)<br>
 WHILE condition DO … ENDWHILE&nbsp;&nbsp;&nbsp;REPEAT … UNTIL condition<br>
 OUTPUT expression, expression&nbsp;&nbsp;&nbsp;INPUT x<br>
 Functions: LENGTH MID LEFT RIGHT UCASE LCASE INT ROUND<br>
+PROCEDURE Name(a : INTEGER, BYREF b : INTEGER) … ENDPROCEDURE&nbsp;&nbsp;then CALL Name(x, y)<br>
+FUNCTION Name(n : INTEGER) RETURNS INTEGER … RETURN … ENDFUNCTION&nbsp;&nbsp;<span style="color:var(--warning)">recursion allowed</span><br>
+OPENFILE "f.txt" FOR READ / WRITE / APPEND&nbsp;&nbsp;READFILE "f.txt", x&nbsp;&nbsp;WRITEFILE "f.txt", x<br>
+CLOSEFILE "f.txt"&nbsp;&nbsp;EOF("f.txt")&nbsp;&nbsp;<span style="color:var(--text-muted)">files live in memory for one run only</span><br>
 Comments: start the line with //
                 </div>
               </details>
@@ -1018,7 +1023,10 @@ const KEYWORDS = new Set([
   'DECLARE','CONSTANT','ARRAY','OF','INTEGER','REAL','BOOLEAN','CHAR','STRING',
   'IF','THEN','ELSE','ENDIF','CASE','OTHERWISE','ENDCASE',
   'FOR','TO','STEP','NEXT','ENDFOR','WHILE','DO','ENDWHILE','REPEAT','UNTIL',
-  'OUTPUT','INPUT','AND','OR','NOT','MOD','DIV','TRUE','FALSE'
+  'OUTPUT','INPUT','AND','OR','NOT','MOD','DIV','TRUE','FALSE',
+  'PROCEDURE','ENDPROCEDURE','FUNCTION','ENDFUNCTION','RETURN','RETURNS','CALL',
+  'BYVAL','BYVALUE','BYREF','BYREFERENCE',
+  'OPENFILE','READFILE','WRITEFILE','CLOSEFILE'
 ]);
 
 // Longest first, so '<=' is not split into '<'
@@ -1109,9 +1117,12 @@ function pPrim(c) {
       eat(c, ')');
       return { k:'call', name:t.v.toUpperCase(), args, line:t.line };
     }
-    if (vAt(c) === '[') {                       // array subscript
-      c.i++; const idx = parseExpr(c); eat(c, ']');
-      return { k:'index', name:t.v, idx, line:t.line };
+    if (vAt(c) === '[') {                       // array subscript, a[i] or a[i, j]
+      c.i++;
+      const idxs = [];
+      do { idxs.push(parseExpr(c)); } while (tryEat(c, ','));
+      eat(c, ']');
+      return { k:'index', name:t.v, idxs, line:t.line };
     }
     return { k:'var', name:t.v, line:t.line };
   }
@@ -1152,8 +1163,17 @@ function parseStatement(st) {
     case 'FOR':      return parseFor(st);
     case 'WHILE':    return parseWhile(st);
     case 'REPEAT':   return parseRepeat(st);
+    case 'PROCEDURE': return parseRoutine(st, false);
+    case 'FUNCTION':  return parseRoutine(st, true);
+    case 'CALL':      st.i++; return parseCall(line);
+    case 'RETURN':    st.i++; return parseReturn(line);
+    case 'OPENFILE':  st.i++; return parseOpenFile(line);
+    case 'READFILE':  st.i++; return parseReadFile(line);
+    case 'WRITEFILE': st.i++; return parseWriteFile(line);
+    case 'CLOSEFILE': st.i++; return parseCloseFile(line);
     case 'THEN':     st.i++; return { type:'NOP', line:line.no };   // a THEN on a line of its own
     case 'ENDIF': case 'ENDFOR': case 'ENDWHILE': case 'ENDCASE': case 'NEXT': case 'UNTIL': case 'ELSE': case 'OTHERWISE':
+    case 'ENDPROCEDURE': case 'ENDFUNCTION':
       throw new CIEError(`An extra ${k} with no matching opening statement before it`, line.no);
     default:         return parseAssign(st);
   }
@@ -1170,9 +1190,14 @@ function parseDeclare(line) {
   let arr = null;
   if (vAt(c) === 'ARRAY') {
     c.i++; eat(c, '[');
-    const lo = parseExpr(c); eat(c, ':'); const hi = parseExpr(c);
+    const dims = [];
+    do {
+      const lo = parseExpr(c); eat(c, ':'); const hi = parseExpr(c);
+      dims.push({ lo, hi });
+    } while (tryEat(c, ','));
+    if (dims.length > 2) throw new CIEError('Only one- and two-dimensional arrays are supported', line.no);
     eat(c, ']'); eat(c, 'OF');
-    arr = { lo, hi };
+    arr = { dims };
   }
   const t = at(c);
   if (!t || t.t !== 'KW') throw new CIEError('State the data type (INTEGER / REAL / BOOLEAN / CHAR / STRING)', line.no);
@@ -1204,8 +1229,14 @@ function parseLValue(c) {
   const t = at(c);
   if (!t || t.t !== 'IDENT') throw new CIEError('A variable name is expected here', c.line);
   c.i++;
-  if (vAt(c) === '[') { c.i++; const idx = parseExpr(c); eat(c, ']'); return { name:t.v, idx, line:t.line }; }
-  return { name:t.v, idx:null, line:t.line };
+  if (vAt(c) === '[') {
+    c.i++;
+    const idxs = [];
+    do { idxs.push(parseExpr(c)); } while (tryEat(c, ','));
+    eat(c, ']');
+    return { name:t.v, idxs, line:t.line };
+  }
+  return { name:t.v, idxs:null, line:t.line };
 }
 function parseAssign(st) {
   const line = st.lines[st.i]; st.i++;
@@ -1298,20 +1329,164 @@ function parseRepeat(st) {
   return { type:'REPEAT', line:line.no, untilLine:uline.no, cond, body };
 }
 
+/* ---------- Procedures, functions and files ---------- */
+
+// PROCEDURE Name(a : INTEGER, BYREF b : INTEGER) … ENDPROCEDURE
+// FUNCTION  Name(a : INTEGER) RETURNS INTEGER … ENDFUNCTION
+function parseRoutine(st, isFunction) {
+  const line = st.lines[st.i];
+  const word = isFunction ? 'FUNCTION' : 'PROCEDURE';
+  const c = cur(line.toks, 1, line);
+  const t = at(c);
+  if (!t || t.t !== 'IDENT') throw new CIEError(`${word} must be followed by a name`, line.no);
+  const name = t.v; c.i++;
+
+  const params = [];
+  if (tryEat(c, '(')) {
+    if (vAt(c) !== ')') {
+      do {
+        let by = 'VALUE';
+        const kw = vAt(c);
+        if (kw === 'BYREF' || kw === 'BYREFERENCE') { by = 'REF'; c.i++; }
+        else if (kw === 'BYVAL' || kw === 'BYVALUE') { c.i++; }
+        const p = at(c);
+        if (!p || p.t !== 'IDENT') throw new CIEError('Each parameter needs a name', line.no);
+        c.i++;
+        let dtype = null;
+        if (tryEat(c, ':')) {
+          const d = at(c);
+          if (!d || d.t !== 'KW') throw new CIEError(`State the type of parameter ${p.v}`, line.no);
+          dtype = d.v; c.i++;
+        }
+        params.push({ name:p.v, by, dtype });
+      } while (tryEat(c, ','));
+    }
+    eat(c, ')');
+  }
+  let retType = null;
+  if (isFunction) {
+    if (!tryEat(c, 'RETURNS')) throw new CIEError('A FUNCTION must say what it RETURNS', line.no);
+    const d = at(c);
+    if (!d || d.t !== 'KW') throw new CIEError('State the type the FUNCTION returns', line.no);
+    retType = d.v; c.i++;
+  }
+  expectEnd(c);
+  st.i++;
+  const body = parseBlock(st, [isFunction ? 'ENDFUNCTION' : 'ENDPROCEDURE'],
+                          { kw:word, line:line.no });
+  if (st.i >= st.lines.length) {
+    throw new CIEError(`The ${word} on line ${line.no} has no matching END${word}`, line.no);
+  }
+  st.i++;
+  return { type: isFunction ? 'FUNCDEF' : 'PROCDEF', line:line.no, name, params, body, retType };
+}
+
+function parseCall(line) {
+  const c = cur(line.toks, 1, line);
+  const t = at(c);
+  if (!t || t.t !== 'IDENT') throw new CIEError('CALL must name a procedure', line.no);
+  c.i++;
+  const args = [];
+  if (tryEat(c, '(')) {
+    if (vAt(c) !== ')') { do { args.push(parseExpr(c)); } while (tryEat(c, ',')); }
+    eat(c, ')');
+  }
+  expectEnd(c);
+  return { type:'CALL', line:line.no, name:t.v, args };
+}
+
+function parseReturn(line) {
+  const c = cur(line.toks, 1, line);
+  const e = parseExpr(c);
+  expectEnd(c);
+  return { type:'RETURN', line:line.no, expr:e };
+}
+
+const FILE_MODES = ['READ', 'WRITE', 'APPEND'];
+function parseOpenFile(line) {
+  const c = cur(line.toks, 1, line);
+  const name = parseExpr(c);
+  eat(c, 'FOR');
+  const m = at(c);
+  const mode = m ? String(m.v).toUpperCase() : '';
+  if (!FILE_MODES.includes(mode)) {
+    throw new CIEError(`OPENFILE needs one of ${FILE_MODES.join(', ')} after FOR`, line.no);
+  }
+  c.i++; expectEnd(c);
+  return { type:'OPENFILE', line:line.no, name, mode };
+}
+function parseReadFile(line) {
+  const c = cur(line.toks, 1, line);
+  const name = parseExpr(c);
+  eat(c, ',');
+  const target = parseLValue(c);
+  expectEnd(c);
+  return { type:'READFILE', line:line.no, name, target };
+}
+function parseWriteFile(line) {
+  const c = cur(line.toks, 1, line);
+  const name = parseExpr(c);
+  eat(c, ',');
+  const e = parseExpr(c);
+  expectEnd(c);
+  return { type:'WRITEFILE', line:line.no, name, expr:e };
+}
+function parseCloseFile(line) {
+  const c = cur(line.toks, 1, line);
+  const name = parseExpr(c);
+  expectEnd(c);
+  return { type:'CLOSEFILE', line:line.no, name };
+}
+
 /* ---------- Runtime environment ---------- */
+const MAX_CELLS = 20000;       // an array big enough for any exam question
+const MAX_DEPTH = 120;         // recursion has to stop somewhere
+const MAX_FILE_LINES = 2000;   // the sandboxed filesystem is small on purpose
+
 class Env {
   constructor(inputs) {
-    this.vars = new Map();     // name -> {dtype, value} or {dtype, isArray, lo, hi, cells}
+    this.vars = new Map();     // name -> {dtype, value} or {dtype, isArray, dims, cells}
     this.order = [];           // order variables appear in; fixes the trace table column order
     this.output = [];
     this.inputs = inputs || [];
     this.ip = 0;
+    this.routines = new Map(); // PROCEDURE and FUNCTION definitions, hoisted
+    this.files = new Map();    // the sandbox: name -> {lines, pos, mode, open}
+    this.depth = 0;
+    this.steps = 0;
+  }
+  // A child scope for a routine call: its own variables, but the same
+  // routines, files, output and input queue.
+  child() {
+    const e = new Env(this.inputs);
+    e.inputs = this.inputs;
+    e.output = this.output;
+    e.routines = this.routines;
+    e.files = this.files;
+    e.depth = this.depth + 1;
+    e.root = this.root || this;
+    Object.defineProperty(e, 'ip', {
+      get: () => (this.root || this).ip,
+      set: v => { (this.root || this).ip = v; }
+    });
+    return e;
   }
   declare(name, dtype, line, bounds) {
     if (this.vars.has(name)) throw new CIEError(`Variable ${name} is declared more than once`, line);
-    this.vars.set(name, bounds
-      ? { dtype, isArray:true, lo:bounds.lo, hi:bounds.hi, cells:new Array(bounds.hi - bounds.lo + 1).fill(null) }
-      : { dtype, value:null });
+    if (bounds) {
+      const dims = bounds.dims;
+      for (const d of dims) {
+        if (!Number.isInteger(d.lo) || !Number.isInteger(d.hi)) {
+          throw new CIEError(`The bounds of ${name} must be whole numbers`, line);
+        }
+        if (d.hi < d.lo) throw new CIEError(`${name} has an upper bound below its lower bound`, line);
+      }
+      const size = dims.reduce((a, d) => a * (d.hi - d.lo + 1), 1);
+      if (size > MAX_CELLS) throw new CIEError(`${name} would need ${size} elements, more than this tool allows`, line);
+      this.vars.set(name, { dtype, isArray:true, dims, cells:new Array(size).fill(null) });
+    } else {
+      this.vars.set(name, { dtype, value:null });
+    }
     this.order.push(name);
   }
   slot(name, line) {
@@ -1331,25 +1506,84 @@ class Env {
     if (s.isConst) throw new CIEError(`${name} is a CONSTANT and cannot be assigned to`, line);
     s.value = val;
   }
-  cellIndex(name, idx, line) {
+  // Works for one or two dimensions; the cells are one flat array.
+  cellIndex(name, idxs, line) {
     const s = this.slot(name, line);
     if (!s.isArray) throw new CIEError(`${name} is not an array, so it cannot be subscripted`, line);
-    if (!Number.isInteger(idx)) throw new CIEError(`An array index must be an integer, but this is ${fmt(idx)}`, line);
-    if (idx < s.lo) {
-      if (s.lo === 1 && idx === 0) throw new CIEError(`CIE array indices start at 1, so ${name}[0] is not allowed`, line);
-      throw new CIEError(`${name}[${idx}] is out of bounds — the valid range is ${s.lo}…${s.hi}`, line);
+    if (idxs.length !== s.dims.length) {
+      throw new CIEError(`${name} has ${s.dims.length} dimension${s.dims.length === 1 ? '' : 's'}, but ${idxs.length} ${idxs.length === 1 ? 'was' : 'were'} given`, line);
     }
-    if (idx > s.hi) throw new CIEError(`${name}[${idx}] is out of bounds — the valid range is ${s.lo}…${s.hi}`, line);
-    return { s, k: idx - s.lo };
+    let k = 0;
+    for (let d = 0; d < idxs.length; d++) {
+      const idx = idxs[d], dim = s.dims[d];
+      if (!Number.isInteger(idx)) throw new CIEError(`An array index must be an integer, but this is ${fmt(idx)}`, line);
+      if (idx < dim.lo) {
+        if (dim.lo === 1 && idx === 0) throw new CIEError(`CIE array indices start at 1, so ${name}[0] is not allowed`, line);
+        throw new CIEError(`${name}[${idxs.join(', ')}] is out of bounds — index ${d + 1} must be ${dim.lo}…${dim.hi}`, line);
+      }
+      if (idx > dim.hi) throw new CIEError(`${name}[${idxs.join(', ')}] is out of bounds — index ${d + 1} must be ${dim.lo}…${dim.hi}`, line);
+      k = k * (dim.hi - dim.lo + 1) + (idx - dim.lo);
+    }
+    return { s, k };
   }
-  getCell(name, idx, line) {
-    const { s, k } = this.cellIndex(name, idx, line);
-    if (s.cells[k] === null) throw new CIEError(`${name}[${idx}] has not been given a value yet`, line);
+  getCell(name, idxs, line) {
+    const { s, k } = this.cellIndex(name, idxs, line);
+    if (s.cells[k] === null) throw new CIEError(`${name}[${idxs.join(', ')}] has not been given a value yet`, line);
     return s.cells[k];
   }
-  setCell(name, idx, val, line) {
-    const { s, k } = this.cellIndex(name, idx, line);
+  setCell(name, idxs, val, line) {
+    const { s, k } = this.cellIndex(name, idxs, line);
     s.cells[k] = val;
+  }
+
+  /* ---- the sandboxed filesystem: in memory, and gone when the run ends ---- */
+  fileHandle(rawName, line) {
+    const name = String(rawName).replace(/[^A-Za-z0-9._ -]/g, '').slice(0, 64);
+    if (!name) throw new CIEError('That file name cannot be used', line);
+    return name;
+  }
+  openFile(rawName, mode, line) {
+    const name = this.fileHandle(rawName, line);
+    const f = this.files.get(name);
+    if (f && f.open) throw new CIEError(`The file ${name} is already open`, line);
+    if (mode === 'READ') {
+      if (!f) throw new CIEError(`There is no file called ${name} to read — write it first`, line);
+      f.pos = 0; f.mode = mode; f.open = true;
+    } else if (mode === 'WRITE') {
+      this.files.set(name, { lines:[], pos:0, mode, open:true });
+    } else {
+      const prev = f ? f.lines : [];
+      this.files.set(name, { lines:prev, pos:prev.length, mode, open:true });
+    }
+    return name;
+  }
+  openHandle(rawName, want, line) {
+    const name = this.fileHandle(rawName, line);
+    const f = this.files.get(name);
+    if (!f || !f.open) throw new CIEError(`The file ${name} is not open — use OPENFILE first`, line);
+    if (want && f.mode !== want) {
+      throw new CIEError(`${name} was opened FOR ${f.mode}, so it cannot be used for ${want}`, line);
+    }
+    return f;
+  }
+  readFile(rawName, line) {
+    const f = this.openHandle(rawName, 'READ', line);
+    if (f.pos >= f.lines.length) throw new CIEError(`There is nothing left to read in that file — test with EOF first`, line);
+    return f.lines[f.pos++];
+  }
+  writeFile(rawName, value, line) {
+    const f = this.openHandle(rawName, null, line);
+    if (f.mode === 'READ') throw new CIEError('That file was opened FOR READ, so it cannot be written to', line);
+    if (f.lines.length >= MAX_FILE_LINES) throw new CIEError(`A file here can hold at most ${MAX_FILE_LINES} lines`, line);
+    f.lines.push(value);
+  }
+  closeFile(rawName, line) {
+    const f = this.openHandle(rawName, null, line);
+    f.open = false; f.pos = 0;
+  }
+  atEOF(rawName, line) {
+    const f = this.openHandle(rawName, 'READ', line);
+    return f.pos >= f.lines.length;
   }
   nextInput(line) {
     if (this.ip >= this.inputs.length) {
@@ -1383,8 +1617,18 @@ function evalExpr(n, env) {
   switch (n.k) {
     case 'lit':   return n.v;
     case 'var':   return env.get(n.name, n.line);
-    case 'index': return env.getCell(n.name, evalExpr(n.idx, env), n.line);
+    case 'index':
+      return env.getCell(n.name, n.idxs.map(e => evalExpr(e, env)), n.line);
     case 'call': {
+      const def = env.routines.get(n.name);
+      if (def) {
+        if (def.type !== 'FUNCDEF') throw new CIEError(`${def.name} is a PROCEDURE — use CALL ${def.name}(…) on its own line`, n.line);
+        return callFunction(def, n.args, env, n.line);
+      }
+      if (n.name === 'EOF') {
+        if (n.args.length !== 1) throw new CIEError('EOF takes one file name', n.line);
+        return env.atEOF(evalExpr(n.args[0], env), n.line);
+      }
       const f = FUNCS[n.name];
       if (!f) throw new CIEError(`Unknown function ${n.name}()`, n.line);
       return f(n.args.map(a => evalExpr(a, env)), n.line);
@@ -1439,6 +1683,84 @@ function fmtSlot(s) {
   return '[' + s.cells.map(x => (x === null ? '·' : fmt(x))).join(', ') + ']';
 }
 
+/* ---------- Routine calls ---------- */
+
+// RETURN unwinds through the generator stack; it is control flow, not an error.
+class ReturnSignal { constructor(value) { this.value = value; } }
+
+function bindArguments(def, args, callerEnv, line) {
+  if (args.length !== def.params.length) {
+    throw new CIEError(`${def.name} takes ${def.params.length} argument${def.params.length === 1 ? '' : 's'}, but ${args.length} ${args.length === 1 ? 'was' : 'were'} given`, line);
+  }
+  if (callerEnv.depth + 1 > MAX_DEPTH) {
+    throw new CIEError(`${def.name} has called itself more than ${MAX_DEPTH} times — a recursive routine needs a case that stops it`, line);
+  }
+  const inner = callerEnv.child();
+  const writeBacks = [];
+  def.params.forEach((p, i) => {
+    const arg = args[i];
+    inner.declare(p.name, p.dtype || 'INTEGER', line, null);
+    inner.vars.get(p.name).value = evalExpr(arg, callerEnv);
+    if (p.by === 'REF') {
+      if (!arg || (arg.k !== 'var' && arg.k !== 'index')) {
+        throw new CIEError(`Parameter ${p.name} is BYREF, so the argument has to be a variable`, line);
+      }
+      writeBacks.push({ param:p.name, arg });
+    }
+  });
+  return { inner, writeBacks };
+}
+
+function applyWriteBacks(writeBacks, inner, callerEnv, line) {
+  for (const w of writeBacks) {
+    const v = inner.vars.get(w.param).value;
+    if (w.arg.k === 'var') callerEnv.set(w.arg.name, v, line);
+    else callerEnv.setCell(w.arg.name, w.arg.idxs.map(e => evalExpr(e, callerEnv)), v, line);
+  }
+}
+
+// A CALL is a statement, so its body is traced line by line like any other.
+function* callRoutine(name, args, env, line) {
+  const def = env.routines.get(String(name).toUpperCase());
+  if (!def) throw new CIEError(`There is no procedure called ${name}`, line);
+  if (def.type !== 'PROCDEF') throw new CIEError(`${name} is a FUNCTION — use it in an expression, not with CALL`, line);
+  const { inner, writeBacks } = bindArguments(def, args, env, line);
+  try {
+    yield* execBlock(def.body, inner);
+  } catch (e) {
+    if (!(e instanceof ReturnSignal)) throw e;
+  }
+  applyWriteBacks(writeBacks, inner, env, line);
+}
+
+/*
+  A FUNCTION used inside an expression runs to completion without yielding,
+  because expressions are evaluated outside the generator. Its inner lines
+  therefore do not appear in the trace table — which matches how a trace
+  table question treats a function anyway.
+  ponytail: no per-line trace inside functions; make evalExpr a generator if
+  that is ever needed.
+*/
+function callFunction(def, args, env, line) {
+  const { inner } = bindArguments(def, args, env, line);
+  const it = execBlock(def.body, inner);
+  try {
+    let n = 0;
+    for (const _ of it) {
+      if (++n > MAX_STEPS) throw new CIEError(`${def.name} ran for more than ${MAX_STEPS} steps without returning`, line);
+    }
+  } catch (e) {
+    if (e instanceof ReturnSignal) return e.value;
+    throw e;
+  }
+  throw new CIEError(`${def.name} finished without a RETURN`, line);
+}
+
+function assignTo(target, value, env, line) {
+  if (!target.idxs) env.set(target.name, value, line);
+  else env.setCell(target.name, target.idxs.map(e => evalExpr(e, env)), value, line);
+}
+
 /* ---------- Execution (generator: yields a snapshot per executed line) ---------- */
 function snapshot(env, line, out) {
   const vars = {};
@@ -1454,7 +1776,7 @@ function* execStmt(s, env) {
 
     case 'DECLARE': {
       let bounds = null;
-      if (s.arr) bounds = { lo: evalExpr(s.arr.lo, env), hi: evalExpr(s.arr.hi, env) };
+      if (s.arr) bounds = { dims: s.arr.dims.map(d => ({ lo: evalExpr(d.lo, env), hi: evalExpr(d.hi, env) })) };
       for (const n of s.names) env.declare(n, s.dtype, s.line, bounds);
       yield snapshot(env, s.line);
       return;
@@ -1469,15 +1791,48 @@ function* execStmt(s, env) {
     }
     case 'ASSIGN': {
       const v = evalExpr(s.expr, env);
-      if (s.target.idx === null) env.set(s.target.name, v, s.line);
-      else env.setCell(s.target.name, evalExpr(s.target.idx, env), v, s.line);
+      assignTo(s.target, v, env, s.line);
       yield snapshot(env, s.line);
       return;
     }
     case 'INPUT': {
       const v = env.nextInput(s.line);
-      if (s.target.idx === null) env.set(s.target.name, v, s.line);
-      else env.setCell(s.target.name, evalExpr(s.target.idx, env), v, s.line);
+      assignTo(s.target, v, env, s.line);
+      yield snapshot(env, s.line);
+      return;
+    }
+    case 'PROCDEF': case 'FUNCDEF':
+      return;                                 // hoisted before the run starts
+
+    case 'CALL': {
+      yield snapshot(env, s.line);
+      yield* callRoutine(s.name, s.args, env, s.line, false);
+      yield snapshot(env, s.line);
+      return;
+    }
+    case 'RETURN': {
+      const v = evalExpr(s.expr, env);
+      yield snapshot(env, s.line);
+      throw new ReturnSignal(v);
+    }
+    case 'OPENFILE': {
+      env.openFile(evalExpr(s.name, env), s.mode, s.line);
+      yield snapshot(env, s.line);
+      return;
+    }
+    case 'READFILE': {
+      const v = env.readFile(evalExpr(s.name, env), s.line);
+      assignTo(s.target, v, env, s.line);
+      yield snapshot(env, s.line);
+      return;
+    }
+    case 'WRITEFILE': {
+      env.writeFile(evalExpr(s.name, env), fmt(evalExpr(s.expr, env)), s.line);
+      yield snapshot(env, s.line);
+      return;
+    }
+    case 'CLOSEFILE': {
+      env.closeFile(evalExpr(s.name, env), s.line);
       yield snapshot(env, s.line);
       return;
     }
@@ -1539,6 +1894,17 @@ function* execStmt(s, env) {
   throw new CIEError(`Unsupported statement: ${s.type}`, s.line);
 }
 
+function hoistRoutines(ast, env) {
+  for (const s of ast) {
+    if (s.type !== 'PROCDEF' && s.type !== 'FUNCDEF') continue;
+    const key = s.name.toUpperCase();
+    if (env.routines.has(key)) {
+      throw new CIEError(`There is already a routine called ${s.name}`, s.line);
+    }
+    env.routines.set(key, s);
+  }
+}
+
 /* ---------- Public entry points ---------- */
 const MAX_STEPS = 3000;
 const MAX_OUTPUT = 500;        // a runaway OUTPUT must stop before the browser does
@@ -1556,12 +1922,19 @@ function runProgram(codeText, inputText) {
   if (!lines.length) throw new CIEError('No pseudocode has been written yet', 1);
   const ast = parseProgram(lines);
   const env = new Env(parseInputValues(inputText));
+  // Routines are hoisted, so a program can call one defined further down.
+  hoistRoutines(ast, env);
   const steps = [];
-  for (const s of execBlock(ast, env)) {
-    steps.push(s);
-    if (steps.length > MAX_STEPS) {
-      throw new CIEError(`Execution passed ${MAX_STEPS} steps — most likely an infinite loop; check whether the loop condition can ever become FALSE`, s.line);
+  try {
+    for (const s of execBlock(ast, env)) {
+      steps.push(s);
+      if (steps.length > MAX_STEPS) {
+        throw new CIEError(`Execution passed ${MAX_STEPS} steps — most likely an infinite loop; check whether the loop condition can ever become FALSE`, s.line);
+      }
     }
+  } catch (e) {
+    if (e instanceof ReturnSignal) throw new CIEError('RETURN can only be used inside a FUNCTION', 1);
+    throw e;
   }
   return { steps, env };
 }
@@ -2476,7 +2849,7 @@ function walkAST(stmts, visit) {
     visit(s);
     if (s.then) walkAST(s.then, visit);
     if (s.else) walkAST(s.else, visit);
-    if (s.body) walkAST(s.body, visit);
+    if (s.body) walkAST(s.body, visit);   // loops, and PROCEDURE / FUNCTION bodies
     if (s.arms) for (const a of s.arms) walkAST(a.body || [a.stmt].filter(Boolean), visit);
     if (s.other) walkAST(Array.isArray(s.other) ? s.other : [s.other], visit);
   }
@@ -2488,7 +2861,14 @@ function detectConstructs(ast) {
   walkAST(ast, s => {
     if (s.type === 'IF' || s.type === 'CASE') found.add('selection');
     if (LOOP_TYPES.has(s.type)) found.add('loop');
-    if (s.type === 'DECLARE' && s.arr) found.add('array');
+    if (s.type === 'DECLARE' && s.arr) {
+      found.add('array');
+      if (s.arr.dims.length === 2) found.add('array-2d');
+    }
+    if (s.type === 'PROCDEF') found.add('procedure');
+    if (s.type === 'FUNCDEF') found.add('function');
+    if (s.type === 'CALL') found.add('call');
+    if (s.type === 'OPENFILE' || s.type === 'READFILE' || s.type === 'WRITEFILE') found.add('file');
     if (s.type === 'INPUT') found.add('input');
     if (s.type === 'OUTPUT') found.add('output');
   });
@@ -2501,7 +2881,9 @@ function detectConstructs(ast) {
 }
 const CONSTRUCT_NAMES = {
   selection:'selection (IF or CASE)', loop:'a loop', array:'an array',
-  'nested-loop':'a nested loop', input:'INPUT', output:'OUTPUT'
+  'array-2d':'a two-dimensional array', 'nested-loop':'a nested loop',
+  procedure:'a PROCEDURE', function:'a FUNCTION', call:'a CALL',
+  file:'file handling', input:'INPUT', output:'OUTPUT'
 };
 
 /* ---------- Running one hidden case ---------- */
@@ -2896,6 +3278,83 @@ const QUESTION_BANK = [
     hints:['LENGTH gives you how far to count, and MID pulls out one character.','CIE string positions start at 1, not 0.'],
     explanation:'Counting down from LENGTH to 1 and joining with & builds the reversed word one character at a time.',
     solution:'DECLARE word : STRING\nDECLARE out : STRING\nDECLARE i : INTEGER\nINPUT word\nout ← ""\nFOR i ← LENGTH(word) TO 1 STEP -1\n    out ← out & MID(word, i, 1)\nNEXT i\nOUTPUT out',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-proc-swap', qualification:'9618', topicId:'9618.13', subtopicId:'9618.13.2',
+    skill:'procedures', difficulty:'intermediate', marks:6, estimatedMinutes:10, paper:'Paper 2',
+    prompt:'Write a PROCEDURE called Swap that takes two INTEGER parameters BY REFERENCE and exchanges their values. Then read two numbers, call Swap, and output them in their new order, one per line.',
+    starterCode:'PROCEDURE Swap(BYREF a : INTEGER, BYREF b : INTEGER)\n\nENDPROCEDURE\n\nDECLARE x : INTEGER\nDECLARE y : INTEGER\nINPUT x\nINPUT y\n',
+    requiredConstructs:['procedure', 'call'],
+    visibleExamples:[{ inputs:[3, 8], note:'after swapping: 8 then 3' }],
+    hiddenCases:[
+      { inputs:[3, 8],   tag:'core', describe:'two different numbers' },
+      { inputs:[10, 2],  tag:'core', describe:'the larger one first' },
+      { inputs:[5, 5],   tag:'edge', describe:'two equal numbers' },
+      { inputs:[-4, 0],  tag:'edge', describe:'a negative and a zero' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('procedure', 1, 'Defines a PROCEDURE'),
+                  RULES.construct('call', 1, 'Calls the procedure'), RULES.core(2), RULES.edge(1)],
+    hints:['A swap needs somewhere to keep the first value while you overwrite it.','BYREF means the procedure changes the caller\u2019s own variables.'],
+    explanation:'Without a third variable the first value is lost as soon as you overwrite it — which is why a temporary is needed.',
+    solution:'PROCEDURE Swap(BYREF a : INTEGER, BYREF b : INTEGER)\n    DECLARE t : INTEGER\n    t \u2190 a\n    a \u2190 b\n    b \u2190 t\nENDPROCEDURE\nDECLARE x : INTEGER\nDECLARE y : INTEGER\nINPUT x\nINPUT y\nCALL Swap(x, y)\nOUTPUT x\nOUTPUT y',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-func-factorial', qualification:'9618', topicId:'9618.13', subtopicId:'9618.13.3',
+    skill:'recursion', difficulty:'higher', marks:6, estimatedMinutes:12, paper:'Paper 2',
+    prompt:'Write a recursive FUNCTION called Factorial that returns the factorial of a whole number, then read a number and output its factorial. Factorial of 0 is 1.',
+    starterCode:'FUNCTION Factorial(n : INTEGER) RETURNS INTEGER\n\nENDFUNCTION\n\nDECLARE n : INTEGER\nINPUT n\n',
+    requiredConstructs:['function'],
+    visibleExamples:[{ inputs:[5], note:'5 \u00d7 4 \u00d7 3 \u00d7 2 \u00d7 1 = 120' }],
+    hiddenCases:[
+      { inputs:[5], tag:'core', describe:'a small number' },
+      { inputs:[7], tag:'core', describe:'a slightly larger number' },
+      { inputs:[1], tag:'edge', describe:'one' },
+      { inputs:[0], tag:'edge', describe:'zero, whose factorial is 1' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('function', 1, 'Defines a FUNCTION'), RULES.core(2), RULES.edge(2)],
+    hints:['Every recursive routine needs a case that returns without calling itself.','Ask what Factorial(0) must give before writing the recursive line.'],
+    explanation:'The base case is what stops the recursion; without one the routine calls itself until the depth limit stops it.',
+    solution:'FUNCTION Factorial(n : INTEGER) RETURNS INTEGER\n    IF n <= 1 THEN\n        RETURN 1\n    ELSE\n        RETURN n * Factorial(n - 1)\n    ENDIF\nENDFUNCTION\nDECLARE n : INTEGER\nINPUT n\nOUTPUT Factorial(n)',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-grid-row-totals', qualification:'9618', topicId:'9618.12', subtopicId:'9618.12.2',
+    skill:'arrays', difficulty:'intermediate', marks:6, estimatedMinutes:12, paper:'Paper 2',
+    prompt:'Read six numbers into a two-dimensional array with 2 rows and 3 columns, filling it row by row. Output the total of each row, one per line.',
+    starterCode:'DECLARE grid : ARRAY[1:2, 1:3] OF INTEGER\nDECLARE r : INTEGER\nDECLARE c : INTEGER\nDECLARE total : INTEGER\n',
+    requiredConstructs:['array-2d', 'nested-loop'],
+    visibleExamples:[{ inputs:[1, 2, 3, 10, 20, 30], note:'row totals 6 and 60' }],
+    hiddenCases:[
+      { inputs:[1, 2, 3, 10, 20, 30], tag:'core', describe:'two ordinary rows' },
+      { inputs:[0, 0, 0, 0, 0, 0],    tag:'edge', describe:'all zeros' },
+      { inputs:[-1, -2, -3, 1, 2, 3], tag:'edge', describe:'a negative row and a positive one' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('array-2d', 1, 'Uses a two-dimensional array'),
+                  RULES.construct('nested-loop', 1, 'Uses a nested loop'), RULES.core(2), RULES.edge(1)],
+    hints:['The outer loop walks the rows, the inner one the columns.','Reset the running total at the start of each row, not once at the top.'],
+    explanation:'Resetting the total inside the outer loop is the whole trick: reset it outside and every row after the first is wrong.',
+    solution:'DECLARE grid : ARRAY[1:2, 1:3] OF INTEGER\nDECLARE r : INTEGER\nDECLARE c : INTEGER\nDECLARE total : INTEGER\nFOR r \u2190 1 TO 2\n    FOR c \u2190 1 TO 3\n        INPUT grid[r, c]\n    NEXT c\nNEXT r\nFOR r \u2190 1 TO 2\n    total \u2190 0\n    FOR c \u2190 1 TO 3\n        total \u2190 total + grid[r, c]\n    NEXT c\n    OUTPUT total\nNEXT r',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-file-count', qualification:'9618', topicId:'9618.12', subtopicId:'9618.12.3',
+    skill:'files', difficulty:'higher', marks:6, estimatedMinutes:12, paper:'Paper 2',
+    prompt:'Read four words. Write each one to a file called "words.txt", then close it, open it again for reading, and output how many lines it holds.',
+    starterCode:'DECLARE w : STRING\nDECLARE i : INTEGER\nDECLARE count : INTEGER\n',
+    requiredConstructs:['file', 'loop'],
+    visibleExamples:[{ inputs:['red', 'green', 'blue', 'grey'], note:'4' }],
+    hiddenCases:[
+      { inputs:['red', 'green', 'blue', 'grey'], tag:'core', describe:'four ordinary words' },
+      { inputs:['a', 'b', 'c', 'd'],             tag:'core', describe:'four single letters' },
+      { inputs:['x', 'x', 'x', 'x'],             tag:'edge', describe:'four identical words' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('file', 1, 'Uses file handling'),
+                  RULES.construct('loop', 1, 'Uses a loop'), RULES.core(2), RULES.edge(1)],
+    hints:['A file opened FOR WRITE has to be closed before it can be read.','EOF tells you when there is nothing left to read.'],
+    explanation:'A file cannot be written and read through the same open handle — close it and reopen it FOR READ.',
+    solution:'DECLARE w : STRING\nDECLARE i : INTEGER\nDECLARE count : INTEGER\nOPENFILE "words.txt" FOR WRITE\nFOR i \u2190 1 TO 4\n    INPUT w\n    WRITEFILE "words.txt", w\nNEXT i\nCLOSEFILE "words.txt"\ncount \u2190 0\nOPENFILE "words.txt" FOR READ\nWHILE NOT EOF("words.txt") DO\n    READFILE "words.txt", w\n    count \u2190 count + 1\nENDWHILE\nCLOSEFILE "words.txt"\nOUTPUT count',
     sourceType:'original', version:1
   },
   {
@@ -4216,6 +4675,148 @@ const TESTS = [
     assert(!/9608/.test(document.querySelector('.appbar').textContent),
       'the withdrawn 9608 syllabus must not be advertised in the header');
   }],
+  /* ---- Interpreter: procedures, functions, recursion, 2-D arrays, files ---- */
+  ['PROCEDURE: a call runs the body and is traced line by line', () => {
+    const { steps, env } = runProgram(
+      'PROCEDURE Greet(name : STRING)\n    OUTPUT "Hi " & name\nENDPROCEDURE\nCALL Greet("Ada")\nCALL Greet("Alan")', '');
+    assertEq(env.output.join('|'), 'Hi Ada|Hi Alan', 'the procedure should run twice');
+    assert(steps.some(s => s.line === 2), 'lines inside the procedure should appear in the trace');
+  }],
+  ['PROCEDURE: BYREF writes back, BYVALUE does not', () => {
+    const byval = runProgram(
+      'PROCEDURE Bump(n : INTEGER)\n    n ← n + 1\nENDPROCEDURE\nDECLARE x : INTEGER\nx ← 5\nCALL Bump(x)\nOUTPUT x', '');
+    assertEq(byval.env.output.join(','), '5', 'passing by value must leave the caller\'s variable alone');
+    const byref = runProgram(
+      'PROCEDURE Bump(BYREF n : INTEGER)\n    n ← n + 1\nENDPROCEDURE\nDECLARE x : INTEGER\nx ← 5\nCALL Bump(x)\nOUTPUT x', '');
+    assertEq(byref.env.output.join(','), '6', 'passing by reference must write back');
+  }],
+  ['PROCEDURE: BYREF needs a variable, not an expression', () => {
+    assertThrows(() => runProgram(
+      'PROCEDURE Bump(BYREF n : INTEGER)\n    n ← n + 1\nENDPROCEDURE\nCALL Bump(2 + 2)', ''),
+      'has to be a variable', 'BYREF with a literal should be refused');
+  }],
+  ['FUNCTION: returns a value usable in an expression', () => {
+    const { env } = runProgram(
+      'FUNCTION Double(n : INTEGER) RETURNS INTEGER\n    RETURN n * 2\nENDFUNCTION\nDECLARE a : INTEGER\na ← Double(7) + 1\nOUTPUT a', '');
+    assertEq(env.output.join(','), '15', 'Double(7) + 1 should be 15');
+  }],
+  ['FUNCTION: local variables do not leak into the caller', () => {
+    const { env } = runProgram(
+      'FUNCTION F() RETURNS INTEGER\n    DECLARE t : INTEGER\n    t ← 99\n    RETURN t\nENDFUNCTION\nDECLARE t : INTEGER\nt ← 1\nOUTPUT F()\nOUTPUT t', '');
+    assertEq(env.output.join(','), '99,1', 'the caller\'s t must survive the call');
+  }],
+  ['FUNCTION: falling off the end without RETURN is an error', () => {
+    assertThrows(() => runProgram(
+      'FUNCTION F() RETURNS INTEGER\n    DECLARE t : INTEGER\n    t ← 1\nENDFUNCTION\nOUTPUT F()', ''),
+      'without a RETURN', 'a function must return something');
+  }],
+  ['FUNCTION: a routine can be defined after it is used', () => {
+    const { env } = runProgram(
+      'DECLARE a : INTEGER\na ← Triple(3)\nOUTPUT a\nFUNCTION Triple(n : INTEGER) RETURNS INTEGER\n    RETURN n * 3\nENDFUNCTION', '');
+    assertEq(env.output.join(','), '9', 'definitions are hoisted');
+  }],
+  ['Recursion: it works, and runaway recursion is stopped', () => {
+    const { env } = runProgram(
+      'FUNCTION Fact(n : INTEGER) RETURNS INTEGER\n    IF n <= 1 THEN\n        RETURN 1\n    ELSE\n        RETURN n * Fact(n - 1)\n    ENDIF\nENDFUNCTION\nOUTPUT Fact(6)', '');
+    assertEq(env.output.join(','), '720', '6! is 720');
+    assertThrows(() => runProgram(
+      'FUNCTION Loop(n : INTEGER) RETURNS INTEGER\n    RETURN Loop(n + 1)\nENDFUNCTION\nOUTPUT Loop(1)', ''),
+      'called itself more than', 'endless recursion must be stopped');
+  }],
+  ['Routines: wrong argument count and unknown names are reported', () => {
+    assertThrows(() => runProgram('PROCEDURE P(a : INTEGER)\n    OUTPUT a\nENDPROCEDURE\nCALL P(1, 2)', ''),
+      'takes 1 argument', 'the arity mismatch should be named');
+    assertThrows(() => runProgram('CALL Nope()', ''), 'no procedure called', 'an unknown routine should be reported');
+    assertThrows(() => runProgram('FUNCTION F() RETURNS INTEGER\n    RETURN 1\nENDFUNCTION\nCALL F()', ''),
+      'is a FUNCTION', 'CALLing a function should say so');
+    assertThrows(() => runProgram('PROCEDURE P()\n    OUTPUT 1\nENDPROCEDURE\nOUTPUT P()', ''),
+      'is a PROCEDURE', 'using a procedure as a value should say so');
+  }],
+  ['Routines: a missing ENDPROCEDURE names the opening line', () => {
+    assertThrows(() => runProgram('DECLARE x : INTEGER\nPROCEDURE P()\n    OUTPUT 1', ''),
+      'ENDPROCEDURE', 'an unclosed procedure should be reported');
+  }],
+  ['Arrays: two dimensions can be declared, written and read', () => {
+    const { env } = runProgram(
+      'DECLARE grid : ARRAY[1:2, 1:3] OF INTEGER\nDECLARE r : INTEGER\nDECLARE c : INTEGER\n' +
+      'FOR r ← 1 TO 2\n    FOR c ← 1 TO 3\n        grid[r, c] ← r * 10 + c\n    NEXT c\nNEXT r\n' +
+      'OUTPUT grid[1, 1]\nOUTPUT grid[2, 3]\nOUTPUT grid[1, 3]', '');
+    assertEq(env.output.join(','), '11,23,13', 'a 2-D array should address its cells correctly');
+  }],
+  ['Arrays: the wrong number of indices and out-of-bounds are caught', () => {
+    assertThrows(() => runProgram('DECLARE g : ARRAY[1:2, 1:2] OF INTEGER\ng[1] ← 5', ''),
+      '2 dimensions', 'one index into a 2-D array should be refused');
+    assertThrows(() => runProgram('DECLARE g : ARRAY[1:2, 1:2] OF INTEGER\ng[1, 3] ← 5', ''),
+      'out of bounds', 'an index past the end should be refused');
+    assertThrows(() => runProgram('DECLARE g : ARRAY[1:2, 1:2] OF INTEGER\ng[0, 1] ← 5', ''),
+      'start at 1', 'index 0 should still give the CIE message');
+    assertThrows(() => runProgram('DECLARE g : ARRAY[1:9999, 1:9999] OF INTEGER\ng[1, 1] ← 5', ''),
+      'more than this tool allows', 'a huge array should be refused rather than hang');
+  }],
+  ['Arrays: one-dimensional behaviour is unchanged', () => {
+    const { env } = runProgram(
+      'DECLARE a : ARRAY[1:3] OF INTEGER\na[1] ← 7\na[2] ← 8\na[3] ← 9\nOUTPUT a[2]', '');
+    assertEq(env.output.join(','), '8', 'a 1-D array should work exactly as before');
+  }],
+  ['Files: write, close, then read back in the sandbox', () => {
+    const { env } = runProgram(
+      'DECLARE line : STRING\n' +
+      'OPENFILE "notes.txt" FOR WRITE\nWRITEFILE "notes.txt", "alpha"\nWRITEFILE "notes.txt", "beta"\nCLOSEFILE "notes.txt"\n' +
+      'OPENFILE "notes.txt" FOR READ\nWHILE NOT EOF("notes.txt") DO\n    READFILE "notes.txt", line\n    OUTPUT line\nENDWHILE\nCLOSEFILE "notes.txt"', '');
+    assertEq(env.output.join(','), 'alpha,beta', 'the file should read back what was written');
+  }],
+  ['Files: APPEND adds to what is already there', () => {
+    const { env } = runProgram(
+      'DECLARE l : STRING\nDECLARE n : INTEGER\n' +
+      'OPENFILE "d.txt" FOR WRITE\nWRITEFILE "d.txt", "one"\nCLOSEFILE "d.txt"\n' +
+      'OPENFILE "d.txt" FOR APPEND\nWRITEFILE "d.txt", "two"\nCLOSEFILE "d.txt"\n' +
+      'n ← 0\nOPENFILE "d.txt" FOR READ\nWHILE NOT EOF("d.txt") DO\n    READFILE "d.txt", l\n    n ← n + 1\nENDWHILE\nCLOSEFILE "d.txt"\nOUTPUT n', '');
+    assertEq(env.output.join(','), '2', 'appending should keep the earlier line');
+  }],
+  ['Files: misuse is refused with a usable message', () => {
+    assertThrows(() => runProgram('DECLARE l : STRING\nREADFILE "x.txt", l', ''),
+      'not open', 'reading an unopened file should be refused');
+    assertThrows(() => runProgram('OPENFILE "x.txt" FOR READ', ''),
+      'no file called', 'reading a file that was never written should be refused');
+    assertThrows(() => runProgram('DECLARE l : STRING\nOPENFILE "x.txt" FOR WRITE\nREADFILE "x.txt", l', ''),
+      'cannot be used for READ', 'reading a write-only handle should be refused');
+    assertThrows(() => runProgram(
+      'DECLARE l : STRING\nOPENFILE "y.txt" FOR WRITE\nWRITEFILE "y.txt", "a"\nCLOSEFILE "y.txt"\n' +
+      'OPENFILE "y.txt" FOR READ\nREADFILE "y.txt", l\nREADFILE "y.txt", l', ''),
+      'nothing left to read', 'reading past the end should be refused');
+  }],
+  ['Files: the sandbox does not touch anything outside itself', () => {
+    // Path separators are stripped, so no name can escape the in-memory store.
+    const { env } = runProgram(
+      'DECLARE l : STRING\nOPENFILE "../../etc/passwd" FOR WRITE\nWRITEFILE "../../etc/passwd", "x"\nCLOSEFILE "../../etc/passwd"\nOUTPUT "done"', '');
+    assertEq(env.output.join(','), 'done', 'the write should stay inside the sandbox');
+  }],
+  ['Constructs: routines and 2-D arrays are detected on the tree', () => {
+    const ast = parseProgram(tokenize(
+      'PROCEDURE P()\n    OUTPUT 1\nENDPROCEDURE\nDECLARE g : ARRAY[1:2, 1:2] OF INTEGER\nCALL P()'));
+    const c = detectConstructs(ast);
+    assert(c.has('procedure'), 'a PROCEDURE should be detected');
+    assert(c.has('call'), 'a CALL should be detected');
+    assert(c.has('array-2d'), 'a two-dimensional array should be detected');
+    const inner = detectConstructs(parseProgram(tokenize(
+      'FUNCTION F(n : INTEGER) RETURNS INTEGER\n    DECLARE i : INTEGER\n    FOR i ← 1 TO n\n        OUTPUT i\n    NEXT i\n    RETURN n\nENDFUNCTION')));
+    assert(inner.has('function') && inner.has('loop'), 'a loop inside a function body should be found');
+  }],
+  ['Limits: every new feature still terminates', () => {
+    assertThrows(() => runProgram(
+      'PROCEDURE P()\n    CALL P()\nENDPROCEDURE\nCALL P()', ''),
+      'called itself more than', 'recursive procedures are bounded too');
+    // Two guards cover this: the step limit is reached first here, because a
+    // FOR loop costs two steps per write. Either way it stops.
+    assertThrows(() => runProgram(
+      'DECLARE i : INTEGER\nOPENFILE "f.txt" FOR WRITE\nFOR i ← 1 TO 5000\n    WRITEFILE "f.txt", "x"\nNEXT i', ''),
+      'Execution passed', 'a runaway write must terminate');
+    // The file limit itself, checked directly on the environment.
+    const env = new Env([]);
+    env.openFile('f.txt', 'WRITE', 1);
+    for (let i = 0; i < MAX_FILE_LINES; i++) env.writeFile('f.txt', 'x', 1);
+    assertThrows(() => env.writeFile('f.txt', 'x', 1), 'at most', 'the file line limit should hold');
+  }],
   ['Trace table: round trip through every non-array example', () => {
     for (const ex of EXAMPLES) {
       if (/ARRAY/.test(ex.code)) continue;
@@ -4248,7 +4849,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   SYLLABUSES, CURRENT_SYLLABUSES, syllabusById, syllabusesFor, syllabusForYear,
   topicsOf, questionsForTopic, questionsForSyllabus,
   createStore, EVIDENCE, STORE_VERSION, memoryBackend, topicProgressOf,
-  contrastRatio }; } catch (e) {}
+  contrastRatio, Env, MAX_FILE_LINES, MAX_DEPTH, hoistRoutines }; } catch (e) {}
 </script>
 
 <!-- =================================================================
