@@ -3618,6 +3618,15 @@ function topicsOf(syllabusId) {
 function questionsForTopic(topicCode) {
   return QUESTION_BANK.filter(q => q.topicId === topicCode);
 }
+// What a topic can actually offer: written questions from the bank, plus the
+// generated kinds its exercise types allow. Counting only the bank showed "0"
+// for topics that then handed out questions anyway.
+const GENERATED_KINDS = ['trace', 'output', 'truth'];
+function practiceCountForTopic(topic) {
+  if (!topic) return 0;
+  const gen = (topic.exerciseTypes || []).filter(t => GENERATED_KINDS.includes(t)).length;
+  return questionsForTopic(topic.code).length + gen;
+}
 function questionsForSyllabus(syllabusId) {
   const s = syllabusById(syllabusId);
   if (!s) return [];
@@ -3655,6 +3664,7 @@ function emptyStore() {
     attempts: [],
     topics: {},                    // topicCode -> { attempts, correct, distinctCorrect:[], lastPractised }
     reviews: {},                   // questionId -> { reason, box, dueAt, history:[] }
+    session: null,                 // the practice session in progress, so it survives a reload
     diagnostics: [],               // { at, correct, total, kind: 'baseline' | 'repeat' }
     feedback: [],                  // { at, role, rating, text } — kept locally, never sent
     createdAt: null
@@ -3746,14 +3756,18 @@ function createStore(backend) {
       const code = attempt.topicId || 'unknown';
       const t = s.topics[code] || { attempts:0, correct:0, distinctCorrect:[], lastPractised:null };
       t.attempts++;
-      if (attempt.correct) {
+      // Submitting the model answer after revealing it is not evidence that you
+      // can do it. It is still recorded and still marked — it just cannot move
+      // the topic towards SECURE.
+      const counts = attempt.correct && !attempt.revealed;
+      if (counts) {
         t.correct++;
         if (attempt.questionId && !t.distinctCorrect.includes(attempt.questionId)) {
           t.distinctCorrect.push(attempt.questionId);
         }
       }
       t.lastPractised = entry.timestamp;
-      t.lastCorrect = !!attempt.correct;
+      t.lastCorrect = !!counts;
       s.topics[code] = t;
 
       scheduleReview(s, entry);
@@ -3775,6 +3789,9 @@ function createStore(backend) {
         .map(id => Object.assign({ questionId:id }, s.reviews[id]))
         .sort((a, b) => a.dueAt - b.dueAt);
     },
+    getSession: () => read().session,
+    setSession(sess) { const st = read(); st.session = sess; write(); },
+    clearSession() { const st = read(); st.session = null; write(); },
     attempts: () => read().attempts.slice(),
     diagnostics: () => (read().diagnostics || []).slice(),
     recordDiagnostic(d) {
@@ -3835,7 +3852,7 @@ const DAY_MS = 86400000;
 function scheduleReview(store, attempt) {
   if (!attempt.questionId) return;
   const existing = store.reviews[attempt.questionId];
-  if (attempt.correct) {
+  if (attempt.correct && !attempt.revealed) {
     if (!existing) return;                       // never wrong, so nothing to review
     const box = Math.min(existing.box + 1, REVIEW_DAYS.length - 1);
     existing.history.push({ at: attempt.timestamp, correct:true });
@@ -4973,6 +4990,59 @@ const TESTS = [
       assert(document.getElementById('view-' + v), `the markup is missing view-${v}`);
     }
   }],
+  /* ---- Regressions for bugs found by using the app ---- */
+  ['Integrity: submitting a revealed answer is never evidence', () => {
+    const s = createStore(memoryBackend());
+    // Two honest failures, then the answer is shown, then the model answer is
+    // pasted back in. That last one must not count towards SECURE.
+    s.recordAttempt({ questionId:'q-larger-of-two', topicId:'0478.8', correct:false });
+    s.recordAttempt({ questionId:'q-larger-of-two', topicId:'0478.8', correct:false, status:'shown-answer', revealed:true });
+    s.recordAttempt({ questionId:'q-larger-of-two', topicId:'0478.8', correct:true, revealed:true,
+                      marksAwarded:5, marksAvailable:5 });
+    const p = s.topicProgress('0478.8');
+    assertEq(p.distinctCorrect, 0, 'a revealed answer must not count as a question got right');
+    assertEq(p.correct, 0, 'and must not count towards the correct tally');
+    assert(p.evidence !== 'SECURE', 'so the topic cannot become SECURE, got ' + p.evidence);
+    // The attempt is still recorded and still marked — it just is not evidence.
+    assertEq(s.attempts().length, 3, 'every attempt is still on the record');
+    assertEq(s.attempts()[2].marksAwarded, 5, 'and still carries its marks');
+  }],
+  ['Integrity: a revealed question stays in the review queue', () => {
+    const s = createStore(memoryBackend());
+    s.recordAttempt({ questionId:'q-a', topicId:'0478.8', correct:false });
+    const before = s.all().reviews['q-a'].box;
+    s.recordAttempt({ questionId:'q-a', topicId:'0478.8', correct:true, revealed:true });
+    assert(s.all().reviews['q-a'], 'it must not graduate out of review on a revealed answer');
+    assertEq(s.all().reviews['q-a'].box, before, 'and its spacing must not advance');
+    // An honest correct answer does advance it.
+    s.recordAttempt({ questionId:'q-a', topicId:'0478.8', correct:true });
+    assert(s.all().reviews['q-a'].box > before, 'an unaided correct answer should advance the spacing');
+  }],
+  ['Session: a session survives being saved and read back', () => {
+    const mem = memoryBackend();
+    const a = createStore(mem);
+    a.setProfile({ qualification:'0478', syllabusId:'0478-2026-2028', examYear:2027, level:'IGCSE' });
+    a.setSession({ items:[{ type:'bank', id:'q-sum-to-n' }, { type:'gen', kind:'trace', seed:5 }],
+                   index:1, startedAt:Date.now(), label:'Topic practice', revealed:[] });
+    const b = createStore(mem);
+    const s = b.getSession();
+    assert(s, 'the session should still be there after a reload');
+    assertEq(s.index, 1, 'and should still be on the same question');
+    assertEq(s.items.length, 2, 'with its questions intact');
+    b.clearSession();
+    assertEq(createStore(mem).getSession(), null, 'finishing clears it');
+  }],
+  ['Topics: the count includes generated questions, not just the bank', () => {
+    const alg = topicsOf('0478-2026-2028').find(t => t.code === '0478.7');
+    assertEq(questionsForTopic('0478.7').length, 0, 'this topic has no written questions');
+    assert(practiceCountForTopic(alg) > 0,
+      'but it does generate trace and output questions, so the count must not read 0');
+    const db = topicsOf('0478-2026-2028').find(t => t.code === '0478.9');
+    assertEq(practiceCountForTopic(db), 0, 'a topic with nothing to offer should count 0 and be shown as such');
+    const prog = topicsOf('0478-2026-2028').find(t => t.code === '0478.8');
+    assertEq(practiceCountForTopic(prog),
+      questionsForTopic('0478.8').length + 2, 'written questions plus its generated kinds');
+  }],
   ['Trace table: round trip through every non-array example', () => {
     for (const ex of EXAMPLES) {
       if (/ARRAY/.test(ex.code)) continue;
@@ -5003,7 +5073,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   QUESTION_BANK, questionById, questionsFor, gradeSubmission, questionCases,
   detectConstructs, runCase, GRADE_STATUS,
   SYLLABUSES, CURRENT_SYLLABUSES, syllabusById, syllabusesFor, syllabusForYear,
-  topicsOf, questionsForTopic, questionsForSyllabus,
+  topicsOf, questionsForTopic, questionsForSyllabus, practiceCountForTopic,
   createStore, EVIDENCE, STORE_VERSION, memoryBackend, topicProgressOf,
   VIEWS_NEEDING_COURSE, ALL_VIEWS,
   contrastRatio, Env, MAX_FILE_LINES, MAX_DEPTH, hoistRoutines }; } catch (e) {}
@@ -5129,7 +5199,15 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     if (view === 'evidence') renderEvidence();
     if (view === 'settings') renderSettings();
     if (view === 'about') renderAbout();
-    if (view === 'practice' && (!session || (opts && opts.fresh))) startSession(opts || {});
+    if (view === 'practice') {
+      // Only an explicit `fresh` starts a new session. Landing here any other
+      // way — a reload straight onto #/practice included — picks the saved
+      // session back up, rather than quietly overwriting it.
+      if (opts && opts.fresh) startSession(opts);
+      else if (session) { renderSessionBar(); }
+      else if (store.getSession()) resumeSession();
+      else startSession(opts || {});
+    }
     if (view === 'lab-pseudocode') { resetTrace(); renderGutter(); }
     if (view === 'lab-logic') generate();
     updateActionBar();
@@ -5168,12 +5246,13 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     $('rail-topics-empty').hidden = topics.length > 0;
     $('rail-topics').innerHTML = shown.map(t => {
       const p = store.topicProgress(t.code);
-      const n = questionsForTopic(t.code).length;
-      return `<button class="rail-item" role="listitem" data-topic="${esc(t.code)}" ` +
-        `aria-label="${esc(t.name)}, ${esc(p.evidence)}, ${n} question${n === 1 ? '' : 's'}">` +
+      const n = practiceCountForTopic(t);
+      return `<button class="rail-item${n ? '' : ' is-locked'}" role="listitem" data-topic="${esc(t.code)}" ` +
+        (n ? '' : 'aria-disabled="true" ') +
+        `aria-label="${esc(t.name)}, ${esc(p.evidence)}, ${n ? n + ' question' + (n === 1 ? '' : 's') : 'no questions yet'}">` +
         `<span class="dot ${EVIDENCE_CLASS[p.evidence]}" aria-hidden="true"></span>` +
         `<span class="label">${esc(t.name)}</span>` +
-        `<span class="count" aria-hidden="true">${n}</span></button>`;
+        `<span class="count" aria-hidden="true">${n || 'soon'}</span></button>`;
     }).join('') || (topics.length ? '<p class="rail-label" style="text-transform:none;letter-spacing:0">No topic matches that.</p>' : '');
 
     // course chip + evidence pill
@@ -5194,11 +5273,22 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     syncStartButton();
   }
 
+  // Restarting loses your place, so it is never done silently.
+  function confirmRestart() {
+    if (!session || session.index === 0) return true;
+    return confirm(`You are on question ${session.index + 1} of ${session.items.length}. Start a new session and lose your place?`);
+  }
   $('rail').addEventListener('click', ev => {
     const btn = ev.target.closest('[data-go],[data-topic]');
     if (!btn) return;
-    if (btn.dataset.go) go(btn.dataset.go, { fresh: btn.dataset.go === 'practice' });
-    else go('practice', { fresh:true, topicId: btn.dataset.topic });
+    if (btn.dataset.go === 'practice') { go('practice', { resume:true }); return; }
+    if (btn.dataset.go) { go(btn.dataset.go); return; }
+    if (btn.getAttribute('aria-disabled') === 'true') {
+      toast('No questions for that topic yet — the labs cover it in the meantime');
+      return;
+    }
+    if (!confirmRestart()) return;
+    go('practice', { fresh:true, topicId: btn.dataset.topic });
   });
   $('rail-filter').addEventListener('input', renderRail);
 
@@ -5317,7 +5407,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     const attempts = store.attempts();
     const due = store.dueReviews();
     const all = store.allTopicProgress();
-    const topics = topicsOf(profile.syllabusId).filter(t => questionsForTopic(t.code).length);
+    const topics = topicsOf(profile.syllabusId).filter(t => practiceCountForTopic(t) > 0);
     const weakest = topics
       .map(t => ({ t, p: all[t.code] || store.topicProgress(t.code) }))
       .sort((a, b) => rank(a.p.evidence) - rank(b.p.evidence))[0];
@@ -5326,7 +5416,12 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     if (!attempts.length) {
       actions.push({ title:'Start with a short diagnostic', sub:'Six questions across the topics, so your first evidence is real rather than guessed.', go:'practice', opts:{ fresh:true, diagnostic:true }, primary:true });
     } else {
-      if (lastSession) actions.push({ title:'Continue where you left off', sub:lastSession.label, go:'practice', opts:{ fresh:true, topicId:lastSession.topicId }, primary:true });
+      const saved = store.getSession();
+      if (saved && saved.index < saved.items.length) {
+        actions.push({ title:'Continue where you left off',
+          sub:`${saved.label} — question ${saved.index + 1} of ${saved.items.length}`,
+          go:'practice', opts:{ resume:true }, primary:true });
+      }
       if (due.length) actions.push({ title:`Review ${due.length} question${due.length === 1 ? '' : 's'}`, sub:'These are things you got wrong, come back round on a spacing schedule.', go:'practice', opts:{ fresh:true, review:true } });
       if (weakest) actions.push({ title:`Practise ${weakest.t.name}`, sub:`Your weakest evidence right now: ${weakest.p.evidence.toLowerCase()}.`, go:'practice', opts:{ fresh:true, topicId:weakest.t.code } });
     }
@@ -5342,7 +5437,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
 
     $('dash-topics').innerHTML = topics.map(t => {
       const p = all[t.code] || store.topicProgress(t.code);
-      const n = questionsForTopic(t.code).length;
+      const n = practiceCountForTopic(t);
       return `<button class="topic-row" data-topic="${esc(t.code)}">` +
         `<span class="dot ${EVIDENCE_CLASS[p.evidence]}" aria-hidden="true" style="width:8px;height:8px;border-radius:50%"></span>` +
         `<span class="name">${esc(t.name)}<br><span class="code">${esc(t.code)} · ${n} question${n === 1 ? '' : 's'} · ${esc(t.paper)}</span></span>` +
@@ -5371,9 +5466,10 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   /* ============================================================
      Practice session
      ============================================================ */
-  let session = null, lastSession = null;
+  let session = null;
   let item = null;              // the question on screen
-  let attemptsOnItem = 0, itemStart = 0, marked = false;
+  let attemptsOnItem = 0, itemStart = 0, marked = false, lastSubmission = null;
+  const sessionKey = i => (i.type === 'bank' ? i.id : i.kind + ':' + i.seed);
 
   function buildSession(opts) {
     const profile = store.getProfile();
@@ -5394,6 +5490,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
         if (types.includes(k)) items.push({ type:'gen', kind:k, seed: (seed += 7919) >>> 0, topicId:opts.topicId });
       });
     }
+    if (opts.topicId && !items.length) return [];   // say so, rather than serving another topic
     if (!items.length) {
       // diagnostic / general: a spread across this syllabus
       questionsForSyllabus(profile.syllabusId).slice(0, 4).forEach(addBank);
@@ -5412,19 +5509,29 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     return mixed.slice(0, 8);
   }
 
+  // Rebuild what a saved session was holding, so a reload really carries on
+  // rather than quietly starting again from question one.
+  function resumeSession() {
+    const saved = store.getSession();
+    if (!saved || saved.index >= saved.items.length) { startSession({}); return; }
+    session = saved;
+    if (!session.revealed) session.revealed = [];
+    loadItem();
+  }
+
   function startSession(opts) {
     const items = buildSession(opts || {});
     if (!items.length) { toast('No questions for that topic yet'); go('dashboard'); return; }
     session = { items, index:0, startedAt:Date.now(),
                 label: opts.diagnostic ? 'Diagnostic' : opts.review ? 'Review session' : (opts.topicId ? 'Topic practice' : 'Mixed practice'),
-                topicId: opts.topicId || null, diagnostic: !!opts.diagnostic };
-    lastSession = { label:session.label + ' · ' + items.length + ' questions', topicId:session.topicId };
+                topicId: opts.topicId || null, diagnostic: !!opts.diagnostic, revealed:[] };
+    store.setSession(session);
     loadItem();
   }
 
   function loadItem() {
     const it = session.items[session.index];
-    attemptsOnItem = 0; marked = false; itemStart = Date.now();
+    attemptsOnItem = 0; marked = false; itemStart = Date.now(); lastSubmission = null;
     item = it.type === 'bank'
       ? { kind:'code', q: questionById(it.id), topicId: it.topicId }
       : { kind: it.kind, q: makeQuestion(it.kind, it.seed), topicId: it.topicId };
@@ -5569,6 +5676,13 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
 
   /* ---------- Check: hidden cases, marks, and an attempt on the record ---------- */
   function checkAnswer() {
+    // Pressing Check again without changing anything is not a new attempt.
+    const snap = currentSubmission();
+    if (snap !== null && snap === lastSubmission) {
+      toast('Nothing has changed since your last check');
+      return;
+    }
+    lastSubmission = snap;
     attemptsOnItem++;
     if (attemptsOnItem >= 2) {
       const b = $('btn-q-show');
@@ -5580,10 +5694,19 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     return checkTruth();
   }
 
+  // A stable text of whatever the student has entered, for the "unchanged" test.
+  function currentSubmission() {
+    if (item.kind === 'code')   return $('q-code') ? $('q-code').value : null;
+    if (item.kind === 'output') return $('q-out') ? $('q-out').value : null;
+    const cells = $('q-answer').querySelectorAll('input');
+    return cells.length ? [...cells].map(c => c.value).join('\u0001') : null;
+  }
+
   function record(correct, extra) {
+    const revealed = session.revealed.includes(sessionKey(session.items[session.index]));
     const entry = Object.assign({
       questionId: item.kind === 'code' ? item.q.id : null,
-      topicId: item.topicId, kind: item.kind, correct,
+      topicId: item.topicId, kind: item.kind, correct, revealed,
       durationMs: Date.now() - itemStart
     }, extra || {});
     store.recordAttempt(entry);
@@ -5680,6 +5803,9 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   }
 
   function showAnswer() {
+    const key = sessionKey(session.items[session.index]);
+    if (!session.revealed.includes(key)) session.revealed.push(key);
+    store.setSession(session);
     if (!marked) record(false, { status:'shown-answer', misconceptions:['gave-up'] });
     if (item.kind === 'code') {
       $('q-code').value = item.q.solution;
@@ -5722,14 +5848,19 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
         flagStoreError();
       }
       session = null;
+      store.clearSession();
       go('dashboard');
       toast(`Session finished — ${right} of ${done.length} correct`);
       return;
     }
     session.index++;
+    store.setSession(session);
     loadItem();
   }
-  $('btn-end-session').addEventListener('click', () => { session = null; go('dashboard'); });
+  $('btn-end-session').addEventListener('click', () => {
+    if (!confirmRestart()) return;
+    session = null; store.clearSession(); go('dashboard');
+  });
 
   /* ---------- Inspector ---------- */
   const ITABS = [['itab-feedback', 'ipanel-feedback'], ['itab-trace', 'ipanel-trace'],
@@ -5961,7 +6092,12 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   /* ============================================================
      Header buttons
      ============================================================ */
-  $('btn-start').addEventListener('click', () => go('practice', { fresh:true }));
+  $('btn-start').addEventListener('click', () => {
+    if (session && currentView === 'practice') { go('practice'); return; }
+    if (store.getSession() && !session) { go('practice', { resume:true }); return; }
+    if (!confirmRestart()) return;
+    go('practice', { fresh:true });
+  });
   // Before a course is chosen the primary button says what it will actually do.
   function syncStartButton() {
     $('btn-start').textContent = store.getProfile() ? 'Start practice' : 'Choose course';
