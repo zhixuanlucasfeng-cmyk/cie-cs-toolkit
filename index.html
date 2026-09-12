@@ -359,6 +359,12 @@
   .mark-row.is-miss .glyph { color:var(--text-muted); }
   .mark-row .label { flex:1; color:var(--text-secondary); }
   .mark-row .marks { font-family:var(--font-mono); color:var(--text-primary); }
+  .diagnosis {
+    border-left:2px solid var(--warning); background:var(--warning-wash);
+    padding:var(--s2) var(--s3); border-radius:0 var(--radius) var(--radius) 0;
+    margin-bottom:var(--s2);
+  }
+  .diagnosis p { margin:var(--s1) 0 0; font-size:13px; color:var(--text-secondary); }
   .mark-total { display:flex; justify-content:space-between; align-items:baseline; padding-top:var(--s3); font-family:var(--font-mono); }
   .mark-total b { font-size:20px; font-family:var(--font-display); }
 
@@ -965,6 +971,10 @@ Comments: start the line with //
       <div class="panel">
         <div class="panel-head"><h2>Retention</h2></div>
         <div class="panel-body" id="ev-retention"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Slips that keep coming back</h2></div>
+        <div class="panel-body" id="ev-slips"></div>
       </div>
       <div class="panel">
         <div class="panel-head"><h2>Tell us what you think</h2></div>
@@ -3059,7 +3069,7 @@ function gradeSubmission(q, code, opts) {
   const marksAwarded = breakdown.reduce((a, b) => a + b.marks, 0);
 
   // 5. Status and feedback: say what kind of wrong it is.
-  const misconceptions = [];
+  let misconceptions = [];
   let status, feedback;
   if (runtimeError && passedCases === 0) {
     status = GRADE_STATUS.RUNTIME;
@@ -3089,9 +3099,165 @@ function gradeSubmission(q, code, opts) {
     feedback = `${passedCases} of ${cases.length} test cases pass. It first goes wrong ${where}: ${detail}`;
   }
 
+  // Only diagnose when something is actually wrong with the logic; a syntax
+  // error or a missing construct has already been named precisely.
+  const diagnosis = (status === GRADE_STATUS.LOGIC || status === GRADE_STATUS.RUNTIME)
+    ? diagnose(q, code, options) : [];
+  // Specific first: whatever reads this (the review queue, the export) should
+  // see the named slip rather than the generic bucket it also falls into.
+  misconceptions = diagnosis.map(d => d.id).concat(misconceptions.filter(t => !diagnosis.some(d => d.id === t)));
+
   return { status, marksAwarded, marksAvailable, breakdown, passedCases,
-           totalCases:cases.length, firstFailure, misconceptions, feedback,
+           totalCases:cases.length, firstFailure, misconceptions, feedback, diagnosis,
            constructs:[...constructs], missingConstructs:missing };
+}
+
+/* ======================================================================
+   Diagnosis: what kind of mistake is this?
+
+   Every rule here is decided from what the program actually DID on the
+   hidden cases — never from reading the source, and never from a guess.
+   If the evidence does not fit a named slip, nothing is claimed.
+   ====================================================================== */
+
+// Names for the tags that are not diagnosis rules, so nothing ever reaches a
+// student as a raw slug.
+const MISCONCEPTION_LABELS = {
+  'edge-case':'An edge case is not handled',
+  'partial-logic':'Right for some inputs, wrong for others',
+  'missing-construct':'The structure the question asked for is missing',
+  'syntax':'The program could not be parsed',
+  'runtime':'The program stopped while running',
+  'trace':'A value in the trace table was wrong',
+  'output-prediction':'The predicted output was wrong',
+  'boolean':'A row of the truth table was wrong',
+  'gave-up':'The answer was revealed'
+};
+function misconceptionLabel(tag) {
+  const rule = DIAGNOSIS_RULES.find(r => r.id === tag);
+  return rule ? rule.label : (MISCONCEPTION_LABELS[tag] || tag);
+}
+
+const hasNegative = c => (c.inputs || []).some(v => typeof v === 'number' && v < 0);
+const hasZero     = c => (c.inputs || []).some(v => v === 0 || v === '0');
+const looksLikeBoundary = c => /\bexactly\b|\bboundary\b|\bjust (?:below|above|under|over)\b/i.test(c.describe || '');
+
+// Every rule returns a diagnosis only when its own condition holds across the
+// whole result set, so a coincidence on one case cannot trigger it.
+const DIAGNOSIS_RULES = [
+  {
+    id:'constant-output',
+    test: r => r.ran.length >= 3 && r.distinctOutputs.size === 1 && r.failed.length > 0,
+    label:'Your program gives the same answer whatever the input',
+    advice:'Nothing it prints depends on the values it reads. Check that you INPUT the values and then use those variables, rather than writing the answer in directly.'
+  },
+  {
+    id:'example-only',
+    test: r => r.failed.length > 0 && r.passed.length > 0 &&
+               r.passed.every(c => r.visibleKeys.has(c.key)) &&
+               r.failed.every(c => !r.visibleKeys.has(c.key)),
+    label:'It works for the worked example and nothing else',
+    advice:'The example is one case out of many. Try writing the algorithm for a value you have not been shown, then check it still gives the example the right answer.'
+  },
+  {
+    id:'boundary',
+    test: r => r.failed.length > 0 && r.failed.every(looksLikeBoundary) &&
+               r.passed.some(c => !looksLikeBoundary(c)),
+    label:'A boundary is in the wrong place',
+    advice:'It is right in the middle of each range and wrong at the edge. Look at every comparison and ask whether it should be < or <=, > or >= — the difference is exactly one value.'
+  },
+  {
+    id:'negatives',
+    test: r => r.failed.length > 0 && r.failed.every(hasNegative) && r.passed.every(c => !hasNegative(c)),
+    label:'Negative values are not handled',
+    advice:'Everything with a negative number in it fails. A common cause is starting a running total or a "largest so far" at 0, which is already bigger than any negative value.'
+  },
+  {
+    id:'zero',
+    test: r => r.failed.length > 0 && r.failed.every(hasZero) && r.passed.every(c => !hasZero(c)),
+    label:'Zero is not handled',
+    advice:'Only the cases involving zero fail. Ask what your loop or condition does when the value is 0 — a WHILE that tests "> 0" never runs, and a REPEAT always runs once.'
+  },
+  {
+    id:'empty-expected',
+    test: r => r.failed.length > 0 && r.failed.every(c => c.expected.length === 0),
+    label:'It prints something when it should print nothing',
+    advice:'For these inputs the correct behaviour is to output nothing at all. A loop that must run zero times is usually the answer, rather than a special case.'
+  },
+  {
+    id:'off-by-one-count',
+    test: r => r.failed.length > 0 && r.failed.every(c => c.got && Math.abs(c.got.length - c.expected.length) === 1) &&
+               new Set(r.failed.map(c => c.got.length - c.expected.length)).size === 1,
+    label:'Your loop runs one time too many or too few',
+    advice:'Every failing case prints exactly one line more or fewer than it should. Check the start and end values of the loop — TO includes its end value.'
+  },
+  {
+    id:'off-by-one-value',
+    test: r => r.failed.length >= 2 &&
+               r.failed.every(c => c.got && c.got.length === c.expected.length && c.expected.length === 1 &&
+                 /^-?\d+$/.test(c.got[0]) && /^-?\d+$/.test(c.expected[0]) &&
+                 Math.abs(Number(c.got[0]) - Number(c.expected[0])) === 1) &&
+               new Set(r.failed.map(c => Number(c.got[0]) - Number(c.expected[0]))).size === 1,
+    label:'Every answer is out by one',
+    advice:'The shape is right — each answer is consistently one too high or one too low. That usually means a counter starts at the wrong value, or a loop includes or excludes one end.'
+  },
+  {
+    id:'reversed',
+    test: r => r.failed.length > 0 &&
+               r.failed.every(c => c.got && c.got.length > 1 &&
+                 c.got.slice().reverse().join('') === c.expected.join('')),
+    label:'The right values, in the wrong order',
+    advice:'Your output is the expected answer backwards. Check the direction your loop counts in, and whether STEP -1 belongs there.'
+  },
+  {
+    id:'crashes-on-some',
+    test: r => r.errored.length > 0 && r.passed.length > 0,
+    label:'It works for some inputs and stops on others',
+    advice:'Test the awkward value before you use it, rather than letting the program reach the line that fails. The message on the failing case says what it hit.'
+  },
+  {
+    id:'nothing-printed',
+    test: r => r.failed.length > 0 && r.failed.every(c => c.got && c.got.length === 0) &&
+               r.failed.some(c => c.expected.length > 0),
+    label:'Nothing is printed for these inputs',
+    advice:'The program runs but never reaches an OUTPUT. Usually a condition is never true, or a loop body never runs, for these values.'
+  }
+];
+
+/*
+  Builds the evidence, then reports only the rules that fit it.
+  Returns [] when nothing fits — saying nothing is better than guessing.
+*/
+function diagnose(q, code, opts) {
+  const options = opts || {};
+  const cases = questionCases(q, options.seed || 1);
+  const visibleKeys = new Set((q.visibleExamples || []).map(v => caseInputText(v.inputs)));
+
+  const results = cases.map(c => {
+    const expected = expectedFor(q, c);
+    const run = runCase(code, c.inputs);
+    return {
+      key: caseInputText(c.inputs), inputs: c.inputs, describe: c.describe, tag: c.tag,
+      expected, got: run.ok ? run.output : null, error: run.ok ? null : run.error,
+      ok: run.ok && normaliseOutputs(run.output) === normaliseOutputs(expected)
+    };
+  });
+
+  const ran = results.filter(r => r.got !== null);
+  const evidence = {
+    all: results,
+    ran,
+    passed: results.filter(r => r.ok),
+    failed: results.filter(r => !r.ok),
+    errored: results.filter(r => r.error),
+    visibleKeys,
+    distinctOutputs: new Set(ran.map(r => r.got.join('')))
+  };
+  if (!evidence.failed.length) return [];
+
+  return DIAGNOSIS_RULES
+    .filter(rule => { try { return rule.test(evidence); } catch (e) { return false; } })
+    .map(rule => ({ id: rule.id, label: rule.label, advice: rule.advice }));
 }
 
 /* ---------- The bank ----------
@@ -5499,6 +5665,96 @@ const TESTS = [
         `"${q.id}" marking rules do not add up to its stated marks`);
     }
   }],
+  /* ---- Diagnosis: named from behaviour, never guessed ---- */
+  ['Diagnosis: a boundary slip is named as a boundary slip', () => {
+    const q = questionById('q-grade-boundary');
+    // > 70 instead of >= 70: right in the middle of every band, wrong at the edge.
+    const code = 'DECLARE m : INTEGER\nINPUT m\nIF m > 70 THEN\n    OUTPUT "A"\nELSE\n    IF m >= 60 THEN\n        OUTPUT "B"\n    ELSE\n        IF m >= 50 THEN\n            OUTPUT "C"\n        ELSE\n            OUTPUT "F"\n        ENDIF\n    ENDIF\nENDIF';
+    const ids = diagnose(q, code).map(d => d.id);
+    assert(ids.includes('boundary'), 'a boundary slip should be named, got: ' + JSON.stringify(ids));
+  }],
+  ['Diagnosis: starting a maximum at zero reads as a negatives problem', () => {
+    const q = questionById('q-largest-of-list');
+    const code = 'DECLARE a : ARRAY[1:6] OF INTEGER\nDECLARE i : INTEGER\nDECLARE L : INTEGER\nFOR i ← 1 TO 6\n    INPUT a[i]\nNEXT i\nL ← 0\nFOR i ← 1 TO 6\n    IF a[i] > L THEN\n        L ← a[i]\n    ENDIF\nNEXT i\nOUTPUT L';
+    const ids = diagnose(q, code).map(d => d.id);
+    assert(ids.includes('negatives'), 'the all-negative failure should be named, got: ' + JSON.stringify(ids));
+  }],
+  ['Diagnosis: an answer that ignores its input is named', () => {
+    const q = questionById('q-larger-of-two');
+    // Has selection and INPUT, so the construct check passes, but the answer
+    // never depends on what was read.
+    const code = 'DECLARE a : INTEGER\nDECLARE b : INTEGER\nINPUT a\nINPUT b\nIF a > 0 THEN\n    OUTPUT 58\nELSE\n    OUTPUT 58\nENDIF';
+    const ids = diagnose(q, code).map(d => d.id);
+    assert(ids.includes('constant-output'), 'a constant answer should be named, got: ' + JSON.stringify(ids));
+  }],
+  ['Diagnosis: a loop that runs one time too few is named', () => {
+    const q = questionById('q-count-down');
+    const code = 'DECLARE n : INTEGER\nDECLARE i : INTEGER\nINPUT n\nFOR i ← n TO 2 STEP -1\n    OUTPUT i\nNEXT i';
+    const ids = diagnose(q, code).map(d => d.id);
+    assert(ids.includes('off-by-one-count'), 'an off-by-one loop should be named, got: ' + JSON.stringify(ids));
+  }],
+  ['Diagnosis: output in the wrong order is named', () => {
+    const q = questionById('q-array-reverse');
+    // Prints the array forwards instead of backwards.
+    const code = 'DECLARE a : ARRAY[1:5] OF INTEGER\nDECLARE i : INTEGER\nFOR i ← 1 TO 5\n    INPUT a[i]\nNEXT i\nFOR i ← 1 TO 5\n    OUTPUT a[i]\nNEXT i';
+    const ids = diagnose(q, code).map(d => d.id);
+    assert(ids.includes('reversed'), 'reversed output should be named, got: ' + JSON.stringify(ids));
+  }],
+  ['Diagnosis: a correct answer is never given a diagnosis', () => {
+    for (const q of QUESTION_BANK) {
+      assertEq(diagnose(q, q.solution).length, 0, `"${q.id}" got a diagnosis for a correct answer`);
+      assertEq((gradeSubmission(q, q.solution).diagnosis || []).length, 0,
+        `"${q.id}" reported a misconception on a full-marks answer`);
+    }
+  }],
+  ['Diagnosis: nothing is claimed when the evidence does not fit', () => {
+    const q = questionById('q-sum-to-n');
+    // Wrong in a way none of the rules describe: it multiplies instead.
+    const code = 'DECLARE n : INTEGER\nDECLARE t : INTEGER\nDECLARE i : INTEGER\nINPUT n\nt ← 1\nFOR i ← 1 TO n\n    t ← t * i\nNEXT i\nOUTPUT t';
+    const d = diagnose(q, code);
+    assert(Array.isArray(d), 'it should always return a list');
+    d.forEach(x => assert(x.label && x.advice, 'any diagnosis offered must carry advice'));
+  }],
+  ['Diagnosis: every rule has a label and advice a student can act on', () => {
+    assert(DIAGNOSIS_RULES.length >= 8, 'there should be a useful set of rules');
+    const ids = new Set();
+    for (const r of DIAGNOSIS_RULES) {
+      assert(!ids.has(r.id), `duplicate rule id ${r.id}`);
+      ids.add(r.id);
+      assert(typeof r.test === 'function', `${r.id} needs a test`);
+      assert(r.label && r.label.length > 10, `${r.id} needs a readable label`);
+      assert(r.advice && r.advice.length > 40, `${r.id} needs advice, not just a name`);
+    }
+  }],
+  ['Diagnosis: no tag ever reaches a student as a raw slug', () => {
+    const seen = new Set();
+    // Every tag the grader can produce, gathered by actually grading wrong answers.
+    const wrong = [
+      ['q-larger-of-two', 'DECLARE a : INTEGER\nOUTPUT 58'],
+      ['q-sum-to-n', 'DECLARE n : INTEGER\nINPUT n\nOUTPUT n'],
+      ['q-count-down', 'DECLARE n : INTEGER\nDECLARE i : INTEGER\nINPUT n\nFOR i ← n TO 2 STEP -1\n    OUTPUT i\nNEXT i'],
+      ['q-larger-of-two', 'DECLARE a : INTEGER\na = 1'],
+      ['q-larger-of-two', 'DECLARE a : INTEGER\nDECLARE b : INTEGER\nINPUT a\nINPUT b\nOUTPUT a DIV 0']
+    ];
+    for (const [id, code] of wrong) {
+      gradeSubmission(questionById(id), code).misconceptions.forEach(t => seen.add(t));
+    }
+    ['gave-up', 'trace', 'output-prediction', 'boolean'].forEach(t => seen.add(t));
+    assert(seen.size >= 4, 'the probe should produce several tags, got ' + seen.size);
+    for (const tag of seen) {
+      const label = misconceptionLabel(tag);
+      assert(label !== tag, `the tag "${tag}" has no readable label`);
+      assert(/^[A-Z]/.test(label) && label.includes(' '), `"${tag}" gives "${label}", which is not a sentence`);
+    }
+  }],
+  ['Diagnosis: the named slip leads the tag list', () => {
+    const q = questionById('q-largest-of-list');
+    const code = 'DECLARE a : ARRAY[1:6] OF INTEGER\nDECLARE i : INTEGER\nDECLARE L : INTEGER\nFOR i ← 1 TO 6\n    INPUT a[i]\nNEXT i\nL ← 0\nFOR i ← 1 TO 6\n    IF a[i] > L THEN\n        L ← a[i]\n    ENDIF\nNEXT i\nOUTPUT L';
+    const res = gradeSubmission(q, code);
+    assertEq(res.misconceptions[0], 'negatives',
+      'the specific diagnosis should come first, so the review queue names it');
+    assert(res.misconceptions.includes('edge-case'), 'the generic tag is still kept behind it');
+  }],
   ['Trace table: round trip through every non-array example', () => {
     for (const ex of EXAMPLES) {
       if (/ARRAY/.test(ex.code)) continue;
@@ -5527,7 +5783,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   flowchartSVG, flowchartToPseudo,
   makeQuestion, markTrace, markOutput, markTruth, markPseudocode, PQ_KINDS,
   QUESTION_BANK, questionById, questionsFor, gradeSubmission, questionCases,
-  detectConstructs, runCase, GRADE_STATUS,
+  detectConstructs, runCase, GRADE_STATUS, diagnose, DIAGNOSIS_RULES, misconceptionLabel,
   SYLLABUSES, CURRENT_SYLLABUSES, syllabusById, syllabusesFor, syllabusForYear,
   topicsOf, questionsForTopic, questionsForSyllabus, practiceCountForTopic,
   createStore, EVIDENCE, STORE_VERSION, memoryBackend, topicProgressOf,
@@ -6190,7 +6446,9 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
       : res.status === 'syntax-error' ? 'Fix the line the message names, then check again.'
       : res.status === 'missing-construct' ? 'Rewrite it using the structure the question asks for.'
       : res.status === 'runtime-error' ? 'Run it with the worked example inputs to see where it stops.'
-      : 'Look at the case described below and trace your program by hand for it.';
+      : 'Take the failing case named above and trace your program by hand for it.';
+    const diagnosis = (res.diagnosis || []).map(d =>
+      `<div class="diagnosis"><b>${esc(d.label)}</b><p>${esc(d.advice)}</p></div>`).join('');
     $('mark-breakdown').innerHTML =
       res.breakdown.map(b =>
         `<div class="mark-row ${b.passed ? 'is-hit' : 'is-miss'}">` +
@@ -6201,6 +6459,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
       `<div class="mark-total"><span>Total</span><b>${res.marksAwarded} / ${res.marksAvailable}</b></div>` +
       `<p style="margin-top:12px">${esc(res.feedback)}</p>` +
       `<p><b>Test cases passed:</b> ${res.passedCases} of ${res.totalCases}</p>` +
+      (diagnosis ? '<h3 style="margin:16px 0 8px">What this looks like</h3>' + diagnosis : '') +
       `<p><b>Next step:</b> ${esc(next)}</p>`;
   }
 
@@ -6404,7 +6663,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
         all.map(id => {
           const r = store.all().reviews[id];
           const isDue = r.dueAt <= Date.now();
-          return `<tr><td>${esc(id)}</td><td>${esc(r.reason)}</td>` +
+          return `<tr><td>${esc(id)}</td><td>${esc(misconceptionLabel(r.reason))}</td>` +
             `<td style="color:var(--${isDue ? 'danger' : 'text-secondary'})">${isDue ? 'now' : new Date(r.dueAt).toLocaleDateString()}</td></tr>`;
         }).join('') + '</tbody></table></div>' +
         (due.length ? `<div class="btn-row"><button class="btn primary" id="btn-do-review">Review ${due.length} now</button></div>` : '')
@@ -6475,6 +6734,21 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
       ? `<p><b>${rightOnReturn} of ${returned}</b> return attempts on previously wrong questions were correct ` +
         `(${Math.round((rightOnReturn / returned) * 100)}%). ${ids.length} question${ids.length === 1 ? ' is' : 's are'} in the queue.</p>`
       : '<p><b>Nothing has come back for review yet.</b> A question enters the queue when you get it wrong, and returns after 1, 3, 7, 16 then 35 days.</p>';
+
+    // Which slips actually keep coming back — counted from recorded attempts,
+    // and named only for tags a diagnosis rule can explain.
+    const tally = {};
+    store.attempts().forEach(a => (a.misconceptions || []).forEach(t => { tally[t] = (tally[t] || 0) + 1; }));
+    const known = {};
+    DIAGNOSIS_RULES.forEach(r => { known[r.id] = r; });
+    const ranked = Object.keys(tally)
+      .filter(t => known[t])          // only slips with advice worth repeating
+      .sort((a, b) => tally[b] - tally[a]);
+    $('ev-slips').innerHTML = ranked.length
+      ? '<p>Counted from your own attempts:</p>' + ranked.slice(0, 4).map(t =>
+          `<div class="diagnosis"><b>${esc(known[t].label)}</b> — seen ${tally[t]} time${tally[t] === 1 ? '' : 's'}` +
+          `<p>${esc(known[t].advice)}</p></div>`).join('')
+      : '<p><b>No pattern yet.</b> When a wrong answer matches a known kind of slip, it is named here and counted, so a habit shows up rather than staying a one-off.</p>';
 
     const fb = store.feedback();
     $('ev-feedback-list').innerHTML = fb.length

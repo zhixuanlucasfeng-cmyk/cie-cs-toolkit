@@ -77,6 +77,24 @@ The syllabuses change, and the changes matter, so a qualification is always stor
 
 Limits that always hold: 3000 execution steps, 500 output lines, recursion depth 120, 20000 array elements, 2000 file lines. File names are stripped to a safe character set, so nothing can address anything outside the sandbox. There is no `eval()` anywhere.
 
+## Telling you what you got wrong, not just that you did
+
+A mark out of six tells a student very little. When a submission fails, DryRun tries to name the *kind* of mistake — and it does so from what the program actually did on the hidden cases, never from reading the source and never from a guess.
+
+| What the evidence shows | What it is told |
+|---|---|
+| Right in the middle of every range, wrong at the edges | A boundary is in the wrong place — check `<` against `<=` |
+| Every case with a negative number fails, the rest pass | Negative values are not handled — often a total or maximum started at 0 |
+| Only the cases involving zero fail | Zero is not handled — what does your loop do when the value is 0? |
+| Every case prints exactly one line more or fewer | The loop runs one time too many or too few |
+| Output is the expected answer backwards | Right values, wrong order — check the direction of the loop |
+| The output never changes, whatever the input | The program ignores what it reads |
+| Only the worked example passes | It works for the example and nothing else |
+
+If the evidence fits none of these, nothing is claimed. Correct answers are never given a diagnosis — a test checks that across every question in the bank.
+
+The named slips are counted across attempts, so the Evidence page can show which mistake keeps coming back rather than treating each one as a one-off, and the review queue says "A boundary is in the wrong place" instead of a tag.
+
 ## Question bank
 
 36 original questions across nine syllabus topics, from one-decision foundation questions to recursion, two-dimensional arrays and file handling. Each one carries tagged hidden cases, required constructs, two or more hints, and an explanation of the idea it is really testing.
@@ -85,7 +103,7 @@ Three tests hold the bank to account, so it cannot rot as it grows: every refere
 
 ## Built-in self-test
 
-110 assertions covering the interpreter, the CIE-specific errors, both pseudocode converters, flowchart drawing, truth tables, hidden-case grading, the syllabus registry, the storage layer and its migrations, accessibility and the metadata. The contrast check reads the live custom properties, so the stylesheet itself is what gets tested.
+120 assertions covering the interpreter, the CIE-specific errors, both pseudocode converters, flowchart drawing, truth tables, hidden-case grading, the syllabus registry, the storage layer and its migrations, accessibility and the metadata. The contrast check reads the live custom properties, so the stylesheet itself is what gets tested.
 
 Add `?selftest=1` to the URL, or run it from the command line:
 
