@@ -3409,6 +3409,424 @@ const QUESTION_BANK = [
     solution:'DECLARE w : STRING\nDECLARE i : INTEGER\nDECLARE count : INTEGER\nOPENFILE "words.txt" FOR WRITE\nFOR i \u2190 1 TO 4\n    INPUT w\n    WRITEFILE "words.txt", w\nNEXT i\nCLOSEFILE "words.txt"\ncount \u2190 0\nOPENFILE "words.txt" FOR READ\nWHILE NOT EOF("words.txt") DO\n    READFILE "words.txt", w\n    count \u2190 count + 1\nENDWHILE\nCLOSEFILE "words.txt"\nOUTPUT count',
     sourceType:'original', version:1
   },
+  /* ---- 0478.7 Algorithm design and problem-solving ---- */
+  {
+    id:'q-input-process-output', qualification:'0478', topicId:'0478.7', subtopicId:'0478.7.1',
+    skill:'decomposition', difficulty:'foundation', marks:5, estimatedMinutes:6, paper:'Paper 2',
+    prompt:'A shop gives 10% off when the total is 50 or more. Read a total, then output the amount to pay. Amounts are whole numbers of cents, so use integer division.',
+    starterCode:'DECLARE total : INTEGER\nINPUT total\n',
+    requiredConstructs:['selection'],
+    visibleExamples:[{ inputs:[60], note:'60 qualifies, so 60 - 6 = 54' }],
+    hiddenCases:[
+      { inputs:[60], tag:'core', describe:'a total above the threshold' },
+      { inputs:[30], tag:'core', describe:'a total below the threshold' },
+      { inputs:[50], tag:'edge', describe:'exactly 50, the boundary' },
+      { inputs:[49], tag:'edge', describe:'exactly 49, just under' },
+      { inputs:[0],  tag:'edge', describe:'a total of zero' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('selection', 1, 'Uses selection'), RULES.core(2), RULES.edge(1)],
+    hints:['Work out the discount first, then subtract it.','"50 or more" includes 50 itself.'],
+    explanation:'Decomposing into input, then decision, then calculation, then output keeps the boundary in one place where it is easy to check.',
+    solution:'DECLARE total : INTEGER\nINPUT total\nIF total >= 50 THEN\n    OUTPUT total - (total DIV 10)\nELSE\n    OUTPUT total\nENDIF',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-fix-off-by-one', qualification:'0478', topicId:'0478.7', subtopicId:'0478.7.3',
+    skill:'debugging', difficulty:'foundation', marks:6, estimatedMinutes:7, paper:'Paper 2',
+    prompt:'Read a whole number n and output the total of the even numbers from 1 to n. If n is less than 2, output 0.',
+    starterCode:'DECLARE n : INTEGER\nDECLARE total : INTEGER\nDECLARE i : INTEGER\nINPUT n\n',
+    requiredConstructs:['loop', 'selection'],
+    visibleExamples:[{ inputs:[6], note:'2 + 4 + 6 = 12' }],
+    hiddenCases:[
+      { inputs:[6],  tag:'core', describe:'an even limit' },
+      { inputs:[7],  tag:'core', describe:'an odd limit' },
+      { inputs:[2],  tag:'edge', describe:'n = 2, the smallest that counts' },
+      { inputs:[1],  tag:'edge', describe:'n = 1, so nothing counts' },
+      { inputs:[0],  tag:'edge', describe:'n = 0' }
+    ],
+    randomCases:{ count:3, gen: rnd => ({ inputs:[pqInt(rnd, 1, 40)] }) },
+    markingRules:[RULES.runs(1), RULES.construct('loop', 1, 'Uses a loop'),
+                  RULES.construct('selection', 1, 'Uses selection'), RULES.core(1), RULES.edge(2)],
+    hints:['MOD 2 tells you whether a number is even.','Check what your loop does when n is 1 — it should add nothing.'],
+    explanation:'Off-by-one slips hide at the ends: n = 1 and n = 2 are where an even-number loop usually goes wrong.',
+    solution:'DECLARE n : INTEGER\nDECLARE total : INTEGER\nDECLARE i : INTEGER\nINPUT n\ntotal ← 0\nFOR i ← 1 TO n\n    IF i MOD 2 = 0 THEN\n        total ← total + i\n    ENDIF\nNEXT i\nOUTPUT total',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-validate-range', qualification:'0478', topicId:'0478.7', subtopicId:'0478.7.2',
+    skill:'validation', difficulty:'foundation', marks:5, estimatedMinutes:6, paper:'Paper 2',
+    prompt:'Read a number and output "VALID" if it is from 1 to 100 inclusive, or "INVALID" otherwise.',
+    starterCode:'DECLARE n : INTEGER\nINPUT n\n',
+    requiredConstructs:['selection'],
+    visibleExamples:[{ inputs:[42], note:'42 is in range, so VALID' }],
+    hiddenCases:[
+      { inputs:[42],  tag:'core', describe:'a value in the middle of the range' },
+      { inputs:[150], tag:'core', describe:'a value above the range' },
+      { inputs:[1],   tag:'edge', describe:'exactly 1, the lower boundary' },
+      { inputs:[100], tag:'edge', describe:'exactly 100, the upper boundary' },
+      { inputs:[0],   tag:'edge', describe:'exactly 0, just below' },
+      { inputs:[101], tag:'edge', describe:'exactly 101, just above' },
+      { inputs:[-5],  tag:'edge', describe:'a negative value' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('selection', 1, 'Uses selection'), RULES.core(1), RULES.edge(2)],
+    hints:['"Inclusive" means both ends count.','One condition with AND handles both ends at once.'],
+    explanation:'Range checks are marked on the boundaries: 1 and 100 are in, 0 and 101 are out.',
+    solution:'DECLARE n : INTEGER\nINPUT n\nIF n >= 1 AND n <= 100 THEN\n    OUTPUT "VALID"\nELSE\n    OUTPUT "INVALID"\nENDIF',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-running-max-sentinel', qualification:'0478', topicId:'0478.7', subtopicId:'0478.7.1',
+    skill:'iteration', difficulty:'intermediate', marks:7, estimatedMinutes:10, paper:'Paper 2',
+    prompt:'Read numbers until 0 is entered. The 0 is not part of the data. Output the largest number entered. If 0 is the first number, output the word "NONE".',
+    starterCode:'DECLARE x : INTEGER\nDECLARE largest : INTEGER\nDECLARE seen : BOOLEAN\n',
+    requiredConstructs:['loop', 'selection'],
+    visibleExamples:[{ inputs:[4, 19, 7, 0], note:'19 is the largest' }],
+    hiddenCases:[
+      { inputs:[4, 19, 7, 0],     tag:'core', describe:'three numbers then the sentinel' },
+      { inputs:[5, 0],            tag:'core', describe:'one number then the sentinel' },
+      { inputs:[0],               tag:'edge', describe:'the sentinel straight away' },
+      { inputs:[-9, -3, -20, 0],  tag:'edge', describe:'all negative numbers' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('loop', 1, 'Uses a loop'),
+                  RULES.construct('selection', 1, 'Uses selection'), RULES.core(2), RULES.edge(2)],
+    hints:['A WHILE loop tests before the first pass, which an immediate 0 needs.','Do not start the largest at 0 — that breaks on negative data.'],
+    explanation:'Starting the largest at 0 is the classic slip: with all-negative data the answer wrongly comes out as 0. Use the first value instead.',
+    solution:'DECLARE x : INTEGER\nDECLARE largest : INTEGER\nDECLARE seen : BOOLEAN\nseen ← FALSE\nlargest ← 0\nINPUT x\nWHILE x <> 0 DO\n    IF seen = FALSE THEN\n        largest ← x\n        seen ← TRUE\n    ELSE\n        IF x > largest THEN\n            largest ← x\n        ENDIF\n    ENDIF\n    INPUT x\nENDWHILE\nIF seen = FALSE THEN\n    OUTPUT "NONE"\nELSE\n    OUTPUT largest\nENDIF',
+    sourceType:'original', version:1
+  },
+
+  /* ---- 0478.10 Boolean logic ---- */
+  {
+    id:'q-xor-behaviour', qualification:'0478', topicId:'0478.10', subtopicId:'0478.10.1',
+    skill:'boolean', difficulty:'foundation', marks:5, estimatedMinutes:7, paper:'Paper 2',
+    prompt:'An alarm sounds when exactly one of two sensors is on. Read two values, each 1 for on or 0 for off, and output "ALARM" if exactly one is on, or "SAFE" otherwise.',
+    starterCode:'DECLARE a : INTEGER\nDECLARE b : INTEGER\nINPUT a\nINPUT b\n',
+    requiredConstructs:['selection'],
+    visibleExamples:[{ inputs:[1, 0], note:'exactly one on, so ALARM' }],
+    hiddenCases:[
+      { inputs:[1, 0], tag:'core', describe:'the first sensor on' },
+      { inputs:[0, 1], tag:'core', describe:'the second sensor on' },
+      { inputs:[0, 0], tag:'edge', describe:'both off' },
+      { inputs:[1, 1], tag:'edge', describe:'both on' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('selection', 1, 'Uses selection'), RULES.core(2), RULES.edge(1)],
+    hints:['"Exactly one" is XOR — true when the two differ.','a <> b says the same thing for 0 and 1.'],
+    explanation:'XOR is just "they differ". Writing a <> b captures it without four separate cases.',
+    solution:'DECLARE a : INTEGER\nDECLARE b : INTEGER\nINPUT a\nINPUT b\nIF a <> b THEN\n    OUTPUT "ALARM"\nELSE\n    OUTPUT "SAFE"\nENDIF',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-nand-gate', qualification:'0478', topicId:'0478.10', subtopicId:'0478.10.2',
+    skill:'boolean', difficulty:'intermediate', marks:5, estimatedMinutes:8, paper:'Paper 2',
+    prompt:'Read three values, each 1 or 0, for inputs A, B and C. Output 1 if (A AND B) is false OR C is true, otherwise output 0.',
+    starterCode:'DECLARE a : INTEGER\nDECLARE b : INTEGER\nDECLARE c : INTEGER\n',
+    requiredConstructs:['selection'],
+    visibleExamples:[{ inputs:[1, 1, 0], note:'A AND B is true and C is false, so the answer is 0' }],
+    hiddenCases:[
+      { inputs:[1, 1, 0], tag:'core', describe:'A and B both on, C off' },
+      { inputs:[1, 0, 0], tag:'core', describe:'only A on' },
+      { inputs:[1, 1, 1], tag:'edge', describe:'all three on' },
+      { inputs:[0, 0, 0], tag:'edge', describe:'all three off' },
+      { inputs:[0, 1, 1], tag:'edge', describe:'B and C on' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('selection', 1, 'Uses selection'), RULES.core(2), RULES.edge(1)],
+    hints:['"(A AND B) is false" is NAND.','Work the bracket out first, then apply the OR.'],
+    explanation:'Precedence decides this one: the bracket is evaluated before the OR, and getting that order wrong flips half the rows.',
+    solution:'DECLARE a : INTEGER\nDECLARE b : INTEGER\nDECLARE c : INTEGER\nINPUT a\nINPUT b\nINPUT c\nIF NOT (a = 1 AND b = 1) OR c = 1 THEN\n    OUTPUT 1\nELSE\n    OUTPUT 0\nENDIF',
+    sourceType:'original', version:1
+  },
+
+  /* ---- 9618.11 Algorithm design ---- */
+  {
+    id:'q-linear-search', qualification:'9618', topicId:'9618.11', subtopicId:'9618.11.2',
+    skill:'searching', difficulty:'intermediate', marks:6, estimatedMinutes:10, paper:'Paper 2',
+    prompt:'Read five numbers into an array, then read one more number to search for. Output the position of the first match, counting from 1, or -1 if it is not there.',
+    starterCode:'DECLARE a : ARRAY[1:5] OF INTEGER\nDECLARE i : INTEGER\nDECLARE target : INTEGER\nDECLARE found : INTEGER\n',
+    requiredConstructs:['array', 'loop', 'selection'],
+    visibleExamples:[{ inputs:[4, 8, 15, 16, 23, 15], note:'15 is at position 3' }],
+    hiddenCases:[
+      { inputs:[4, 8, 15, 16, 23, 15], tag:'core', describe:'a value in the middle' },
+      { inputs:[4, 8, 15, 16, 23, 4],  tag:'edge', describe:'the value at the very start' },
+      { inputs:[4, 8, 15, 16, 23, 23], tag:'edge', describe:'the value at the very end' },
+      { inputs:[4, 8, 15, 16, 23, 99], tag:'edge', describe:'a value that is not there' },
+      { inputs:[7, 7, 7, 7, 7, 7],     tag:'edge', describe:'every element the same' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('array', 1, 'Uses an array'),
+                  RULES.construct('loop', 1, 'Uses a loop'), RULES.core(1), RULES.edge(2)],
+    hints:['Read all five into the array before searching.','"The first match" means you stop recording once you have found one.'],
+    explanation:'Recording only the first match is what makes repeated values behave — otherwise the last one wins.',
+    solution:'DECLARE a : ARRAY[1:5] OF INTEGER\nDECLARE i : INTEGER\nDECLARE target : INTEGER\nDECLARE found : INTEGER\nFOR i ← 1 TO 5\n    INPUT a[i]\nNEXT i\nINPUT target\nfound ← -1\nFOR i ← 5 TO 1 STEP -1\n    IF a[i] = target THEN\n        found ← i\n    ENDIF\nNEXT i\nOUTPUT found',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-count-vowels', qualification:'9618', topicId:'9618.11', subtopicId:'9618.11.3',
+    skill:'strings', difficulty:'intermediate', marks:6, estimatedMinutes:10, paper:'Paper 2',
+    prompt:'Read a word in capital letters and output how many of its letters are vowels (A, E, I, O or U).',
+    starterCode:'DECLARE w : STRING\nDECLARE i : INTEGER\nDECLARE n : INTEGER\nDECLARE ch : STRING\nINPUT w\n',
+    requiredConstructs:['loop', 'selection'],
+    visibleExamples:[{ inputs:['CAMBRIDGE'], note:'A, I and E, so 3' }],
+    hiddenCases:[
+      { inputs:['CAMBRIDGE'], tag:'core', describe:'a word with several vowels' },
+      { inputs:['AEIOU'],     tag:'edge', describe:'nothing but vowels' },
+      { inputs:['RHYTHM'],    tag:'edge', describe:'no vowels at all' },
+      { inputs:['A'],         tag:'edge', describe:'a single vowel' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('loop', 1, 'Uses a loop'),
+                  RULES.construct('selection', 1, 'Uses selection'), RULES.core(2), RULES.edge(1)],
+    hints:['MID(w, i, 1) gives you the letter at position i.','LENGTH tells you how far to count.'],
+    explanation:'Pulling out one character at a time with MID turns a string problem into an ordinary counting loop.',
+    solution:'DECLARE w : STRING\nDECLARE i : INTEGER\nDECLARE n : INTEGER\nDECLARE ch : STRING\nINPUT w\nn ← 0\nFOR i ← 1 TO LENGTH(w)\n    ch ← MID(w, i, 1)\n    IF ch = "A" OR ch = "E" OR ch = "I" OR ch = "O" OR ch = "U" THEN\n        n ← n + 1\n    ENDIF\nNEXT i\nOUTPUT n',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-binary-to-denary', qualification:'9618', topicId:'9618.11', subtopicId:'9618.11.2',
+    skill:'iteration', difficulty:'intermediate', marks:6, estimatedMinutes:10, paper:'Paper 2',
+    prompt:'Read a string of 1s and 0s and output the denary number it represents. The leftmost digit is the most significant.',
+    starterCode:'DECLARE b : STRING\nDECLARE i : INTEGER\nDECLARE total : INTEGER\nINPUT b\n',
+    requiredConstructs:['loop'],
+    visibleExamples:[{ inputs:['1101'], note:'8 + 4 + 0 + 1 = 13' }],
+    hiddenCases:[
+      { inputs:['1101'],     tag:'core', describe:'a four-bit value' },
+      { inputs:['1'],        tag:'edge', describe:'a single 1' },
+      { inputs:['0'],        tag:'edge', describe:'a single 0' },
+      { inputs:['00001'],    tag:'edge', describe:'leading zeros' },
+      { inputs:['11111111'], tag:'edge', describe:'eight ones' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('loop', 1, 'Uses a loop'), RULES.core(2), RULES.edge(2)],
+    hints:['Doubling the running total as you move right is the same as using place values.','MID gives you one character; compare it with "1".'],
+    explanation:'Doubling then adding the next bit avoids working out powers of two, and handles any length.',
+    solution:'DECLARE b : STRING\nDECLARE i : INTEGER\nDECLARE total : INTEGER\nINPUT b\ntotal ← 0\nFOR i ← 1 TO LENGTH(b)\n    total ← total * 2\n    IF MID(b, i, 1) = "1" THEN\n        total ← total + 1\n    ENDIF\nNEXT i\nOUTPUT total',
+    sourceType:'original', version:1
+  },
+
+  /* ---- 9618.12 Data types and structures ---- */
+  {
+    id:'q-array-reverse', qualification:'9618', topicId:'9618.12', subtopicId:'9618.12.2',
+    skill:'arrays', difficulty:'intermediate', marks:6, estimatedMinutes:10, paper:'Paper 2',
+    prompt:'Read five numbers into an array, then output them in reverse order, one per line.',
+    starterCode:'DECLARE a : ARRAY[1:5] OF INTEGER\nDECLARE i : INTEGER\n',
+    requiredConstructs:['array', 'loop'],
+    visibleExamples:[{ inputs:[1, 2, 3, 4, 5], note:'5, 4, 3, 2, 1' }],
+    hiddenCases:[
+      { inputs:[1, 2, 3, 4, 5],       tag:'core', describe:'five different values' },
+      { inputs:[7, 7, 7, 7, 7],       tag:'edge', describe:'five identical values' },
+      { inputs:[-1, 0, 1, -2, 2],     tag:'edge', describe:'negatives and a zero' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('array', 1, 'Uses an array'),
+                  RULES.construct('loop', 1, 'Uses a loop'), RULES.core(2), RULES.edge(1)],
+    hints:['Fill the array first, then walk it backwards.','STEP -1 counts down.'],
+    explanation:'You cannot output in reverse while reading, because the last value is not known yet — the array is what makes it possible.',
+    solution:'DECLARE a : ARRAY[1:5] OF INTEGER\nDECLARE i : INTEGER\nFOR i ← 1 TO 5\n    INPUT a[i]\nNEXT i\nFOR i ← 5 TO 1 STEP -1\n    OUTPUT a[i]\nNEXT i',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-grid-diagonal', qualification:'9618', topicId:'9618.12', subtopicId:'9618.12.2',
+    skill:'arrays', difficulty:'higher', marks:6, estimatedMinutes:12, paper:'Paper 2',
+    prompt:'Read nine numbers into a 3 by 3 array, filling it row by row. Output the total of the top-left to bottom-right diagonal.',
+    starterCode:'DECLARE g : ARRAY[1:3, 1:3] OF INTEGER\nDECLARE r : INTEGER\nDECLARE c : INTEGER\nDECLARE total : INTEGER\n',
+    requiredConstructs:['array-2d', 'loop'],
+    visibleExamples:[{ inputs:[1,2,3,4,5,6,7,8,9], note:'1 + 5 + 9 = 15' }],
+    hiddenCases:[
+      { inputs:[1,2,3,4,5,6,7,8,9],     tag:'core', describe:'the numbers 1 to 9' },
+      { inputs:[0,0,0,0,0,0,0,0,0],     tag:'edge', describe:'all zeros' },
+      { inputs:[-1,9,9,9,-2,9,9,9,-3],  tag:'edge', describe:'a negative diagonal' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('array-2d', 1, 'Uses a two-dimensional array'),
+                  RULES.construct('loop', 1, 'Uses a loop'), RULES.core(2), RULES.edge(1)],
+    hints:['The diagonal is every cell where the row number equals the column number.','One loop is enough once you notice that.'],
+    explanation:'Because the diagonal is where row = column, a single loop over g[i, i] does it — no nested loop needed.',
+    solution:'DECLARE g : ARRAY[1:3, 1:3] OF INTEGER\nDECLARE r : INTEGER\nDECLARE c : INTEGER\nDECLARE total : INTEGER\nFOR r ← 1 TO 3\n    FOR c ← 1 TO 3\n        INPUT g[r, c]\n    NEXT c\nNEXT r\ntotal ← 0\nFOR r ← 1 TO 3\n    total ← total + g[r, r]\nNEXT r\nOUTPUT total',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-file-longest', qualification:'9618', topicId:'9618.12', subtopicId:'9618.12.3',
+    skill:'files', difficulty:'higher', marks:6, estimatedMinutes:12, paper:'Paper 2',
+    prompt:'Read four words, write each to a file called "list.txt", then read the file back and output the longest word. If two are equally long, output the first of them.',
+    starterCode:'DECLARE w : STRING\nDECLARE best : STRING\nDECLARE i : INTEGER\n',
+    requiredConstructs:['file', 'loop', 'selection'],
+    visibleExamples:[{ inputs:['red', 'orange', 'blue', 'grey'], note:'orange is the longest' }],
+    hiddenCases:[
+      { inputs:['red', 'orange', 'blue', 'grey'], tag:'core', describe:'one clearly longest word' },
+      { inputs:['aa', 'bb', 'cc', 'dd'],          tag:'edge', describe:'four words of equal length' },
+      { inputs:['a', 'bb', 'ccc', 'dddd'],        tag:'edge', describe:'the longest word last' },
+      { inputs:['dddd', 'ccc', 'bb', 'a'],        tag:'edge', describe:'the longest word first' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('file', 1, 'Uses file handling'),
+                  RULES.construct('selection', 1, 'Uses selection'), RULES.core(2), RULES.edge(1)],
+    hints:['Close the file before opening it again to read.','Use > rather than >= so the first of two equals wins.'],
+    explanation:'Using > rather than >= is what makes "the first of them" true when two words tie.',
+    solution:'DECLARE w : STRING\nDECLARE best : STRING\nDECLARE i : INTEGER\nOPENFILE "list.txt" FOR WRITE\nFOR i ← 1 TO 4\n    INPUT w\n    WRITEFILE "list.txt", w\nNEXT i\nCLOSEFILE "list.txt"\nbest ← ""\nOPENFILE "list.txt" FOR READ\nWHILE NOT EOF("list.txt") DO\n    READFILE "list.txt", w\n    IF LENGTH(w) > LENGTH(best) THEN\n        best ← w\n    ENDIF\nENDWHILE\nCLOSEFILE "list.txt"\nOUTPUT best',
+    sourceType:'original', version:1
+  },
+
+  /* ---- 9618.13 Programming ---- */
+  {
+    id:'q-func-is-prime', qualification:'9618', topicId:'9618.13', subtopicId:'9618.13.3',
+    skill:'functions', difficulty:'higher', marks:6, estimatedMinutes:12, paper:'Paper 2',
+    prompt:'Write a FUNCTION called IsPrime that returns TRUE when a whole number is prime. Then read a number and output "PRIME" or "NOT PRIME". Numbers below 2 are not prime.',
+    starterCode:'FUNCTION IsPrime(n : INTEGER) RETURNS BOOLEAN\n\nENDFUNCTION\n\nDECLARE n : INTEGER\nINPUT n\n',
+    requiredConstructs:['function', 'loop'],
+    visibleExamples:[{ inputs:[7], note:'7 is prime' }],
+    hiddenCases:[
+      { inputs:[7],  tag:'core', describe:'a small prime' },
+      { inputs:[9],  tag:'core', describe:'a small composite number' },
+      { inputs:[2],  tag:'edge', describe:'two, the smallest prime' },
+      { inputs:[1],  tag:'edge', describe:'one, which is not prime' },
+      { inputs:[0],  tag:'edge', describe:'zero' },
+      { inputs:[-3], tag:'edge', describe:'a negative number' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('function', 1, 'Defines a FUNCTION'),
+                  RULES.construct('loop', 1, 'Uses a loop'), RULES.core(1), RULES.edge(2)],
+    hints:['Deal with numbers below 2 before the loop starts.','You only need to test divisors up to n DIV 2.'],
+    explanation:'1 and 0 are the cases that catch people out: the loop alone would call them prime, so they need handling first.',
+    solution:'FUNCTION IsPrime(n : INTEGER) RETURNS BOOLEAN\n    DECLARE i : INTEGER\n    IF n < 2 THEN\n        RETURN FALSE\n    ENDIF\n    FOR i ← 2 TO n DIV 2\n        IF n MOD i = 0 THEN\n            RETURN FALSE\n        ENDIF\n    NEXT i\n    RETURN TRUE\nENDFUNCTION\nDECLARE n : INTEGER\nINPUT n\nIF IsPrime(n) THEN\n    OUTPUT "PRIME"\nELSE\n    OUTPUT "NOT PRIME"\nENDIF',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-proc-countdown', qualification:'9618', topicId:'9618.13', subtopicId:'9618.13.2',
+    skill:'procedures', difficulty:'intermediate', marks:5, estimatedMinutes:8, paper:'Paper 2',
+    prompt:'Write a PROCEDURE called Countdown that takes one INTEGER parameter and outputs the numbers from it down to 1, one per line. Then read a number and call the procedure with it.',
+    starterCode:'PROCEDURE Countdown(n : INTEGER)\n\nENDPROCEDURE\n\nDECLARE x : INTEGER\nINPUT x\n',
+    requiredConstructs:['procedure', 'call', 'loop'],
+    visibleExamples:[{ inputs:[4], note:'4, 3, 2, 1' }],
+    hiddenCases:[
+      { inputs:[4],  tag:'core', describe:'a small positive number' },
+      { inputs:[1],  tag:'edge', describe:'one' },
+      { inputs:[0],  tag:'edge', describe:'zero, so nothing is output' },
+      { inputs:[-2], tag:'edge', describe:'a negative number' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('procedure', 1, 'Defines a PROCEDURE'),
+                  RULES.construct('call', 1, 'Calls it'), RULES.core(1), RULES.edge(1)],
+    hints:['A procedure does not return anything — it just does its job.','STEP -1 counts down, and runs zero times when the start is below 1.'],
+    explanation:'A procedure is the right shape here because there is nothing to return: the work is the output.',
+    solution:'PROCEDURE Countdown(n : INTEGER)\n    DECLARE i : INTEGER\n    FOR i ← n TO 1 STEP -1\n        OUTPUT i\n    NEXT i\nENDPROCEDURE\nDECLARE x : INTEGER\nINPUT x\nCALL Countdown(x)',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-recursive-sum-digits', qualification:'9618', topicId:'9618.13', subtopicId:'9618.13.3',
+    skill:'recursion', difficulty:'higher', marks:6, estimatedMinutes:12, paper:'Paper 2',
+    prompt:'Write a recursive FUNCTION called DigitSum that returns the total of the digits of a whole number of zero or more. Then read a number and output its digit total.',
+    starterCode:'FUNCTION DigitSum(n : INTEGER) RETURNS INTEGER\n\nENDFUNCTION\n\nDECLARE n : INTEGER\nINPUT n\n',
+    requiredConstructs:['function'],
+    visibleExamples:[{ inputs:[4071], note:'4 + 0 + 7 + 1 = 12' }],
+    hiddenCases:[
+      { inputs:[4071],  tag:'core', describe:'a four-digit number' },
+      { inputs:[5],     tag:'core', describe:'a single digit' },
+      { inputs:[0],     tag:'edge', describe:'zero' },
+      { inputs:[100],   tag:'edge', describe:'a number with zeros inside it' },
+      { inputs:[99999], tag:'edge', describe:'five nines' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('function', 1, 'Defines a FUNCTION'), RULES.core(2), RULES.edge(2)],
+    hints:['n MOD 10 is the last digit; n DIV 10 is everything else.','The base case is when there is nothing left.'],
+    explanation:'The base case n = 0 returning 0 is what makes both 0 itself and the end of every other number work.',
+    solution:'FUNCTION DigitSum(n : INTEGER) RETURNS INTEGER\n    IF n = 0 THEN\n        RETURN 0\n    ELSE\n        RETURN (n MOD 10) + DigitSum(n DIV 10)\n    ENDIF\nENDFUNCTION\nDECLARE n : INTEGER\nINPUT n\nOUTPUT DigitSum(n)',
+    sourceType:'original', version:1
+  },
+
+  /* ---- 9618.14 Software development ---- */
+  {
+    id:'q-test-boundaries', qualification:'9618', topicId:'9618.14', subtopicId:'9618.14.2',
+    skill:'testing', difficulty:'intermediate', marks:6, estimatedMinutes:9, paper:'Paper 2',
+    prompt:'A password length is acceptable when it is from 8 to 16 characters inclusive. Read a length and output "OK" if it is acceptable, "SHORT" if it is too short, or "LONG" if it is too long.',
+    starterCode:'DECLARE n : INTEGER\nINPUT n\n',
+    requiredConstructs:['selection'],
+    visibleExamples:[{ inputs:[12], note:'12 is inside the range, so OK' }],
+    hiddenCases:[
+      { inputs:[12], tag:'core', describe:'a normal length' },
+      { inputs:[3],  tag:'core', describe:'clearly too short' },
+      { inputs:[8],  tag:'edge', describe:'exactly 8, the lower boundary' },
+      { inputs:[7],  tag:'edge', describe:'exactly 7, just below' },
+      { inputs:[16], tag:'edge', describe:'exactly 16, the upper boundary' },
+      { inputs:[17], tag:'edge', describe:'exactly 17, just above' },
+      { inputs:[0],  tag:'edge', describe:'a length of zero' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('selection', 1, 'Uses selection'), RULES.core(1), RULES.edge(3)],
+    hints:['Three outcomes need two decisions, not three separate tests.','Normal, boundary and erroneous data are exactly what is being tested here.'],
+    explanation:'Every boundary has two sides, and both are on the paper: 7 and 8, 16 and 17.',
+    solution:'DECLARE n : INTEGER\nINPUT n\nIF n < 8 THEN\n    OUTPUT "SHORT"\nELSE\n    IF n > 16 THEN\n        OUTPUT "LONG"\n    ELSE\n        OUTPUT "OK"\n    ENDIF\nENDIF',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-guard-division', qualification:'9618', topicId:'9618.14', subtopicId:'9618.14.1',
+    skill:'errors', difficulty:'intermediate', marks:5, estimatedMinutes:8, paper:'Paper 2',
+    prompt:'Read two whole numbers and output the first divided by the second, rounded down. If the second is 0, output "CANNOT DIVIDE" instead, without the program stopping.',
+    starterCode:'DECLARE a : INTEGER\nDECLARE b : INTEGER\n',
+    requiredConstructs:['selection'],
+    visibleExamples:[{ inputs:[17, 5], note:'17 DIV 5 is 3' }],
+    hiddenCases:[
+      { inputs:[17, 5],  tag:'core', describe:'an ordinary division' },
+      { inputs:[10, 2],  tag:'core', describe:'a division with no remainder' },
+      { inputs:[7, 0],   tag:'edge', describe:'a divisor of zero' },
+      { inputs:[0, 0],   tag:'edge', describe:'both values zero' },
+      { inputs:[0, 4],   tag:'edge', describe:'zero divided by something' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('selection', 1, 'Uses selection'), RULES.core(1), RULES.edge(2)],
+    hints:['Test the divisor before you divide, not after.','A run-time error is not the same as a handled error.'],
+    explanation:'Checking before dividing turns a run-time error into a handled case — which is the whole point of the distinction.',
+    solution:'DECLARE a : INTEGER\nDECLARE b : INTEGER\nINPUT a\nINPUT b\nIF b = 0 THEN\n    OUTPUT "CANNOT DIVIDE"\nELSE\n    OUTPUT a DIV b\nENDIF',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-trace-and-fix', qualification:'9618', topicId:'9618.14', subtopicId:'9618.14.1',
+    skill:'debugging', difficulty:'intermediate', marks:6, estimatedMinutes:10, paper:'Paper 2',
+    prompt:'Read six numbers and output how many of them are the same as the number before them. The first number has nothing before it, so it never counts.',
+    starterCode:'DECLARE x : INTEGER\nDECLARE prev : INTEGER\nDECLARE i : INTEGER\nDECLARE runs : INTEGER\n',
+    requiredConstructs:['loop', 'selection'],
+    visibleExamples:[{ inputs:[1, 1, 2, 2, 2, 3], note:'positions 2, 4 and 5 repeat, so 3' }],
+    hiddenCases:[
+      { inputs:[1, 1, 2, 2, 2, 3], tag:'core', describe:'several repeats' },
+      { inputs:[1, 2, 3, 4, 5, 6], tag:'edge', describe:'no repeats at all' },
+      { inputs:[9, 9, 9, 9, 9, 9], tag:'edge', describe:'every value the same' },
+      { inputs:[1, 2, 2, 3, 3, 3], tag:'core', describe:'repeats at the end' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('loop', 1, 'Uses a loop'),
+                  RULES.construct('selection', 1, 'Uses selection'), RULES.core(2), RULES.edge(1)],
+    hints:['Keep the previous value in its own variable.','Start comparing from the second number, not the first.'],
+    explanation:'The first value has no predecessor, so comparing it against an unset variable is the bug this question is built around.',
+    solution:'DECLARE x : INTEGER\nDECLARE prev : INTEGER\nDECLARE i : INTEGER\nDECLARE runs : INTEGER\nruns ← 0\nINPUT prev\nFOR i ← 2 TO 6\n    INPUT x\n    IF x = prev THEN\n        runs ← runs + 1\n    ENDIF\n    prev ← x\nNEXT i\nOUTPUT runs',
+    sourceType:'original', version:1
+  },
+
+  /* ---- 9618.3 Boolean algebra and logic circuits ---- */
+  {
+    id:'q-majority-vote', qualification:'9618', topicId:'9618.3', subtopicId:'9618.3.1',
+    skill:'boolean', difficulty:'intermediate', marks:6, estimatedMinutes:9, paper:'Paper 3',
+    prompt:'Three sensors each report 1 or 0. Read the three values and output 1 if at least two of them are 1, otherwise output 0.',
+    starterCode:'DECLARE a : INTEGER\nDECLARE b : INTEGER\nDECLARE c : INTEGER\n',
+    requiredConstructs:['selection'],
+    visibleExamples:[{ inputs:[1, 1, 0], note:'two of the three are on, so 1' }],
+    hiddenCases:[
+      { inputs:[1, 1, 0], tag:'core', describe:'exactly two on' },
+      { inputs:[1, 0, 0], tag:'core', describe:'exactly one on' },
+      { inputs:[1, 1, 1], tag:'edge', describe:'all three on' },
+      { inputs:[0, 0, 0], tag:'edge', describe:'all three off' },
+      { inputs:[0, 1, 1], tag:'edge', describe:'the last two on' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('selection', 1, 'Uses selection'), RULES.core(2), RULES.edge(2)],
+    hints:['Adding the three values tells you how many are on.','"At least two" is not the same as "exactly two".'],
+    explanation:'Adding the inputs turns a three-term Boolean expression into one comparison, and makes the "at least" wording obvious.',
+    solution:'DECLARE a : INTEGER\nDECLARE b : INTEGER\nDECLARE c : INTEGER\nINPUT a\nINPUT b\nINPUT c\nIF a + b + c >= 2 THEN\n    OUTPUT 1\nELSE\n    OUTPUT 0\nENDIF',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-de-morgan', qualification:'9618', topicId:'9618.3', subtopicId:'9618.3.2',
+    skill:'boolean', difficulty:'higher', marks:6, estimatedMinutes:10, paper:'Paper 3',
+    prompt:'Read two values, each 1 or 0, for A and B. Output 1 when NOT (A OR B) is true, otherwise 0. Then, on a second line, output 1 when (NOT A) AND (NOT B) is true, otherwise 0. The two lines should always agree.',
+    starterCode:'DECLARE a : INTEGER\nDECLARE b : INTEGER\n',
+    requiredConstructs:['selection'],
+    visibleExamples:[{ inputs:[0, 0], note:'both off, so both lines are 1' }],
+    hiddenCases:[
+      { inputs:[0, 0], tag:'core', describe:'both off' },
+      { inputs:[1, 0], tag:'core', describe:'only A on' },
+      { inputs:[0, 1], tag:'edge', describe:'only B on' },
+      { inputs:[1, 1], tag:'edge', describe:'both on' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('selection', 1, 'Uses selection'), RULES.core(2), RULES.edge(2)],
+    hints:['Work out each expression separately and output each one.','If the two lines ever disagree, one of your brackets is wrong.'],
+    explanation:'This is De Morgan\u2019s law: NOT (A OR B) is the same as (NOT A) AND (NOT B), which is why the two lines always match.',
+    solution:'DECLARE a : INTEGER\nDECLARE b : INTEGER\nINPUT a\nINPUT b\nIF NOT (a = 1 OR b = 1) THEN\n    OUTPUT 1\nELSE\n    OUTPUT 0\nENDIF\nIF (NOT a = 1) AND (NOT b = 1) THEN\n    OUTPUT 1\nELSE\n    OUTPUT 0\nENDIF',
+    sourceType:'original', version:1
+  },
   {
     id:'q-swap-order', qualification:'0478', topicId:'0478.8', subtopicId:'0478.8.2',
     skill:'selection', difficulty:'foundation', marks:5, estimatedMinutes:6, paper:'Paper 2',
@@ -5033,15 +5451,53 @@ const TESTS = [
     assertEq(createStore(mem).getSession(), null, 'finishing clears it');
   }],
   ['Topics: the count includes generated questions, not just the bank', () => {
+    // Stated as a rule rather than as today's numbers, so adding questions
+    // cannot make this test stale.
+    for (const syl of CURRENT_SYLLABUSES) {
+      for (const t of syl.topics) {
+        const written = questionsForTopic(t.code).length;
+        const generated = (t.exerciseTypes || []).filter(x => ['trace', 'output', 'truth'].includes(x)).length;
+        assertEq(practiceCountForTopic(t), written + generated,
+          `${t.code} should count its written questions plus its generated kinds`);
+        assert(practiceCountForTopic(t) >= written, `${t.code} must never count fewer than it has written`);
+      }
+    }
+    // A topic that can generate questions must never read as empty.
     const alg = topicsOf('0478-2026-2028').find(t => t.code === '0478.7');
-    assertEq(questionsForTopic('0478.7').length, 0, 'this topic has no written questions');
-    assert(practiceCountForTopic(alg) > 0,
-      'but it does generate trace and output questions, so the count must not read 0');
+    assert(practiceCountForTopic(alg) > 0, 'a topic that generates questions must not read 0');
     const db = topicsOf('0478-2026-2028').find(t => t.code === '0478.9');
     assertEq(practiceCountForTopic(db), 0, 'a topic with nothing to offer should count 0 and be shown as such');
-    const prog = topicsOf('0478-2026-2028').find(t => t.code === '0478.8');
-    assertEq(practiceCountForTopic(prog),
-      questionsForTopic('0478.8').length + 2, 'written questions plus its generated kinds');
+  }],
+  ['Bank: coverage is spread across topics, not piled on one', () => {
+    const byTopic = {};
+    QUESTION_BANK.forEach(q => { byTopic[q.topicId] = (byTopic[q.topicId] || 0) + 1; });
+    const covered = Object.keys(byTopic).length;
+    assert(covered >= 8, `questions should reach at least 8 topics, they reach ${covered}`);
+    assert(QUESTION_BANK.length >= 30, `the bank should hold at least 30 questions, it holds ${QUESTION_BANK.length}`);
+    // Every topic that says it supports written code questions should have some.
+    for (const syl of CURRENT_SYLLABUSES) {
+      for (const t of syl.topics) {
+        if (!(t.exerciseTypes || []).includes('code')) continue;
+        assert(questionsForTopic(t.code).length > 0,
+          `${t.code} claims to support written questions but the bank has none for it`);
+      }
+    }
+  }],
+  ['Bank: every question is complete and original', () => {
+    const ids = new Set();
+    for (const q of QUESTION_BANK) {
+      assert(!ids.has(q.id), `duplicate question id "${q.id}"`);
+      ids.add(q.id);
+      assertEq(q.sourceType, 'original', `"${q.id}" must be original work`);
+      assert(q.prompt && q.prompt.length > 30, `"${q.id}" needs a real prompt`);
+      assert(q.hints && q.hints.length >= 2, `"${q.id}" should offer at least two hints`);
+      assert(q.explanation && q.explanation.length > 20, `"${q.id}" needs an explanation`);
+      assert(q.visibleExamples && q.visibleExamples.length, `"${q.id}" needs a worked example`);
+      assert(q.hiddenCases.some(c => c.tag === 'edge'), `"${q.id}" has no edge case`);
+      assert(q.hiddenCases.every(c => c.describe), `"${q.id}" has a case with no description to show the student`);
+      assertEq(q.markingRules.reduce((a, r) => a + r.marks, 0), q.marks,
+        `"${q.id}" marking rules do not add up to its stated marks`);
+    }
   }],
   ['Trace table: round trip through every non-array example', () => {
     for (const ex of EXAMPLES) {

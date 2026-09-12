@@ -35,7 +35,7 @@ A failing hidden case is described in words ("when given two equal numbers") wit
 
 | Area | What it does |
 |---|---|
-| **Practice** | Generated and bank questions, marked against hidden cases. Run executes your program and awards nothing; Check answer marks it and records an attempt. Show answer stays locked until two attempts. |
+| **Practice** | 36 original questions plus generated ones, marked against hidden cases. Run executes your program and awards nothing; Check answer marks it and records an attempt. Show answer stays locked until two attempts. |
 | **Pseudocode Lab** | Trace simulator, Structured English → pseudocode, trace table → pseudocode, and flowchart → pseudocode + trace table + drawn chart. |
 | **Logic Lab** | Truth tables with a column per intermediate step, and the circuit drawn with textbook gate symbols. |
 | **Progress** | Evidence per topic, the review queue, every attempt, and a page explaining exactly how each state is worked out. |
@@ -77,9 +77,15 @@ The syllabuses change, and the changes matter, so a qualification is always stor
 
 Limits that always hold: 3000 execution steps, 500 output lines, recursion depth 120, 20000 array elements, 2000 file lines. File names are stripped to a safe character set, so nothing can address anything outside the sandbox. There is no `eval()` anywhere.
 
+## Question bank
+
+36 original questions across nine syllabus topics, from one-decision foundation questions to recursion, two-dimensional arrays and file handling. Each one carries tagged hidden cases, required constructs, two or more hints, and an explanation of the idea it is really testing.
+
+Three tests hold the bank to account, so it cannot rot as it grows: every reference solution must score full marks on its own question, every question must resist a hard-coded visible answer, and every question must be complete — original, with a real prompt, an edge case, a description for every hidden case, and marking rules that add up to the marks it advertises. That last check caught two questions whose stated total disagreed with their own rubric.
+
 ## Built-in self-test
 
-102 assertions covering the interpreter, the CIE-specific errors, both pseudocode converters, flowchart drawing, truth tables, hidden-case grading, the syllabus registry, the storage layer and its migrations, accessibility and the metadata. The contrast check reads the live custom properties, so the stylesheet itself is what gets tested.
+110 assertions covering the interpreter, the CIE-specific errors, both pseudocode converters, flowchart drawing, truth tables, hidden-case grading, the syllabus registry, the storage layer and its migrations, accessibility and the metadata. The contrast check reads the live custom properties, so the stylesheet itself is what gets tested.
 
 Add `?selftest=1` to the URL, or run it from the command line:
 
