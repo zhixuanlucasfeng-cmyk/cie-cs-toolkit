@@ -219,6 +219,9 @@
 
   .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:var(--s4); align-items:start; }
   .stack { display:grid; gap:var(--s4); }
+  /* Grid children default to min-width:auto, so a wide table or SVG inside one
+     refuses to shrink and pushes the page sideways. */
+  .grid-2 > *, .stack > * { min-width:0; }
 
   /* ============================================================
      Forms
@@ -443,7 +446,10 @@
      Responsive
      ============================================================ */
   @media (max-width:1180px) {
-    .practice-layout { flex-direction:column; }
+    /* align-items:flex-start is right for the two-column layout, but in a
+       column it stops children stretching, so they take content width and
+       push the page sideways. Stretch them instead. */
+    .practice-layout { flex-direction:column; align-items:stretch; }
     .inspector { width:100%; position:static; }
     .inspector-body { max-height:none; }
   }
@@ -453,10 +459,19 @@
   }
   @media (max-width:820px) {
     :root { --appbar-h:56px; }
-    .icon-btn { display:inline-flex; }
+    .icon-btn { display:inline-flex; width:44px; height:44px; flex-shrink:0; }
     .brand-sub, .course-chip .label-long { display:none; }
     .appbar { gap:var(--s2); padding:0 var(--s3); }
     .workspace { padding:var(--s4) var(--s3) 96px; }
+
+    /* The bar must never push the page wider than the screen. Settings and
+       the evidence pill live in the rail and on the dashboard, so they go. */
+    .appbar-right .pill, #btn-settings { display:none; }
+    .brand { min-width:0; }
+    .brand-name { font-size:15px; }
+    .course-chip { min-height:44px; flex-shrink:1; min-width:0; overflow:hidden; }
+    #course-chip-text { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #btn-start { flex-shrink:0; padding-inline:var(--s3); }
 
     /* The rail becomes a drawer instead of stacking above the tool. */
     .rail {
@@ -481,6 +496,13 @@
     .rail-item { min-height:44px; }
     .inspector-tabs button { min-height:44px; }
     .editor textarea { min-height:200px; }
+  }
+  @media (max-width:420px) {
+    /* At phone width the brand wordmark and the course chip compete for the
+       same few pixels; the chip is the one that carries information. */
+    .brand-name { display:none; }
+    #btn-start { font-size:0; padding:0 var(--s3); }
+    #btn-start::after { content:"Practise"; font-size:13.5px; }
   }
   @media (max-width:380px) {
     .workspace { padding-left:var(--s2); padding-right:var(--s2); }
@@ -3311,6 +3333,30 @@ function topicProgressOf(store, code, now) {
   return p;
 }
 
+/* ---------- WCAG contrast, used by the accessibility self-test ---------- */
+function parseColour(c) {
+  const t = String(c).trim();
+  let m = t.match(/^#([0-9a-f]{3})$/i);
+  if (m) return m[1].split('').map(h => parseInt(h + h, 16));
+  m = t.match(/^#([0-9a-f]{6})$/i);
+  if (m) return [0, 2, 4].map(i => parseInt(m[1].substr(i, 2), 16));
+  m = t.match(/^rgba?\(([^)]+)\)$/i);
+  if (m) return m[1].split(',').slice(0, 3).map(x => parseFloat(x));
+  throw new Error('cannot read the colour "' + c + '"');
+}
+function relLuminance(rgb) {
+  const [r, g, b] = rgb.map(v => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function contrastRatio(fg, bg) {
+  const a = relLuminance(parseColour(fg)), b = relLuminance(parseColour(bg));
+  const hi = Math.max(a, b), lo = Math.min(a, b);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 /* ======================================================================
    Module B: boolean expression -> truth table + circuit diagram
    ====================================================================== */
@@ -4090,6 +4136,86 @@ const TESTS = [
     assertEq(csv.length, 2, 'a header and one row');
     assert(/q-a,0478\.8,code,1,5,5,42000/.test(csv[1]), 'the CSV row should hold the attempt, got: ' + csv[1]);
   }],
+  /* ---- Accessibility: contrast is checked against the real stylesheet ---- */
+  ['Accessibility: every text colour meets WCAG AA on its own surface', () => {
+    if (typeof document === 'undefined') return;   // Node: nothing to compute
+    const cs = getComputedStyle(document.documentElement);
+    const tok = n => cs.getPropertyValue(n).trim();
+    const pairs = [
+      ['--text-primary', '--bg'], ['--text-secondary', '--bg'], ['--text-muted', '--bg'],
+      ['--text-primary', '--surface'], ['--text-secondary', '--surface'], ['--text-muted', '--surface'],
+      ['--text-primary', '--surface-raised'], ['--text-secondary', '--surface-raised'], ['--text-muted', '--surface-raised'],
+      ['--accent', '--bg'], ['--accent', '--surface'],
+      ['--warning', '--bg'], ['--danger', '--bg'], ['--success', '--bg'],
+      ['--warning', '--surface'], ['--danger', '--surface'], ['--success', '--surface'],
+      ['--focus', '--bg']
+    ];
+    for (const [fg, bg] of pairs) {
+      const ratio = contrastRatio(tok(fg), tok(bg));
+      assert(ratio >= 4.5, `${fg} on ${bg} is ${ratio.toFixed(2)}:1, below the 4.5:1 needed for normal text`);
+    }
+    // The accent is also used as a button fill with dark ink on it.
+    assert(contrastRatio(tok('--accent-ink'), tok('--accent')) >= 4.5,
+      'button text on the accent fill must also pass');
+  }],
+  ['Accessibility: the contrast helper agrees with known values', () => {
+    assertEq(Math.round(contrastRatio('#ffffff', '#000000')), 21, 'white on black is 21:1');
+    assertEq(Math.round(contrastRatio('#000000', '#000000')), 1, 'black on black is 1:1');
+    assert(Math.abs(contrastRatio('#777777', '#ffffff') - 4.48) < 0.05, '#777 on white is about 4.48:1');
+  }],
+  /* ---- Accessibility and metadata, checked against the real document ---- */
+  ['Accessibility: every form control in the markup has a name', () => {
+    if (typeof document === 'undefined') return;
+    const named = el =>
+      el.getAttribute('aria-label') || el.getAttribute('aria-labelledby') ||
+      (el.id && document.querySelector(`label[for="${el.id}"]`)) || el.closest('label');
+    const bad = [...document.querySelectorAll('input:not([type=hidden]), textarea, select')]
+      .filter(el => !named(el)).map(el => el.tagName + '#' + (el.id || '(no id)'));
+    assertEq(bad.join(', '), '', 'these controls have no accessible name');
+  }],
+  ['Accessibility: the code editor is labelled, not placeholder-only', () => {
+    if (typeof document === 'undefined') return;
+    const lab = document.querySelector('label[for="code"]');
+    assert(lab && lab.textContent.trim(), 'the pseudocode editor needs a real label');
+    const qlab = document.querySelector('label[for="expr"]');
+    assert(qlab && qlab.textContent.trim(), 'the boolean expression input needs a real label');
+  }],
+  ['Accessibility: landmarks, skip link and live regions exist', () => {
+    if (typeof document === 'undefined') return;
+    assert(document.querySelector('a.skip'), 'there should be a skip-to-content link');
+    assert(document.querySelector('main#main'), 'there should be a main landmark');
+    assert(document.querySelector('nav[aria-label]'), 'the rail should be a labelled nav');
+    const live = [...document.querySelectorAll('[aria-live]')].map(x => x.id);
+    ['q-status', 'trace-status', 'logic-status'].forEach(id =>
+      assert(live.includes(id), `${id} should announce its result`));
+  }],
+  ['Accessibility: every tablist uses roving tabindex', () => {
+    if (typeof document === 'undefined') return;
+    for (const list of document.querySelectorAll('[role="tablist"]')) {
+      const tabs = [...list.querySelectorAll('[role="tab"]')];
+      assert(tabs.length >= 2, 'a tablist should hold tabs');
+      const selected = tabs.filter(t => t.getAttribute('aria-selected') === 'true');
+      assertEq(selected.length, 1, 'exactly one tab should start selected');
+      tabs.forEach(t => assert(t.getAttribute('aria-controls'), `${t.id} should name the panel it controls`));
+    }
+  }],
+  ['Discoverability: title, description, icon and canonical are present', () => {
+    if (typeof document === 'undefined') return;
+    assert(/DryRun/.test(document.title), 'the title should name the product');
+    const desc = document.querySelector('meta[name="description"]');
+    assert(desc && desc.content.length > 60, 'there should be a real meta description');
+    assert(document.querySelector('link[rel="icon"]'), 'a favicon must be declared, or it 404s');
+    assert(document.querySelector('link[rel="canonical"]'), 'a canonical URL should be declared');
+    assert(document.querySelector('meta[property="og:title"]'), 'Open Graph metadata should be present');
+  }],
+  ['Legal: the independence notice is on the page', () => {
+    if (typeof document === 'undefined') return;
+    const text = document.body.textContent;
+    assert(/not endorsed by Cambridge International Education/i.test(text),
+      'the independence notice must be shown');
+    assert(!/9608/.test(document.querySelector('.appbar').textContent),
+      'the withdrawn 9608 syllabus must not be advertised in the header');
+  }],
   ['Trace table: round trip through every non-array example', () => {
     for (const ex of EXAMPLES) {
       if (/ARRAY/.test(ex.code)) continue;
@@ -4121,7 +4247,8 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   detectConstructs, runCase, GRADE_STATUS,
   SYLLABUSES, CURRENT_SYLLABUSES, syllabusById, syllabusesFor, syllabusForYear,
   topicsOf, questionsForTopic, questionsForSyllabus,
-  createStore, EVIDENCE, STORE_VERSION, memoryBackend, topicProgressOf }; } catch (e) {}
+  createStore, EVIDENCE, STORE_VERSION, memoryBackend, topicProgressOf,
+  contrastRatio }; } catch (e) {}
 </script>
 
 <!-- =================================================================
@@ -4896,13 +5023,13 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     const due = store.dueReviews();
     const all = Object.keys(store.all().reviews);
     $('prog-reviews').innerHTML = all.length
-      ? '<table><thead><tr><th>Question</th><th>Why</th><th>Due</th></tr></thead><tbody>' +
+      ? '<div class="scroll-x"><table><thead><tr><th>Question</th><th>Why</th><th>Due</th></tr></thead><tbody>' +
         all.map(id => {
           const r = store.all().reviews[id];
           const isDue = r.dueAt <= Date.now();
           return `<tr><td>${esc(id)}</td><td>${esc(r.reason)}</td>` +
             `<td style="color:var(--${isDue ? 'danger' : 'text-secondary'})">${isDue ? 'now' : new Date(r.dueAt).toLocaleDateString()}</td></tr>`;
-        }).join('') + '</tbody></table>' +
+        }).join('') + '</tbody></table></div>' +
         (due.length ? `<div class="btn-row"><button class="btn primary" id="btn-do-review">Review ${due.length} now</button></div>` : '')
       : '<p class="empty">Nothing in the review queue. Questions arrive here by themselves when you get one wrong.</p>';
     if ($('btn-do-review')) $('btn-do-review').onclick = () => go('practice', { fresh:true, review:true });
