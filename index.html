@@ -885,6 +885,9 @@ function* execStmt(s, env) {
     }
     case 'OUTPUT': {
       const text = s.exprs.map(e => fmt(evalExpr(e, env))).join('');
+      if (env.output.length >= MAX_OUTPUT) {
+        throw new CIEError(`This program has produced too much output (over ${MAX_OUTPUT} lines) — check the loop that is printing`, s.line);
+      }
       env.output.push(text);
       yield snapshot(env, s.line, text);
       return;
@@ -940,6 +943,7 @@ function* execStmt(s, env) {
 
 /* ---------- Public entry points ---------- */
 const MAX_STEPS = 3000;
+const MAX_OUTPUT = 500;        // a runaway OUTPUT must stop before the browser does
 function parseInputValues(text) {
   return String(text || '').split('\n').map(s => s.trim()).filter(s => s !== '').map(s => {
     if (/^-?\d+(\.\d+)?$/.test(s)) return parseFloat(s);
@@ -1860,6 +1864,471 @@ function markPseudocode(q, code) {
 }
 
 /* ======================================================================
+   Module G: question bank + hidden-case grading
+
+   A question that asks for a program is graded by RUNNING that program
+   against several hidden inputs, never by comparing one visible output.
+   That is what stops a hard-coded answer from passing.
+   ====================================================================== */
+
+/* ---------- AST inspection (for "did they actually use a loop?") ---------- */
+
+function walkAST(stmts, visit) {
+  for (const s of stmts || []) {
+    visit(s);
+    if (s.then) walkAST(s.then, visit);
+    if (s.else) walkAST(s.else, visit);
+    if (s.body) walkAST(s.body, visit);
+    if (s.arms) for (const a of s.arms) walkAST(a.body || [a.stmt].filter(Boolean), visit);
+    if (s.other) walkAST(Array.isArray(s.other) ? s.other : [s.other], visit);
+  }
+}
+const LOOP_TYPES = new Set(['FOR', 'WHILE', 'REPEAT']);
+
+function detectConstructs(ast) {
+  const found = new Set();
+  walkAST(ast, s => {
+    if (s.type === 'IF' || s.type === 'CASE') found.add('selection');
+    if (LOOP_TYPES.has(s.type)) found.add('loop');
+    if (s.type === 'DECLARE' && s.arr) found.add('array');
+    if (s.type === 'INPUT') found.add('input');
+    if (s.type === 'OUTPUT') found.add('output');
+  });
+  // a loop whose body contains another loop
+  walkAST(ast, s => {
+    if (!LOOP_TYPES.has(s.type)) return;
+    walkAST(s.body, inner => { if (LOOP_TYPES.has(inner.type)) found.add('nested-loop'); });
+  });
+  return found;
+}
+const CONSTRUCT_NAMES = {
+  selection:'selection (IF or CASE)', loop:'a loop', array:'an array',
+  'nested-loop':'a nested loop', input:'INPUT', output:'OUTPUT'
+};
+
+/* ---------- Running one hidden case ---------- */
+
+const caseInputText = inputs => (inputs || []).map(v => (typeof v === 'string' ? v : fmt(v))).join('\n');
+const normaliseOutputs = list => list.map(v => String(v).trim()).join('');
+
+// Runs `code` against one case. Never throws: every failure is classified.
+function runCase(code, inputs) {
+  try {
+    const { env } = runProgram(code, caseInputText(inputs));
+    return { ok:true, output: env.output.map(fmt) };
+  } catch (e) {
+    return { ok:false, error: e.message, line: e.line };
+  }
+}
+
+/* ---------- Building the full case list for a question ---------- */
+
+function questionCases(q, seed) {
+  const cases = (q.hiddenCases || []).map(c => Object.assign({ tag:'core' }, c));
+  if (q.randomCases) {
+    const rnd = pqRandom((seed >>> 0) || 1);
+    for (let i = 0; i < q.randomCases.count; i++) {
+      const c = q.randomCases.gen(rnd);
+      cases.push(Object.assign({ tag:'core', describe:'a randomly chosen set of values' }, c));
+    }
+  }
+  return cases;
+}
+
+// The reference solution decides what every case should output, so a question
+// never has to store answers that could drift from the algorithm.
+function expectedFor(q, c) {
+  if (c.expect) return c.expect.map(String);
+  const r = runCase(q.solution, c.inputs);
+  if (!r.ok) throw new CIEError(`Question "${q.id}" has a broken reference solution: ${r.error}`, 1);
+  return r.output;
+}
+
+/* ---------- The grader ---------- */
+
+const GRADE_STATUS = {
+  CORRECT:'correct', SYNTAX:'syntax-error', RUNTIME:'runtime-error',
+  LOGIC:'incorrect-logic', CONSTRUCT:'missing-construct', EMPTY:'incomplete'
+};
+
+/*
+  Returns a mark breakdown, never a bare pass/fail:
+    { status, marksAwarded, marksAvailable, breakdown:[…], passedCases,
+      totalCases, firstFailure, misconceptions, feedback }
+  `firstFailure.inputs` is only filled in for a case the student can already
+  see, so the hidden cases are not handed over on the first wrong attempt.
+*/
+function gradeSubmission(q, code, opts) {
+  const options = opts || {};
+  const marksAvailable = q.markingRules.reduce((a, r) => a + r.marks, 0);
+  const fail = (status, feedback, misconceptions) => ({
+    status, marksAwarded:0, marksAvailable,
+    breakdown: q.markingRules.map(r => ({ id:r.id, label:r.label, marks:0, max:r.marks, passed:false })),
+    passedCases:0, totalCases:0, firstFailure:null,
+    misconceptions: misconceptions || [], feedback
+  });
+
+  if (!String(code || '').trim()) return fail(GRADE_STATUS.EMPTY, 'Nothing was submitted yet.');
+
+  // 1. Parse before running, so a syntax error is reported as a syntax error.
+  let ast;
+  try { ast = parseProgram(tokenize(code)); }
+  catch (e) {
+    return fail(GRADE_STATUS.SYNTAX,
+      (e.line && !/^Line /.test(e.message)) ? `Line ${e.line}: ${e.message}` : e.message,
+      ['syntax']);
+  }
+
+  // 2. Required constructs, checked on the tree rather than by text search.
+  const constructs = detectConstructs(ast);
+  const missing = (q.requiredConstructs || []).filter(c => !constructs.has(c));
+
+  // 3. Every case, in order, against the reference solution's answer.
+  const cases = questionCases(q, options.seed || 1);
+  const visibleKeys = new Set((q.visibleExamples || []).map(v => caseInputText(v.inputs)));
+  let passedCases = 0, firstFailure = null, runtimeError = null;
+
+  for (let i = 0; i < cases.length; i++) {
+    const c = cases[i];
+    const want = expectedFor(q, c);
+    const got = runCase(code, c.inputs);
+    if (!got.ok) {
+      if (!runtimeError) runtimeError = { index:i, error:got.error, line:got.line, tag:c.tag, describe:c.describe };
+      if (!firstFailure) firstFailure = { index:i, tag:c.tag, describe:c.describe, expected:want, got:null, error:got.error };
+      continue;
+    }
+    if (normaliseOutputs(got.output) === normaliseOutputs(want)) { passedCases++; continue; }
+    if (!firstFailure) {
+      const isVisible = visibleKeys.has(caseInputText(c.inputs));
+      firstFailure = {
+        index:i, tag:c.tag, describe:c.describe, expected:want, got:got.output,
+        inputs: isVisible ? c.inputs : null
+      };
+    }
+  }
+
+  // 4. Marks, rule by rule.
+  const tagPassed = tag => {
+    const of = cases.filter(c => (c.tag || 'core') === tag);
+    if (!of.length) return true;
+    return of.every(c => {
+      const got = runCase(code, c.inputs);
+      return got.ok && normaliseOutputs(got.output) === normaliseOutputs(expectedFor(q, c));
+    });
+  };
+  const breakdown = q.markingRules.map(r => {
+    let passed;
+    if (r.construct) passed = constructs.has(r.construct);
+    else if (r.cases) passed = tagPassed(r.cases);
+    else if (r.id === 'runs') passed = !runtimeError;
+    else passed = passedCases === cases.length;
+    return { id:r.id, label:r.label, marks: passed ? r.marks : 0, max:r.marks, passed };
+  });
+  const marksAwarded = breakdown.reduce((a, b) => a + b.marks, 0);
+
+  // 5. Status and feedback: say what kind of wrong it is.
+  const misconceptions = [];
+  let status, feedback;
+  if (runtimeError && passedCases === 0) {
+    status = GRADE_STATUS.RUNTIME;
+    misconceptions.push('runtime');
+    feedback = `The program stopped while running: ${runtimeError.error}`;
+  } else if (missing.length) {
+    status = GRADE_STATUS.CONSTRUCT;
+    misconceptions.push('missing-construct');
+    feedback = `This question asks you to use ${missing.map(m => CONSTRUCT_NAMES[m] || m).join(' and ')}. ` +
+      (passedCases === cases.length
+        ? 'Your outputs are right, but the program has to work for any input, not just the values in the example.'
+        : 'Add it, then try again.');
+  } else if (passedCases === cases.length) {
+    status = GRADE_STATUS.CORRECT;
+    feedback = `Correct — it works for all ${cases.length} test cases, including the ones you could not see.`;
+  } else {
+    status = GRADE_STATUS.LOGIC;
+    const f = firstFailure;
+    if (f && f.tag === 'edge') misconceptions.push('edge-case');
+    if (passedCases > 0 && passedCases < cases.length) misconceptions.push('partial-logic');
+    const where = f && f.describe ? `when given ${f.describe}` : 'on one of the hidden test cases';
+    const detail = f && f.error
+      ? `it stopped with: ${f.error}`
+      : f && f.inputs
+        ? `for inputs ${f.inputs.join(', ')} it printed [${(f.got || []).join(', ')}] instead of [${f.expected.join(', ')}]`
+        : `it printed [${(f && f.got || []).join(', ')}] instead of [${(f && f.expected || []).join(', ')}]`;
+    feedback = `${passedCases} of ${cases.length} test cases pass. It first goes wrong ${where}: ${detail}`;
+  }
+
+  return { status, marksAwarded, marksAvailable, breakdown, passedCases,
+           totalCases:cases.length, firstFailure, misconceptions, feedback,
+           constructs:[...constructs], missingConstructs:missing };
+}
+
+/* ---------- The bank ----------
+   Every question is original, written against the published syllabus
+   objectives. No past-paper text is reproduced.
+   ------------------------------------------------------------------ */
+
+const RULES = {
+  runs:       m => ({ id:'runs', label:'Program runs without errors', marks:m }),
+  construct:  (c, m, label) => ({ id:'construct-' + c, label, marks:m, construct:c }),
+  core:       m => ({ id:'core', label:'Correct for typical values', marks:m, cases:'core' }),
+  edge:       m => ({ id:'edge', label:'Correct for edge cases', marks:m, cases:'edge' })
+};
+
+const QUESTION_BANK = [
+  {
+    id:'q-larger-of-two', qualification:'0478', topicId:'0478.8', subtopicId:'0478.8.2',
+    skill:'selection', difficulty:'foundation', marks:5, estimatedMinutes:5, paper:'Paper 2',
+    prompt:'Read two whole numbers and output the larger of them. If the two numbers are equal, output that number once.',
+    starterCode:'DECLARE a : INTEGER\nDECLARE b : INTEGER\nINPUT a\nINPUT b\n',
+    requiredConstructs:['selection'],
+    visibleExamples:[{ inputs:[58, 57], note:'58 is larger' }],
+    hiddenCases:[
+      { inputs:[58, 57], tag:'core', describe:'a first number that is larger' },
+      { inputs:[12, 40], tag:'core', describe:'a second number that is larger' },
+      { inputs:[7, 7],   tag:'edge', describe:'two equal numbers' },
+      { inputs:[-9, -3], tag:'edge', describe:'two negative numbers' },
+      { inputs:[0, -5],  tag:'edge', describe:'zero and a negative number' }
+    ],
+    randomCases:{ count:3, gen: rnd => ({ inputs:[pqInt(rnd, -50, 50), pqInt(rnd, -50, 50)] }) },
+    markingRules:[RULES.runs(1), RULES.construct('selection', 1, 'Uses selection (IF or CASE)'), RULES.core(2), RULES.edge(1)],
+    hints:['Read both numbers first, then compare them.','IF a > b THEN … ELSE … ENDIF covers every case, including equal values.'],
+    explanation:'Comparing with > sends equal values down the ELSE branch, which still outputs the right number.',
+    solution:'DECLARE a : INTEGER\nDECLARE b : INTEGER\nINPUT a\nINPUT b\nIF a > b THEN\n    OUTPUT a\nELSE\n    OUTPUT b\nENDIF',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-sum-to-n', qualification:'0478', topicId:'0478.8', subtopicId:'0478.8.3',
+    skill:'iteration', difficulty:'foundation', marks:5, estimatedMinutes:6, paper:'Paper 2',
+    prompt:'Read a whole number n, then output the total of all the whole numbers from 1 to n. If n is less than 1, output 0.',
+    starterCode:'DECLARE n : INTEGER\nDECLARE total : INTEGER\nINPUT n\n',
+    requiredConstructs:['loop'],
+    visibleExamples:[{ inputs:[5], note:'1+2+3+4+5 = 15' }],
+    hiddenCases:[
+      { inputs:[5],  tag:'core', describe:'a small positive number' },
+      { inputs:[10], tag:'core', describe:'a larger positive number' },
+      { inputs:[1],  tag:'edge', describe:'n = 1' },
+      { inputs:[0],  tag:'edge', describe:'n = 0' },
+      { inputs:[-4], tag:'edge', describe:'a negative n' }
+    ],
+    randomCases:{ count:3, gen: rnd => ({ inputs:[pqInt(rnd, 1, 30)] }) },
+    markingRules:[RULES.runs(1), RULES.construct('loop', 1, 'Uses a loop'), RULES.core(2), RULES.edge(1)],
+    hints:['Set the total to 0 before the loop starts.','A FOR loop from 1 TO n runs zero times when n is 0 or negative.'],
+    explanation:'Starting the total at 0 means n < 1 needs no special case: the loop simply never runs.',
+    solution:'DECLARE n : INTEGER\nDECLARE total : INTEGER\nDECLARE i : INTEGER\nINPUT n\ntotal ← 0\nFOR i ← 1 TO n\n    total ← total + i\nNEXT i\nOUTPUT total',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-count-positive', qualification:'0478', topicId:'0478.8', subtopicId:'0478.8.3',
+    skill:'iteration-selection', difficulty:'foundation', marks:6, estimatedMinutes:8, paper:'Paper 2',
+    prompt:'Read five whole numbers. Output how many of them are greater than zero.',
+    starterCode:'DECLARE count : INTEGER\nDECLARE i : INTEGER\nDECLARE x : INTEGER\n',
+    requiredConstructs:['loop', 'selection'],
+    visibleExamples:[{ inputs:[3, -1, 0, 8, -2], note:'3 and 8 are positive, so the answer is 2' }],
+    hiddenCases:[
+      { inputs:[3, -1, 0, 8, -2], tag:'core', describe:'a mixture of values' },
+      { inputs:[1, 2, 3, 4, 5],   tag:'core', describe:'five positive numbers' },
+      { inputs:[0, 0, 0, 0, 0],   tag:'edge', describe:'five zeros' },
+      { inputs:[-5, -4, -3, -2, -1], tag:'edge', describe:'five negative numbers' }
+    ],
+    randomCases:{ count:3, gen: rnd => ({ inputs:[0,0,0,0,0].map(() => pqInt(rnd, -9, 9)) }) },
+    markingRules:[RULES.runs(1), RULES.construct('loop', 1, 'Uses a loop'),
+                  RULES.construct('selection', 1, 'Uses selection'), RULES.core(2), RULES.edge(1)],
+    hints:['Use a FOR loop that runs exactly five times.','Zero is not greater than zero — check the boundary carefully.'],
+    explanation:'The boundary matters: > 0 excludes zero, while >= 0 would count it.',
+    solution:'DECLARE count : INTEGER\nDECLARE i : INTEGER\nDECLARE x : INTEGER\ncount ← 0\nFOR i ← 1 TO 5\n    INPUT x\n    IF x > 0 THEN\n        count ← count + 1\n    ENDIF\nNEXT i\nOUTPUT count',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-sentinel-average', qualification:'0478', topicId:'0478.8', subtopicId:'0478.8.3',
+    skill:'iteration', difficulty:'intermediate', marks:6, estimatedMinutes:10, paper:'Paper 2',
+    prompt:'Read whole numbers until the number -1 is entered. The -1 is not part of the data. Output the total of the numbers entered, then output how many there were. If -1 is the first number entered, output 0 and 0.',
+    starterCode:'DECLARE total : INTEGER\nDECLARE count : INTEGER\nDECLARE x : INTEGER\n',
+    requiredConstructs:['loop'],
+    visibleExamples:[{ inputs:[4, 8, 15, -1], note:'total 27, count 3' }],
+    hiddenCases:[
+      { inputs:[4, 8, 15, -1], tag:'core', describe:'three numbers then the sentinel' },
+      { inputs:[10, -1],       tag:'core', describe:'a single number then the sentinel' },
+      { inputs:[-1],           tag:'edge', describe:'the sentinel straight away' },
+      { inputs:[0, 0, -1],     tag:'edge', describe:'zeros before the sentinel' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('loop', 1, 'Uses a loop'), RULES.core(3), RULES.edge(1)],
+    hints:['A WHILE loop tests before the first pass, which is what an immediate -1 needs.','Read the first value before the loop, then read the next one at the end of each pass.'],
+    explanation:'REPEAT … UNTIL always runs once, so it would count the sentinel when -1 comes first. WHILE tests first and handles it.',
+    solution:'DECLARE total : INTEGER\nDECLARE count : INTEGER\nDECLARE x : INTEGER\ntotal ← 0\ncount ← 0\nINPUT x\nWHILE x <> -1 DO\n    total ← total + x\n    count ← count + 1\n    INPUT x\nENDWHILE\nOUTPUT total\nOUTPUT count',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-times-table', qualification:'0478', topicId:'0478.8', subtopicId:'0478.8.3',
+    skill:'iteration', difficulty:'foundation', marks:4, estimatedMinutes:6, paper:'Paper 2',
+    prompt:'Read a whole number n, then output the first five multiples of n, one per line, starting with n itself.',
+    starterCode:'DECLARE n : INTEGER\nDECLARE i : INTEGER\nINPUT n\n',
+    requiredConstructs:['loop'],
+    visibleExamples:[{ inputs:[3], note:'3, 6, 9, 12, 15' }],
+    hiddenCases:[
+      { inputs:[3],  tag:'core', describe:'a small positive number' },
+      { inputs:[7],  tag:'core', describe:'another positive number' },
+      { inputs:[0],  tag:'edge', describe:'zero' },
+      { inputs:[-2], tag:'edge', describe:'a negative number' }
+    ],
+    randomCases:{ count:3, gen: rnd => ({ inputs:[pqInt(rnd, -12, 12)] }) },
+    markingRules:[RULES.runs(1), RULES.construct('loop', 1, 'Uses a loop'), RULES.core(1), RULES.edge(1)],
+    hints:['The loop counter can do the multiplying for you.','Five multiples means the loop runs five times, whatever n is.'],
+    explanation:'Multiplying the counter by n works for zero and negatives without any extra cases.',
+    solution:'DECLARE n : INTEGER\nDECLARE i : INTEGER\nINPUT n\nFOR i ← 1 TO 5\n    OUTPUT n * i\nNEXT i',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-largest-of-list', qualification:'0478', topicId:'0478.8', subtopicId:'0478.8.4',
+    skill:'arrays', difficulty:'intermediate', marks:6, estimatedMinutes:10, paper:'Paper 2',
+    prompt:'Read six whole numbers into an array, then output the largest of them.',
+    starterCode:'DECLARE a : ARRAY[1:6] OF INTEGER\nDECLARE i : INTEGER\nDECLARE largest : INTEGER\n',
+    requiredConstructs:['loop', 'array'],
+    visibleExamples:[{ inputs:[4, 19, 7, 2, 11, 6], note:'19 is the largest' }],
+    hiddenCases:[
+      { inputs:[4, 19, 7, 2, 11, 6],  tag:'core', describe:'the largest in the middle' },
+      { inputs:[30, 1, 2, 3, 4, 5],   tag:'edge', describe:'the largest first' },
+      { inputs:[1, 2, 3, 4, 5, 30],   tag:'edge', describe:'the largest last' },
+      { inputs:[-9, -4, -7, -2, -8, -5], tag:'edge', describe:'all negative numbers' },
+      { inputs:[5, 5, 5, 5, 5, 5],    tag:'edge', describe:'six equal values' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('array', 1, 'Uses an array'),
+                  RULES.construct('loop', 1, 'Uses a loop'), RULES.core(1), RULES.edge(2)],
+    hints:['Start the largest at the first element, not at zero.','CIE arrays are indexed from 1.'],
+    explanation:'Starting at 0 breaks on all-negative data — the answer would wrongly be 0. Starting at the first element never does.',
+    solution:'DECLARE a : ARRAY[1:6] OF INTEGER\nDECLARE i : INTEGER\nDECLARE largest : INTEGER\nFOR i ← 1 TO 6\n    INPUT a[i]\nNEXT i\nlargest ← a[1]\nFOR i ← 2 TO 6\n    IF a[i] > largest THEN\n        largest ← a[i]\n    ENDIF\nNEXT i\nOUTPUT largest',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-grade-boundary', qualification:'0478', topicId:'0478.8', subtopicId:'0478.8.2',
+    skill:'selection', difficulty:'intermediate', marks:5, estimatedMinutes:8, paper:'Paper 2',
+    prompt:'Read a mark out of 100 and output the grade: "A" for 70 or more, "B" for 60 to 69, "C" for 50 to 59, and "F" below 50.',
+    starterCode:'DECLARE mark : INTEGER\nINPUT mark\n',
+    requiredConstructs:['selection'],
+    visibleExamples:[{ inputs:[64], note:'64 is a B' }],
+    hiddenCases:[
+      { inputs:[64],  tag:'core', describe:'a mark in the middle of a band' },
+      { inputs:[85],  tag:'core', describe:'a high mark' },
+      { inputs:[70],  tag:'edge', describe:'exactly 70, the A boundary' },
+      { inputs:[69],  tag:'edge', describe:'exactly 69, just below the A boundary' },
+      { inputs:[50],  tag:'edge', describe:'exactly 50, the C boundary' },
+      { inputs:[49],  tag:'edge', describe:'exactly 49, just below the C boundary' },
+      { inputs:[0],   tag:'edge', describe:'zero' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('selection', 1, 'Uses selection'), RULES.core(1), RULES.edge(2)],
+    hints:['Test the highest band first, then you only need to check one boundary each time.','">= 70" and "> 70" differ by exactly one mark — and that mark is on the paper.'],
+    explanation:'Boundary values are where grade questions are won or lost: 70 is an A, 69 is not.',
+    solution:'DECLARE mark : INTEGER\nINPUT mark\nIF mark >= 70 THEN\n    OUTPUT "A"\nELSE\n    IF mark >= 60 THEN\n        OUTPUT "B"\n    ELSE\n        IF mark >= 50 THEN\n            OUTPUT "C"\n        ELSE\n            OUTPUT "F"\n        ENDIF\n    ENDIF\nENDIF',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-count-down', qualification:'0478', topicId:'0478.8', subtopicId:'0478.8.3',
+    skill:'iteration', difficulty:'foundation', marks:4, estimatedMinutes:5, paper:'Paper 2',
+    prompt:'Read a whole number n and output the numbers from n down to 1, one per line. If n is less than 1, output nothing.',
+    starterCode:'DECLARE n : INTEGER\nINPUT n\n',
+    requiredConstructs:['loop'],
+    visibleExamples:[{ inputs:[4], note:'4, 3, 2, 1' }],
+    hiddenCases:[
+      { inputs:[4],  tag:'core', describe:'a small positive number' },
+      { inputs:[1],  tag:'edge', describe:'n = 1' },
+      { inputs:[0],  tag:'edge', describe:'n = 0, so nothing is output' },
+      { inputs:[-3], tag:'edge', describe:'a negative n' }
+    ],
+    randomCases:{ count:2, gen: rnd => ({ inputs:[pqInt(rnd, 1, 15)] }) },
+    markingRules:[RULES.runs(1), RULES.construct('loop', 1, 'Uses a loop'), RULES.core(1), RULES.edge(1)],
+    hints:['A FOR loop can count backwards with STEP -1.','A WHILE loop that tests n >= 1 also outputs nothing when n is 0.'],
+    explanation:'Counting down needs STEP -1; without it the loop body never runs at all.',
+    solution:'DECLARE n : INTEGER\nDECLARE i : INTEGER\nINPUT n\nFOR i ← n TO 1 STEP -1\n    OUTPUT i\nNEXT i',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-digit-count', qualification:'9618', topicId:'9618.11', subtopicId:'9618.11.2',
+    skill:'iteration', difficulty:'intermediate', marks:6, estimatedMinutes:10, paper:'Paper 2',
+    prompt:'Read a positive whole number and output how many digits it has. For example 4071 has 4 digits. Treat 0 as having 1 digit.',
+    starterCode:'DECLARE n : INTEGER\nDECLARE digits : INTEGER\nINPUT n\n',
+    requiredConstructs:['loop'],
+    visibleExamples:[{ inputs:[4071], note:'4 digits' }],
+    hiddenCases:[
+      { inputs:[4071], tag:'core', describe:'a four-digit number' },
+      { inputs:[7],    tag:'core', describe:'a single-digit number' },
+      { inputs:[0],    tag:'edge', describe:'zero' },
+      { inputs:[10],   tag:'edge', describe:'a number ending in zero' },
+      { inputs:[99999],tag:'edge', describe:'a five-digit number' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('loop', 1, 'Uses a loop'), RULES.core(2), RULES.edge(2)],
+    hints:['Dividing by 10 with DIV removes the last digit.','Zero needs thinking about: a loop that tests "while n > 0" never runs for it.'],
+    explanation:'A REPEAT loop runs at least once, which is exactly what makes 0 come out as 1 digit.',
+    solution:'DECLARE n : INTEGER\nDECLARE digits : INTEGER\nINPUT n\ndigits ← 0\nREPEAT\n    digits ← digits + 1\n    n ← n DIV 10\nUNTIL n = 0\nOUTPUT digits',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-multiples-count', qualification:'9618', topicId:'9618.11', subtopicId:'9618.11.2',
+    skill:'iteration-selection', difficulty:'intermediate', marks:6, estimatedMinutes:8, paper:'Paper 2',
+    prompt:'Read two whole numbers, n and m. Output how many of the numbers from 1 to n divide exactly by m. If m is 0, output the word "INVALID" instead.',
+    starterCode:'DECLARE n : INTEGER\nDECLARE m : INTEGER\nINPUT n\nINPUT m\n',
+    requiredConstructs:['loop', 'selection'],
+    visibleExamples:[{ inputs:[10, 3], note:'3, 6 and 9 divide by 3, so the answer is 3' }],
+    hiddenCases:[
+      { inputs:[10, 3], tag:'core', describe:'a typical pair' },
+      { inputs:[20, 5], tag:'core', describe:'another typical pair' },
+      { inputs:[10, 0], tag:'edge', describe:'m = 0, which must not divide by zero' },
+      { inputs:[0, 4],  tag:'edge', describe:'n = 0, so the loop never runs' },
+      { inputs:[7, 1],  tag:'edge', describe:'m = 1, so everything counts' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('loop', 1, 'Uses a loop'),
+                  RULES.construct('selection', 1, 'Uses selection'), RULES.core(1), RULES.edge(2)],
+    hints:['Check m before the loop, not inside it.','MOD by zero is an error — the program must never reach it.'],
+    explanation:'Guarding against m = 0 before the loop is what stops the program crashing rather than answering.',
+    solution:'DECLARE n : INTEGER\nDECLARE m : INTEGER\nDECLARE i : INTEGER\nDECLARE count : INTEGER\nINPUT n\nINPUT m\nIF m = 0 THEN\n    OUTPUT "INVALID"\nELSE\n    count ← 0\n    FOR i ← 1 TO n\n        IF i MOD m = 0 THEN\n            count ← count + 1\n        ENDIF\n    NEXT i\n    OUTPUT count\nENDIF',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-reverse-string', qualification:'9618', topicId:'9618.11', subtopicId:'9618.11.3',
+    skill:'strings', difficulty:'intermediate', marks:5, estimatedMinutes:10, paper:'Paper 2',
+    prompt:'Read a word and output it backwards. A word of one letter comes out unchanged.',
+    starterCode:'DECLARE word : STRING\nDECLARE out : STRING\nINPUT word\n',
+    requiredConstructs:['loop'],
+    visibleExamples:[{ inputs:['CIE'], note:'EIC' }],
+    hiddenCases:[
+      { inputs:['CIE'],   tag:'core', describe:'a three-letter word' },
+      { inputs:['STACK'], tag:'core', describe:'a five-letter word' },
+      { inputs:['A'],     tag:'edge', describe:'a single letter' },
+      { inputs:['NOON'],  tag:'edge', describe:'a word that reads the same backwards' }
+    ],
+    markingRules:[RULES.runs(1), RULES.construct('loop', 1, 'Uses a loop'), RULES.core(2), RULES.edge(1)],
+    hints:['LENGTH gives you how far to count, and MID pulls out one character.','CIE string positions start at 1, not 0.'],
+    explanation:'Counting down from LENGTH to 1 and joining with & builds the reversed word one character at a time.',
+    solution:'DECLARE word : STRING\nDECLARE out : STRING\nDECLARE i : INTEGER\nINPUT word\nout ← ""\nFOR i ← LENGTH(word) TO 1 STEP -1\n    out ← out & MID(word, i, 1)\nNEXT i\nOUTPUT out',
+    sourceType:'original', version:1
+  },
+  {
+    id:'q-swap-order', qualification:'0478', topicId:'0478.8', subtopicId:'0478.8.2',
+    skill:'selection', difficulty:'foundation', marks:5, estimatedMinutes:6, paper:'Paper 2',
+    prompt:'Read three whole numbers and output the smallest one.',
+    starterCode:'DECLARE a : INTEGER\nDECLARE b : INTEGER\nDECLARE c : INTEGER\n',
+    requiredConstructs:['selection'],
+    visibleExamples:[{ inputs:[9, 4, 7], note:'4 is the smallest' }],
+    hiddenCases:[
+      { inputs:[9, 4, 7],    tag:'core', describe:'the smallest in the middle' },
+      { inputs:[2, 8, 5],    tag:'edge', describe:'the smallest first' },
+      { inputs:[8, 5, 1],    tag:'edge', describe:'the smallest last' },
+      { inputs:[6, 6, 6],    tag:'edge', describe:'three equal values' },
+      { inputs:[-2, -9, -4], tag:'edge', describe:'all negative numbers' }
+    ],
+    randomCases:{ count:3, gen: rnd => ({ inputs:[pqInt(rnd, -20, 20), pqInt(rnd, -20, 20), pqInt(rnd, -20, 20)] }) },
+    markingRules:[RULES.runs(1), RULES.construct('selection', 1, 'Uses selection'), RULES.core(1), RULES.edge(2)],
+    hints:['Hold the smallest so far in its own variable.','Start it at the first number, then compare the other two against it.'],
+    explanation:'Keeping a "smallest so far" variable scales to any number of values, unlike writing out every comparison.',
+    solution:'DECLARE a : INTEGER\nDECLARE b : INTEGER\nDECLARE c : INTEGER\nDECLARE small : INTEGER\nINPUT a\nINPUT b\nINPUT c\nsmall ← a\nIF b < small THEN\n    small ← b\nENDIF\nIF c < small THEN\n    small ← c\nENDIF\nOUTPUT small',
+    sourceType:'original', version:1
+  }
+];
+
+const questionById = id => QUESTION_BANK.find(q => q.id === id) || null;
+function questionsFor(qualification) {
+  return QUESTION_BANK.filter(q => !qualification || q.qualification === qualification);
+}
+
+/* ======================================================================
    Module B: boolean expression -> truth table + circuit diagram
    ====================================================================== */
 
@@ -2414,13 +2883,119 @@ const TESTS = [
     assert(!m.ok && m.correct === m.total - 1, 'one flipped bit should cost exactly one mark');
     assert(markTruth(q, q.answer.replace(/1/g, 'T').replace(/0/g, 'F')).ok, 'T / F should be accepted too');
   }],
-  ['Practice: any working program is accepted, a broken one is not', () => {
-    const q = makeQuestion('topseudo', 11);
-    assert(markPseudocode(q, q.code).ok, 'the reference program should pass');
-    const rewritten = 'DECLARE zzz : INTEGER\n' + q.output.map(v => `OUTPUT ${/^-?\d+$/.test(v) ? v : '"' + v + '"'}`).join('\n');
-    assert(markPseudocode(q, rewritten).ok, 'a different program with the same output should pass');
-    assert(!markPseudocode(q, 'DECLARE x : INTEGER\nx ← 1\nOUTPUT x').ok, 'a wrong program should fail');
-    assertEq(typeof markPseudocode(q, 'x ← 1').error, 'string', 'a broken program should come back with the CIE error');
+  ['Practice: code questions are graded by the bank, not by one output', () => {
+    // This replaces a test that asserted the old behaviour (a program merely
+    // printing the expected values passed). That behaviour was the bug.
+    const q = questionById('q-larger-of-two');
+    assertEq(gradeSubmission(q, q.solution).status, 'correct', 'the reference solution should pass');
+    assert(gradeSubmission(q, 'DECLARE x : INTEGER\nOUTPUT 58').status !== 'correct',
+      'printing the visible answer must not pass');
+    assertEq(gradeSubmission(q, 'DECLARE a : INTEGER\na = 1').status, 'syntax-error', '= instead of ← is a syntax error');
+    assertEq(gradeSubmission(q, 'x ← 1').status, 'runtime-error', 'an undeclared variable is caught at run time');
+  }],
+  /* ---- Module G: hidden-case grading (regression suite) ---- */
+  ['Grading: a hard-coded visible answer FAILS', () => {
+    // The bug this replaces: the old grader compared one visible output, so a
+    // program that just printed that value scored full marks.
+    const q = questionById('q-larger-of-two');
+    const hardcoded = 'DECLARE a : INTEGER\nOUTPUT 58';
+    const r = gradeSubmission(q, hardcoded);
+    assert(r.status !== 'correct', 'a hard-coded answer must not be marked correct');
+    assert(r.marksAwarded < r.marksAvailable, `it must not get full marks, got ${r.marksAwarded}/${r.marksAvailable}`);
+    assert(r.passedCases < r.totalCases, 'it cannot pass every hidden case');
+  }],
+  ['Grading: hard-coding is caught for every question in the bank', () => {
+    for (const q of QUESTION_BANK) {
+      const visible = q.visibleExamples[0];
+      const want = runProgram(q.solution, (visible.inputs || []).map(String).join('\n')).env.output.map(fmt);
+      const hardcoded = 'DECLARE zz : INTEGER\n' +
+        want.map(v => `OUTPUT ${/^-?\d+(\.\d+)?$/.test(v) ? v : '"' + v + '"'}`).join('\n');
+      const r = gradeSubmission(q, hardcoded);
+      assert(r.status !== 'correct', `"${q.id}" can still be passed by hard-coding the visible answer`);
+    }
+  }],
+  ['Grading: every reference solution scores full marks on its own question', () => {
+    for (const q of QUESTION_BANK) {
+      const r = gradeSubmission(q, q.solution);
+      assertEq(r.status, 'correct', `"${q.id}" reference solution was marked ${r.status}: ${r.feedback}`);
+      assertEq(r.marksAwarded, r.marksAvailable, `"${q.id}" reference solution did not get full marks`);
+      assertEq(r.passedCases, r.totalCases, `"${q.id}" reference solution failed a case`);
+    }
+  }],
+  ['Grading: a different correct program also scores full marks', () => {
+    const q = questionById('q-larger-of-two');
+    const other = 'DECLARE p : INTEGER\nDECLARE r : INTEGER\nINPUT p\nINPUT r\nIF r >= p THEN\n    OUTPUT r\nELSE\n    OUTPUT p\nENDIF';
+    const res = gradeSubmission(q, other);
+    assertEq(res.status, 'correct', 'variable names and branch order are the student\'s business');
+  }],
+  ['Grading: a solution that misses an edge case gets partial marks', () => {
+    const q = questionById('q-sum-to-n');
+    // Correct for positive n, wrong for n < 1: it always adds at least 1.
+    const partial = 'DECLARE n : INTEGER\nDECLARE total : INTEGER\nDECLARE i : INTEGER\nINPUT n\ntotal ← 0\ni ← 1\nREPEAT\n    total ← total + i\n    i ← i + 1\nUNTIL i > n\nOUTPUT total';
+    const r = gradeSubmission(q, partial);
+    assertEq(r.status, 'incorrect-logic', 'it should be marked as a logic error, not a crash');
+    assert(r.passedCases > 0 && r.passedCases < r.totalCases, 'some cases should pass and some should fail');
+    assert(r.marksAwarded > 0 && r.marksAwarded < r.marksAvailable, 'partial marks expected');
+    assert(r.misconceptions.includes('edge-case'), 'the failure should be tagged as an edge case');
+  }],
+  ['Grading: the required construct is checked on the syntax tree', () => {
+    const q = questionById('q-sum-to-n');
+    // Right answer for the visible example, but with no loop at all.
+    const noLoop = 'DECLARE n : INTEGER\nINPUT n\nOUTPUT n * (n + 1) DIV 2';
+    const r = gradeSubmission(q, noLoop);
+    assertEq(r.status, 'missing-construct', 'a question that asks for a loop should say the loop is missing');
+    assert(/loop/.test(r.feedback), 'the feedback should name the missing construct');
+    assert(r.breakdown.some(b => b.id === 'construct-loop' && !b.passed), 'the construct mark should not be awarded');
+  }],
+  ['Grading: syntax, runtime and empty submissions are told apart', () => {
+    const q = questionById('q-larger-of-two');
+    assertEq(gradeSubmission(q, 'DECLARE a : INTEGER\na = 1').status, 'syntax-error', '= instead of ← is a syntax error');
+    assertEq(gradeSubmission(q, '').status, 'incomplete', 'an empty submission is incomplete');
+    assertEq(gradeSubmission(q, '   \n  ').status, 'incomplete', 'whitespace only is incomplete');
+    const runtime = gradeSubmission(q, 'DECLARE a : INTEGER\nDECLARE b : INTEGER\nINPUT a\nINPUT b\nOUTPUT a DIV 0');
+    assertEq(runtime.status, 'runtime-error', 'dividing by zero is a runtime error');
+    assert(/divide by 0/i.test(runtime.feedback), 'the runtime message should be passed through');
+  }],
+  ['Grading: hidden inputs are not handed over on a wrong attempt', () => {
+    const q = questionById('q-grade-boundary');
+    // Right for the visible example (64 → B) but wrong at the boundary.
+    const wrong = 'DECLARE mark : INTEGER\nINPUT mark\nIF mark > 70 THEN\n    OUTPUT "A"\nELSE\n    IF mark >= 60 THEN\n        OUTPUT "B"\n    ELSE\n        IF mark >= 50 THEN\n            OUTPUT "C"\n        ELSE\n            OUTPUT "F"\n        ENDIF\n    ENDIF\nENDIF';
+    const r = gradeSubmission(q, wrong);
+    assertEq(r.status, 'incorrect-logic', 'the boundary slip should be a logic error');
+    assertEq(r.firstFailure.inputs, null, 'a hidden case must not reveal its inputs');
+    assert(/exactly 70/.test(r.feedback), 'it should still describe the failing case in words');
+  }],
+  ['Grading: a question never stores answers that could drift from its solution', () => {
+    for (const q of QUESTION_BANK) {
+      for (const c of q.hiddenCases) {
+        const r = runCase(q.solution, c.inputs);
+        assert(r.ok, `"${q.id}" case ${JSON.stringify(c.inputs)} broke the reference solution: ${r.error}`);
+      }
+      // At least one case must actually print something, or the question is empty.
+      assert(q.hiddenCases.some(c => runCase(q.solution, c.inputs).output.length > 0),
+        `"${q.id}" never produces any output`);
+    }
+  }],
+  ['Grading: random cases are reproducible from a seed', () => {
+    const q = questionById('q-larger-of-two');
+    const a = questionCases(q, 5).map(c => c.inputs.join(','));
+    const b = questionCases(q, 5).map(c => c.inputs.join(','));
+    assertEq(a.join('|'), b.join('|'), 'the same seed must give the same cases');
+    const c = questionCases(q, 6).map(x => x.inputs.join(','));
+    assert(a.join('|') !== c.join('|'), 'a different seed should give different random cases');
+  }],
+  ['Grading: construct detection sees through nesting', () => {
+    const ast = parseProgram(tokenize(
+      'DECLARE i : INTEGER\nDECLARE j : INTEGER\nFOR i ← 1 TO 3\n    FOR j ← 1 TO 3\n        IF i = j THEN\n            OUTPUT i\n        ENDIF\n    NEXT j\nNEXT i'));
+    const c = detectConstructs(ast);
+    assert(c.has('loop'), 'a loop should be found');
+    assert(c.has('nested-loop'), 'a nested loop should be found');
+    assert(c.has('selection'), 'selection inside two loops should be found');
+    assert(!c.has('array'), 'no array was used');
+  }],
+  ['Execution: runaway output is stopped', () => {
+    assertThrows(() => runProgram('DECLARE i : INTEGER\nFOR i ← 1 TO 2000\n    OUTPUT i\nNEXT i', ''),
+      'too much output', 'a program that prints forever should be stopped');
   }],
   ['Trace table: round trip through every non-array example', () => {
     for (const ex of EXAMPLES) {
@@ -2448,7 +3023,9 @@ function runSelfTest() {
 try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTable, runSelfTest, TESTS,
   structuredEnglishToPseudo, traceTableToPseudo, checkPseudoAgainstTable,
   flowchartSVG, flowchartToPseudo,
-  makeQuestion, markTrace, markOutput, markTruth, markPseudocode, PQ_KINDS }; } catch (e) {}
+  makeQuestion, markTrace, markOutput, markTruth, markPseudocode, PQ_KINDS,
+  QUESTION_BANK, questionById, questionsFor, gradeSubmission, questionCases,
+  detectConstructs, runCase, GRADE_STATUS }; } catch (e) {}
 </script>
 
 <!-- =================================================================
