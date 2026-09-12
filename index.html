@@ -2,212 +2,743 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CIE CS Revision Toolkit</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DryRun — Computer Science Reasoning Lab</title>
+<meta name="description" content="Practise Cambridge Computer Science by moving between pseudocode, trace tables, flowcharts, structured English and logic circuits. Questions are marked against hidden test cases, not one visible answer.">
+<link rel="canonical" href="https://cie-cs-toolkit.vercel.app/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="DryRun — Computer Science Reasoning Lab">
+<meta property="og:description" content="Move between pseudocode, trace tables, flowcharts and logic. Find out exactly where your understanding breaks.">
+<meta property="og:url" content="https://cie-cs-toolkit.vercel.app/">
+<meta name="theme-color" content="#0e1116">
+<!-- Inline so there is no favicon request to 404, and no network dependency. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230e1116'/%3E%3Cpath d='M8 9h5.5c4 0 6.5 2.6 6.5 7s-2.5 7-6.5 7H8V9zm3.2 2.9v8.2h2c2.3 0 3.6-1.5 3.6-4.1s-1.3-4.1-3.6-4.1h-2z' fill='%2363d8bd'/%3E%3Ccircle cx='24' cy='22' r='2' fill='%2386f0d6'/%3E%3C/svg%3E">
 <style>
+  /* ============================================================
+     Design tokens — the single place colour, type and space are
+     decided. Components reference these, never raw values.
+     ============================================================ */
   :root {
-    --bg:#0F1216; --panel:#161A20; --panel2:#1B2027; --line:#272E38;
-    --text:#E6E9ED; --muted:#8B95A3; --dim:#5C6773;
-    --accent:#62D0B4; --accent-dim:#2E6E60;
-    --warn:#E5A15B; --err:#F0776C; --ok:#7BD88F;
-    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
-    --sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    /* surfaces */
+    --bg:#0e1116;
+    --surface:#151a21;
+    --surface-raised:#1b222b;
+    --surface-active:#222c36;
+    --border:#303a45;
+    --border-strong:#3d4855;
+
+    /* text — every one of these is checked against --bg by the self-test */
+    --text-primary:#f2f5f7;
+    --text-secondary:#b8c1ca;
+    --text-muted:#8995a1;
+
+    /* meaning */
+    --accent:#63d8bd;
+    --accent-strong:#86f0d6;
+    --accent-ink:#07231d;
+    --warning:#e8b86d;
+    --danger:#ef6a6a;
+    --success:#72d39f;
+    --focus:#9cdcff;
+
+    /* tinted fills, derived from the meaning colours */
+    --accent-wash:rgba(99,216,189,.12);
+    --danger-wash:rgba(239,106,106,.14);
+    --success-wash:rgba(114,211,159,.13);
+    --warning-wash:rgba(232,184,109,.13);
+    --row-stripe:rgba(255,255,255,.02);
+
+    /* type: named faces are used if the reader has them, otherwise the
+       system stack. Nothing is fetched, so the page still works offline. */
+    --font-display:"Space Grotesk","Avenir Next",Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+    --font-ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+    --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+
+    /* 4px spacing scale */
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s6:24px; --s8:32px; --s12:48px; --s16:64px;
+
+    --radius:6px;
+    --radius-lg:10px;
+    --appbar-h:64px;
+    --rail-w:240px;
+    --inspector-w:360px;
+    --motion:150ms;
   }
+
   * { box-sizing:border-box; }
-  html,body { margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); }
-  body { font-size:14px; line-height:1.6; }
-
-  header {
-    border-bottom:1px solid var(--line); padding:14px 20px;
-    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  html { -webkit-text-size-adjust:100%; }
+  html, body {
+    margin:0; background:var(--bg); color:var(--text-primary);
+    font-family:var(--font-ui); font-size:15px; line-height:1.55;
   }
-  header h1 { margin:0; font-size:16px; font-weight:600; letter-spacing:.02em; }
-  header .sub { color:var(--dim); font-size:12px; font-family:var(--mono); }
+  body { overflow-x:hidden; }
 
-  .tabs { display:flex; gap:2px; padding:0 20px; border-bottom:1px solid var(--line); }
-  .tabs button {
-    background:none; border:none; border-bottom:2px solid transparent;
-    color:var(--muted); padding:11px 16px; font-size:13.5px; cursor:pointer;
-    font-family:var(--sans);
+  h1,h2,h3 { font-family:var(--font-display); font-weight:600; letter-spacing:-.01em; margin:0; }
+  h1 { font-size:19px; }
+  h2 { font-size:16px; }
+  h3 { font-size:14px; }
+  p { margin:0 0 var(--s3); color:var(--text-secondary); }
+  a { color:var(--accent); }
+  code, pre, .mono { font-family:var(--font-mono); }
+
+  /* ---- focus: always visible, never removed ---- */
+  :focus-visible {
+    outline:2px solid var(--focus); outline-offset:2px; border-radius:3px;
   }
-  .tabs button:hover { color:var(--text); }
-  .tabs button[aria-selected="true"] { color:var(--accent); border-bottom-color:var(--accent); }
-  .tabs button:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
-
-  main { padding:20px; }
-  .cols { display:grid; grid-template-columns:minmax(0,420px) minmax(0,1fr); gap:20px; align-items:start; }
-  @media (max-width:900px){ .cols { grid-template-columns:1fr; } }
-
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:6px; }
-  .card > h2 {
-    margin:0; padding:10px 14px; font-size:12px; font-weight:600; letter-spacing:.06em;
-    text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--line);
-    font-family:var(--mono);
+  .skip {
+    position:absolute; left:var(--s3); top:-64px; z-index:100;
+    background:var(--surface-raised); color:var(--text-primary);
+    border:1px solid var(--accent); border-radius:var(--radius);
+    padding:var(--s2) var(--s4); transition:top var(--motion);
   }
-  .card > .body { padding:14px; }
+  .skip:focus { top:var(--s3); }
 
-  label.fld { display:block; font-size:12px; color:var(--muted); margin:0 0 6px; }
+  /* ============================================================
+     Application bar
+     ============================================================ */
+  .appbar {
+    height:var(--appbar-h); border-bottom:1px solid var(--border);
+    background:var(--surface); display:flex; align-items:center;
+    gap:var(--s4); padding:0 var(--s4); position:sticky; top:0; z-index:30;
+    padding-top:env(safe-area-inset-top);
+  }
+  .brand { display:flex; align-items:center; gap:var(--s2); flex-shrink:0; }
+  .brand-mark {
+    width:26px; height:26px; border-radius:var(--radius); background:var(--accent);
+    color:var(--accent-ink); font-family:var(--font-display); font-weight:700;
+    font-size:15px; display:grid; place-items:center; flex-shrink:0;
+  }
+  .brand-name { font-family:var(--font-display); font-weight:600; font-size:16px; white-space:nowrap; }
+  .brand-sub { color:var(--text-muted); font-size:12px; white-space:nowrap; }
 
-  /* ---- code editor with gutter + current-line highlight ---- */
-  .editor { position:relative; display:flex; border:1px solid var(--line); border-radius:4px;
-            background:var(--panel2); overflow:hidden; }
+  .course-chip {
+    display:flex; align-items:center; gap:var(--s2);
+    background:var(--surface-raised); border:1px solid var(--border);
+    border-radius:var(--radius); padding:var(--s1) var(--s3);
+    font-size:12.5px; color:var(--text-secondary); font-family:var(--font-mono);
+    cursor:pointer;
+  }
+  .course-chip:hover { border-color:var(--border-strong); color:var(--text-primary); }
+  .appbar-right { margin-left:auto; display:flex; align-items:center; gap:var(--s2); }
+
+  .pill {
+    font-size:12px; font-family:var(--font-mono); padding:2px var(--s2);
+    border-radius:99px; border:1px solid var(--border); color:var(--text-secondary);
+    white-space:nowrap;
+  }
+  .pill.is-secure    { color:var(--success); border-color:var(--success); background:var(--success-wash); }
+  .pill.is-developing{ color:var(--warning); border-color:var(--warning); background:var(--warning-wash); }
+  .pill.is-due       { color:var(--danger);  border-color:var(--danger);  background:var(--danger-wash); }
+  .pill.is-unscouted { color:var(--text-muted); }
+
+  /* ============================================================
+     Buttons
+     ============================================================ */
+  button { font-family:inherit; font-size:13.5px; }
+  .btn {
+    background:var(--surface-raised); color:var(--text-primary);
+    border:1px solid var(--border); border-radius:var(--radius);
+    padding:var(--s2) var(--s3); cursor:pointer; min-height:36px;
+    display:inline-flex; align-items:center; justify-content:center; gap:var(--s2);
+    transition:background var(--motion), border-color var(--motion), color var(--motion);
+  }
+  .btn:hover:not(:disabled) { background:var(--surface-active); border-color:var(--border-strong); }
+  .btn:active:not(:disabled) { background:var(--surface-active); transform:translateY(1px); }
+  .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn.primary { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:600; }
+  .btn.primary:hover:not(:disabled) { background:var(--accent-strong); border-color:var(--accent-strong); }
+  .btn.ghost { background:transparent; }
+  .btn.danger { color:var(--danger); border-color:var(--danger); }
+  .btn.is-loading { color:transparent; position:relative; }
+  .btn.is-loading::after {
+    content:""; position:absolute; width:14px; height:14px; border-radius:50%;
+    border:2px solid var(--accent-ink); border-top-color:transparent;
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .btn-row { display:flex; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s3); }
+
+  /* ============================================================
+     Shell: rail + workspace
+     ============================================================ */
+  .shell { display:flex; align-items:flex-start; min-height:calc(100vh - var(--appbar-h)); }
+
+  .rail {
+    width:var(--rail-w); flex-shrink:0; border-right:1px solid var(--border);
+    background:var(--surface); padding:var(--s4) 0;
+    position:sticky; top:var(--appbar-h); max-height:calc(100vh - var(--appbar-h));
+    overflow-y:auto;
+  }
+  .rail-search { padding:0 var(--s4) var(--s3); }
+  .rail-group { margin-bottom:var(--s4); }
+  .rail-label {
+    font-size:11px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--text-muted); padding:0 var(--s4); margin-bottom:var(--s2);
+    font-family:var(--font-mono);
+  }
+  .rail-item {
+    display:flex; align-items:center; gap:var(--s2); width:100%;
+    background:none; border:0; border-left:2px solid transparent;
+    color:var(--text-secondary); text-align:left; cursor:pointer;
+    padding:var(--s2) var(--s4); min-height:36px;
+    transition:background var(--motion), color var(--motion);
+  }
+  .rail-item:hover { background:var(--surface-raised); color:var(--text-primary); }
+  .rail-item[aria-current="page"], .rail-item[aria-current="true"] {
+    background:var(--surface-active); color:var(--text-primary);
+    border-left-color:var(--accent); font-weight:600;
+  }
+  .rail-item .dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; background:var(--border-strong); }
+  .rail-item .dot.is-secure { background:var(--success); }
+  .rail-item .dot.is-developing { background:var(--warning); }
+  .rail-item .dot.is-due { background:var(--danger); }
+  .rail-item .label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13.5px; }
+  .rail-item .count { font-size:11px; color:var(--text-muted); font-family:var(--font-mono); }
+
+  .workspace { flex:1; min-width:0; padding:var(--s6); }
+  .workspace.is-wide { max-width:none; }
+  .view { display:none; }
+  .view.is-active { display:block; }
+
+  .page-head { margin-bottom:var(--s6); }
+  .page-head h1 { font-size:24px; margin-bottom:var(--s2); }
+  .page-head p { max-width:62ch; }
+
+  /* ============================================================
+     Panels — one containment layer, not cards inside cards
+     ============================================================ */
+  .panel { border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface); }
+  .panel + .panel { margin-top:var(--s4); }
+  .panel-head {
+    display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap;
+    padding:var(--s3) var(--s4); border-bottom:1px solid var(--border);
+  }
+  .panel-head h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); font-family:var(--font-mono); font-weight:500; }
+  .panel-body { padding:var(--s4); }
+  .panel-body.tight { padding:var(--s3); }
+
+  .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:var(--s4); align-items:start; }
+  .stack { display:grid; gap:var(--s4); }
+
+  /* ============================================================
+     Forms
+     ============================================================ */
+  .field { display:block; margin-bottom:var(--s3); }
+  .field-label, .fld {
+    display:block; font-size:12.5px; color:var(--text-secondary);
+    margin-bottom:var(--s2); font-family:var(--font-mono);
+  }
+  input.control, textarea.control, select.control {
+    width:100%; background:var(--bg); color:var(--text-primary);
+    border:1px solid var(--border); border-radius:var(--radius);
+    padding:var(--s2) var(--s3); font:13.5px/1.5 var(--font-mono);
+    min-height:38px;
+  }
+  textarea.control { resize:vertical; }
+  input.control:hover, textarea.control:hover, select.control:hover { border-color:var(--border-strong); }
+  input.control:focus, textarea.control:focus, select.control:focus { border-color:var(--accent); outline:none; box-shadow:0 0 0 2px var(--accent-wash); }
+
+  .status {
+    margin-top:var(--s2); font:12.5px/1.6 var(--font-mono);
+    color:var(--text-secondary); min-height:20px;
+  }
+  .status.err { color:var(--danger); white-space:pre-wrap; }
+  .status.ok  { color:var(--success); }
+  .status.warn{ color:var(--warning); }
+
+  /* ============================================================
+     The code editor with its gutter
+     ============================================================ */
+  .editor {
+    display:flex; border:1px solid var(--border); border-radius:var(--radius);
+    background:var(--bg); overflow:hidden;
+  }
+  .editor:focus-within { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-wash); }
   .gutter {
-    flex:none; width:42px; padding:10px 8px 10px 0; text-align:right;
-    font:12px/20px var(--mono); color:var(--dim); background:#12161B;
-    border-right:1px solid var(--line); overflow:hidden; user-select:none;
+    flex-shrink:0; width:42px; padding:10px 0; text-align:right;
+    background:var(--surface); color:var(--text-muted);
+    font:13px/20px var(--font-mono); user-select:none; overflow:hidden;
+    border-right:1px solid var(--border);
   }
-  .gutter div.on { color:var(--accent); font-weight:600; }
+  .gutter div { padding-right:var(--s2); }
+  .gutter div.on { color:var(--accent); background:var(--accent-wash); font-weight:600; }
   .ed-wrap { position:relative; flex:1; min-width:0; }
-  .ed-wrap textarea, .ed-wrap .hl {
-    font:13px/20px var(--mono); padding:10px 12px; margin:0; border:0;
-    white-space:pre; tab-size:4;
+  .hl { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+  .hl-bar { position:absolute; left:0; right:0; height:20px; background:var(--accent-wash); display:none; }
+  .editor textarea {
+    position:relative; width:100%; min-height:250px; background:transparent;
+    color:var(--text-primary); border:0; outline:none; resize:vertical;
+    padding:10px var(--s3); font:13px/20px var(--font-mono); white-space:pre; overflow:auto;
   }
-  .ed-wrap textarea {
-    display:block; width:100%; height:280px; resize:vertical;
-    background:transparent; color:var(--text); position:relative; z-index:2;
-    overflow:auto; outline:none;
+
+  pre.outcode { margin:0; font:13px/20px var(--font-mono); white-space:pre; overflow-x:auto; color:var(--text-primary); }
+
+  /* ============================================================
+     Tables
+     ============================================================ */
+  .scroll-x { overflow-x:auto; max-width:100%; }
+  table { border-collapse:collapse; width:100%; font:13px/1.5 var(--font-mono); }
+  th, td { border:1px solid var(--border); padding:var(--s1) var(--s2); text-align:left; white-space:nowrap; }
+  thead th { background:var(--surface-raised); color:var(--text-secondary); font-weight:500; position:sticky; top:0; }
+  tbody tr:nth-child(even) { background:var(--row-stripe); }
+  tbody tr.cur { background:var(--accent-wash); }
+  td.n, th.n { color:var(--text-muted); text-align:right; width:46px; }
+  td.chg { color:var(--accent); font-weight:600; }
+  td.out { color:var(--warning); }
+  .empty { color:var(--text-muted); font-size:13px; padding:var(--s4); text-align:center; }
+
+  table input.cell {
+    width:100%; min-width:56px; background:transparent; color:var(--text-primary);
+    border:1px solid transparent; border-radius:3px; padding:2px var(--s1);
+    font:13px/18px var(--font-mono);
   }
-  .ed-wrap .hl { position:absolute; inset:0; z-index:1; overflow:hidden; pointer-events:none; }
-  .hl-bar { position:absolute; left:0; right:0; height:20px; background:rgba(98,208,180,.13);
-            border-left:2px solid var(--accent); display:none; }
-
-  textarea.plain, input.plain {
-    width:100%; background:var(--panel2); color:var(--text);
-    border:1px solid var(--line); border-radius:4px; padding:9px 11px;
-    font:13px/20px var(--mono); outline:none; resize:vertical;
+  table input.cell:hover { border-color:var(--border); }
+  table input.cell:focus { border-color:var(--accent); outline:none; background:var(--bg); }
+  /* Correctness is never colour alone: a mark glyph is set in ::after too. */
+  table input.cell.is-right { color:var(--success); border-color:var(--success); }
+  table input.cell.is-wrong { color:var(--danger); border-color:var(--danger); background:var(--danger-wash); }
+  td.marked { position:relative; }
+  td.marked::after {
+    position:absolute; right:3px; top:50%; transform:translateY(-50%);
+    font:11px var(--font-mono); pointer-events:none;
   }
-  textarea.plain:focus, input.plain:focus { border-color:var(--accent-dim); }
+  td.marked.is-right::after { content:"✓"; color:var(--success); }
+  td.marked.is-wrong::after { content:"✗"; color:var(--danger); }
 
-  .btns { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
-  button.act {
-    background:var(--panel2); color:var(--text); border:1px solid var(--line);
-    border-radius:4px; padding:7px 13px; font-size:13px; cursor:pointer; font-family:var(--sans);
+  /* ============================================================
+     Practice workspace
+     ============================================================ */
+  .practice-layout { display:flex; gap:var(--s4); align-items:flex-start; }
+  .practice-main { flex:1; min-width:0; }
+  .inspector {
+    width:var(--inspector-w); flex-shrink:0;
+    border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface);
+    position:sticky; top:calc(var(--appbar-h) + var(--s6));
   }
-  button.act:hover { border-color:var(--accent-dim); color:var(--accent); }
-  button.act:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
-  button.act.primary { background:var(--accent-dim); border-color:var(--accent-dim); color:#EAFFF9; }
-  button.act.primary:hover { background:#378372; color:#fff; }
-  button.act:disabled { opacity:.4; cursor:not-allowed; }
+  .inspector.is-collapsed { width:auto; }
+  .inspector.is-collapsed .inspector-body, .inspector.is-collapsed .inspector-tabs { display:none; }
 
-  .status { margin-top:10px; font:12px/1.6 var(--mono); color:var(--muted); min-height:20px; }
-  .status.err { color:var(--err); white-space:pre-wrap; }
-  .status.ok { color:var(--ok); }
+  .inspector-tabs { display:flex; border-bottom:1px solid var(--border); }
+  .inspector-tabs button {
+    flex:1; background:none; border:0; border-bottom:2px solid transparent;
+    color:var(--text-muted); padding:var(--s2) var(--s1); cursor:pointer; min-height:40px;
+    font-size:12.5px;
+  }
+  .inspector-tabs button:hover { color:var(--text-primary); }
+  .inspector-tabs button[aria-selected="true"] { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+  .inspector-body { padding:var(--s3); max-height:60vh; overflow:auto; }
+  .inspector-panel { display:none; }
+  .inspector-panel.is-active { display:block; }
 
-  details.help { margin-top:12px; border-top:1px solid var(--line); padding-top:10px; }
-  details.help summary { cursor:pointer; font-size:12px; color:var(--muted); }
-  details.help summary:hover { color:var(--accent); }
-  details.help .inner { font:12px/1.8 var(--mono); color:var(--dim); margin-top:8px; }
-  details.help code { color:var(--muted); }
+  .q-meta { display:flex; flex-wrap:wrap; gap:var(--s2); align-items:center; margin-bottom:var(--s3); }
+  .q-meta .pill { font-size:11.5px; }
+  .q-prompt { font-size:15px; color:var(--text-primary); margin-bottom:var(--s3); max-width:70ch; }
+  .q-example {
+    background:var(--surface-raised); border:1px solid var(--border); border-radius:var(--radius);
+    padding:var(--s2) var(--s3); font:12.5px/1.6 var(--font-mono); color:var(--text-secondary);
+  }
+  .session-bar {
+    display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap;
+    font:12.5px var(--font-mono); color:var(--text-muted); margin-bottom:var(--s3);
+  }
+  .session-bar .track { flex:1; min-width:120px; height:4px; background:var(--surface-active); border-radius:99px; overflow:hidden; }
+  .session-bar .track > i { display:block; height:100%; background:var(--accent); transition:width var(--motion); }
 
-  .tbl-scroll { overflow-x:auto; }
-  table { border-collapse:collapse; width:100%; font:12.5px/1.5 var(--mono); }
-  th, td { border:1px solid var(--line); padding:5px 9px; text-align:left; white-space:nowrap; }
-  th { background:var(--panel2); color:var(--muted); font-weight:600; position:sticky; top:0; }
-  tbody tr:nth-child(even) { background:rgba(255,255,255,.018); }
-  tbody tr.cur { background:rgba(98,208,180,.10); }
-  td.n, th.n { color:var(--dim); text-align:right; }
-  td.out { color:var(--warn); }
-  td.chg { color:var(--accent); }
-  .empty { color:var(--dim); font:12px var(--mono); padding:20px 4px; }
+  .mark-row {
+    display:flex; align-items:center; gap:var(--s2); padding:var(--s2) 0;
+    border-bottom:1px solid var(--border); font-size:13px;
+  }
+  .mark-row:last-child { border-bottom:0; }
+  .mark-row .glyph { width:18px; flex-shrink:0; font-family:var(--font-mono); }
+  .mark-row.is-hit .glyph { color:var(--success); }
+  .mark-row.is-miss .glyph { color:var(--text-muted); }
+  .mark-row .label { flex:1; color:var(--text-secondary); }
+  .mark-row .marks { font-family:var(--font-mono); color:var(--text-primary); }
+  .mark-total { display:flex; justify-content:space-between; align-items:baseline; padding-top:var(--s3); font-family:var(--font-mono); }
+  .mark-total b { font-size:20px; font-family:var(--font-display); }
 
-  svg.circuit { display:block; min-width:100%; }
-  .circuit .gate { fill:var(--panel2); stroke:var(--text); stroke-width:1.6; }
-  .circuit .wire { stroke:var(--dim); stroke-width:1.5; fill:none; }
-  .circuit text { fill:var(--text); font:12px var(--mono); }
-  .circuit text.gl { fill:var(--muted); font-size:10px; }
+  /* ============================================================
+     Dashboard
+     ============================================================ */
+  .action-list { display:grid; gap:var(--s3); }
+  .action {
+    display:flex; align-items:center; gap:var(--s3); text-align:left; width:100%;
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
+    padding:var(--s4); cursor:pointer; color:var(--text-primary);
+    transition:border-color var(--motion), background var(--motion);
+  }
+  .action:hover { border-color:var(--accent); background:var(--surface-raised); }
+  .action .body { flex:1; min-width:0; }
+  .action .title { font-weight:600; font-size:15px; display:block; }
+  .action .sub { font-size:13px; color:var(--text-secondary); }
+  .action .chev { color:var(--text-muted); flex-shrink:0; }
+  .action.primary { border-color:var(--accent); }
+
+  .topic-map { display:grid; gap:var(--s2); }
+  .topic-row {
+    display:flex; align-items:center; gap:var(--s3); padding:var(--s3);
+    border:1px solid var(--border); border-radius:var(--radius); background:var(--surface);
+    width:100%; text-align:left; cursor:pointer; color:var(--text-primary);
+  }
+  .topic-row:hover { border-color:var(--border-strong); background:var(--surface-raised); }
+  .topic-row .name { flex:1; min-width:0; font-size:14px; }
+  .topic-row .code { font:11.5px var(--font-mono); color:var(--text-muted); }
+
+  /* ============================================================
+     Onboarding
+     ============================================================ */
+  .onboard { max-width:860px; margin:0 auto; padding:var(--s8) 0; }
+  .onboard h1 { font-size:32px; line-height:1.2; margin-bottom:var(--s3); }
+  .onboard .lede { font-size:17px; color:var(--text-secondary); max-width:58ch; margin-bottom:var(--s8); }
+  .choice-grid { display:grid; grid-template-columns:1fr 1fr; gap:var(--s4); }
+  .choice {
+    text-align:left; background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radius-lg); padding:var(--s6); cursor:pointer; color:var(--text-primary);
+    transition:border-color var(--motion), background var(--motion);
+  }
+  .choice:hover { border-color:var(--accent); background:var(--surface-raised); }
+  .choice[aria-pressed="true"] { border-color:var(--accent); background:var(--surface-raised); box-shadow:0 0 0 1px var(--accent); }
+  .choice .code { font:12px var(--font-mono); color:var(--accent); }
+  .choice .name { display:block; font-family:var(--font-display); font-size:19px; font-weight:600; margin:var(--s2) 0; }
+  .choice .who { font-size:13.5px; color:var(--text-secondary); }
+
+  .demo-strip { margin-top:var(--s8); border-top:1px solid var(--border); padding-top:var(--s6); }
+
+  /* ============================================================
+     Mobile drawer + sticky actions (hidden on desktop)
+     ============================================================ */
+  .icon-btn {
+    display:none; background:var(--surface-raised); border:1px solid var(--border);
+    border-radius:var(--radius); color:var(--text-primary);
+    width:40px; height:40px; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .scrim {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:40;
+  }
+  .scrim.is-open { display:block; }
+  .action-bar { display:none; }
 
   .toast {
-    position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(10px);
-    background:var(--accent); color:#06110D; padding:8px 16px; border-radius:4px;
-    font-size:13px; font-weight:500; opacity:0; pointer-events:none; transition:.18s;
+    position:fixed; left:50%; bottom:var(--s6); transform:translateX(-50%);
+    background:var(--surface-active); color:var(--text-primary);
+    border:1px solid var(--border-strong); border-radius:var(--radius);
+    padding:var(--s2) var(--s4); font-size:13px; z-index:60;
+    opacity:0; pointer-events:none;
+    transition:opacity var(--motion), transform var(--motion);
   }
-  .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast.show { opacity:1; transform:translateX(-50%) translateY(-4px); }
 
-  footer { padding:18px 20px 28px; color:var(--dim); font-size:11.5px; border-top:1px solid var(--line); margin-top:24px; }
-
-  #selftest { padding:20px; font:13px/1.9 var(--mono); }
-  #selftest .p { color:var(--ok); }
-  #selftest .f { color:var(--err); }
-  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
-  .tabs { flex-wrap:wrap; }
-  pre.outcode { margin:0; font:13px/20px var(--mono); color:var(--text); white-space:pre; overflow-x:auto; }
-  #tt-grid table input {
-    width:100%; min-width:60px; background:transparent; color:var(--text);
-    border:1px solid transparent; border-radius:3px; padding:2px 4px; font:13px/18px var(--mono);
+  footer.legal {
+    border-top:1px solid var(--border); padding:var(--s6) var(--s4);
+    color:var(--text-muted); font-size:12.5px;
   }
-  #tt-grid table input:focus { border-color:var(--accent-dim); outline:none; background:var(--panel2); }
-  .cols3 { display:grid; grid-template-columns:1fr; gap:20px; min-width:0; }
+  footer.legal p { color:var(--text-muted); max-width:70ch; }
+
+  .sr-only {
+    position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+    overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+  }
+
+  /* ============================================================
+     Responsive
+     ============================================================ */
+  @media (max-width:1180px) {
+    .practice-layout { flex-direction:column; }
+    .inspector { width:100%; position:static; }
+    .inspector-body { max-height:none; }
+  }
+  @media (max-width:900px) {
+    .grid-2 { grid-template-columns:1fr; }
+    .choice-grid { grid-template-columns:1fr; }
+  }
+  @media (max-width:820px) {
+    :root { --appbar-h:56px; }
+    .icon-btn { display:inline-flex; }
+    .brand-sub, .course-chip .label-long { display:none; }
+    .appbar { gap:var(--s2); padding:0 var(--s3); }
+    .workspace { padding:var(--s4) var(--s3) 96px; }
+
+    /* The rail becomes a drawer instead of stacking above the tool. */
+    .rail {
+      position:fixed; top:0; bottom:0; left:0; z-index:50; width:min(84vw, 320px);
+      max-height:none; transform:translateX(-100%);
+      transition:transform var(--motion); padding-top:calc(var(--s4) + env(safe-area-inset-top));
+    }
+    .rail.is-open { transform:none; }
+
+    .onboard { padding:var(--s6) 0; }
+    .onboard h1 { font-size:26px; }
+    .onboard .lede { font-size:15.5px; margin-bottom:var(--s6); }
+
+    /* Actions live in a fixed bar so the question stays on screen. */
+    .action-bar {
+      display:flex; gap:var(--s2); position:fixed; left:0; right:0; bottom:0; z-index:35;
+      background:var(--surface); border-top:1px solid var(--border);
+      padding:var(--s2) var(--s3) calc(var(--s2) + env(safe-area-inset-bottom));
+    }
+    .action-bar .btn { flex:1; min-height:44px; white-space:nowrap; }
+    .btn { min-height:44px; }
+    .rail-item { min-height:44px; }
+    .inspector-tabs button { min-height:44px; }
+    .editor textarea { min-height:200px; }
+  }
+  @media (max-width:380px) {
+    .workspace { padding-left:var(--s2); padding-right:var(--s2); }
+    .panel-body { padding:var(--s3); }
+    .action-bar .btn { padding:var(--s2) var(--s1); font-size:13px; }
+  }
+
+  @media (prefers-reduced-motion:reduce) {
+    *, *::before, *::after { transition-duration:1ms !important; animation-duration:1ms !important; }
+  }
+
+  /* Self-test page */
+  #selftest { padding:var(--s6); font:13px/1.7 var(--font-mono); }
+  #selftest .p { color:var(--success); }
+  #selftest .f { color:var(--danger); }
+
+  /* Flowchart SVG */
   svg.flow { max-width:100%; height:auto; display:block; }
-  svg.flow rect, svg.flow polygon { fill:var(--panel2); stroke:var(--muted); stroke-width:1.5; }
-  svg.flow text { fill:var(--text); font:12px var(--mono); }
-  svg.flow text.lbl { fill:var(--warn); font:11px var(--mono); }
-  svg.flow polyline { fill:none; stroke:var(--muted); stroke-width:1.5; }
-  svg.flow marker path { fill:var(--muted); stroke:none; }
-  #btn-practice { margin-left:auto; }
-  #btn-practice[aria-pressed="true"] { background:var(--accent-dim); border-color:var(--accent); color:var(--text); }
-  #q-prompt pre { margin:0; font:13px/20px var(--mono); white-space:pre; overflow-x:auto; }
-  #q-answer table input { width:100%; min-width:58px; background:transparent; color:var(--text);
-    border:1px solid transparent; border-radius:3px; padding:2px 4px; font:13px/18px var(--mono); }
-  #q-answer table input:focus { border-color:var(--accent-dim); outline:none; background:var(--panel2); }
-  #q-answer table input.right { color:var(--ok); }
-  #q-answer table input.wrong { color:var(--err); background:rgba(240,119,108,.14); }
-  .qscore { margin-top:6px; font:12px/1.6 var(--mono); color:var(--dim); }
+  svg.flow rect, svg.flow polygon { fill:var(--surface-raised); stroke:var(--text-muted); stroke-width:1.5; }
+  svg.flow text { fill:var(--text-primary); font:12px var(--font-mono); }
+  svg.flow text.lbl { fill:var(--warning); font:11px var(--font-mono); }
+  svg.flow polyline { fill:none; stroke:var(--text-muted); stroke-width:1.5; }
+  svg.flow marker path { fill:var(--text-muted); stroke:none; }
+  svg.circuit { max-width:100%; height:auto; }
 </style>
 </head>
 <body>
 
-<header>
-  <h1>CIE CS Revision Toolkit</h1>
-  <span class="sub">9618 / 9608 · 0478 &nbsp;|&nbsp; Trace tables · Logic gates</span>
-  <button class="act" id="btn-practice" aria-pressed="false">Practice mode</button>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="appbar">
+  <button class="icon-btn" id="btn-menu" aria-label="Open navigation" aria-expanded="false" aria-controls="rail">☰</button>
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">D</span>
+    <span>
+      <span class="brand-name">DryRun</span>
+      <span class="brand-sub">&nbsp;Computer Science Reasoning Lab</span>
+    </span>
+  </div>
+  <button class="course-chip" id="course-chip" aria-label="Change qualification and exam year">
+    <span id="course-chip-text">Choose your course</span>
+    <span aria-hidden="true">▾</span>
+  </button>
+  <div class="appbar-right">
+    <span class="pill is-unscouted" id="evidence-pill">No evidence yet</span>
+    <button class="btn ghost" id="btn-settings">Settings</button>
+    <button class="btn primary" id="btn-start">Start practice</button>
+  </div>
 </header>
 
-<div class="tabs" role="tablist">
-  <button role="tab" id="tab-trace" aria-selected="true" aria-controls="p-trace">Pseudocode Trace Table Simulator</button>
-  <button role="tab" id="tab-logic" aria-selected="false" aria-controls="p-logic">Logic Gates &amp; Truth Tables</button>
-  <button role="tab" id="tab-eng" aria-selected="false" aria-controls="p-eng">Structured English &rarr; Pseudocode</button>
-  <button role="tab" id="tab-tt" aria-selected="false" aria-controls="p-tt">Trace Table &rarr; Pseudocode</button>
-  <button role="tab" id="tab-flow" aria-selected="false" aria-controls="p-flow">Flowchart &rarr; Everything</button>
-</div>
+<div class="scrim" id="scrim" hidden></div>
 
-<main>
-  <!-- ============ Tab 1 ============ -->
-  <section id="p-trace" role="tabpanel" aria-labelledby="tab-trace">
-    <div class="cols">
-      <div class="card">
-        <h2>Pseudocode</h2>
-        <div class="body">
-          <label class="fld" for="example">Load an example (common exam question types — step straight through)</label>
-          <select id="example" class="plain" style="margin-bottom:12px"></select>
+<div class="shell">
+  <nav class="rail" id="rail" aria-label="Sections and syllabus topics">
+    <div class="rail-search">
+      <label class="sr-only" for="rail-filter">Search topics</label>
+      <input id="rail-filter" class="control" type="search" placeholder="Search topics…" autocomplete="off">
+    </div>
+    <div class="rail-group">
+      <div class="rail-label" id="rail-nav-label">Sections</div>
+      <div role="list" aria-labelledby="rail-nav-label" id="rail-nav"></div>
+    </div>
+    <div class="rail-group">
+      <div class="rail-label" id="rail-topics-label">Syllabus topics</div>
+      <div role="list" aria-labelledby="rail-topics-label" id="rail-topics"></div>
+      <p class="rail-label" id="rail-topics-empty" style="text-transform:none;letter-spacing:0;padding-top:8px" hidden>Choose a course to see its topics.</p>
+    </div>
+  </nav>
 
-          <div class="editor">
-            <div class="gutter" id="gutter"></div>
-            <div class="ed-wrap">
-              <div class="hl"><div class="hl-bar" id="hlbar"></div></div>
-              <textarea id="code" spellcheck="false" wrap="off"></textarea>
+  <main class="workspace" id="main" tabindex="-1">
+
+    <!-- ================= Onboarding ================= -->
+    <section class="view" id="view-onboarding" aria-labelledby="onboard-h">
+      <div class="onboard">
+        <h1 id="onboard-h">Learn to reason before you run the code.</h1>
+        <p class="lede">Practise Cambridge Computer Science through pseudocode, trace tables, flowcharts and logic — and find out exactly which representation your understanding breaks on.</p>
+
+        <h2 style="margin-bottom:12px">Which course are you taking?</h2>
+        <div class="choice-grid" id="course-choices"></div>
+
+        <div id="year-step" hidden style="margin-top:32px">
+          <h2 style="margin-bottom:12px">Which year do you sit the exam?</h2>
+          <div class="btn-row" id="year-choices" role="group" aria-label="Examination year"></div>
+          <p class="status" id="syllabus-note"></p>
+
+          <div id="level-step" hidden style="margin-top:24px">
+            <h2 style="margin-bottom:12px">Which level?</h2>
+            <div class="btn-row" id="level-choices" role="group" aria-label="Level"></div>
+          </div>
+
+          <div style="margin-top:24px">
+            <h2 style="margin-bottom:12px">How confident do you feel right now?</h2>
+            <div class="btn-row" id="confidence-choices" role="group" aria-label="Current confidence"></div>
+          </div>
+
+          <div class="btn-row" style="margin-top:32px">
+            <button class="btn primary" id="btn-onboard-done" disabled>Start learning</button>
+          </div>
+        </div>
+
+        <div class="demo-strip">
+          <h2 style="margin-bottom:8px">A quick taste</h2>
+          <p>Change the pseudocode and watch the trace table follow it, line by line. This is the same engine the questions are marked with.</p>
+          <div class="panel">
+            <div class="panel-body">
+              <div class="grid-2">
+                <div>
+                  <label class="field-label" for="demo-code">Pseudocode</label>
+                  <textarea id="demo-code" class="control" rows="7" spellcheck="false" wrap="off"></textarea>
+                </div>
+                <div>
+                  <span class="field-label" id="demo-trace-label">Trace table</span>
+                  <div class="scroll-x" id="demo-trace" role="region" aria-labelledby="demo-trace-label"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= Dashboard ================= -->
+    <section class="view" id="view-dashboard" aria-labelledby="dash-h">
+      <div class="page-head">
+        <h1 id="dash-h">Dashboard</h1>
+        <p id="dash-sub"></p>
+      </div>
+      <div class="action-list" id="dash-actions"></div>
+
+      <div class="panel" style="margin-top:24px">
+        <div class="panel-head"><h2>Syllabus progress</h2></div>
+        <div class="panel-body">
+          <div class="topic-map" id="dash-topics"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Recent attempts</h2></div>
+        <div class="panel-body">
+          <div class="scroll-x" id="dash-recent"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= Practice ================= -->
+    <section class="view" id="view-practice" aria-labelledby="practice-h">
+      <h1 class="sr-only" id="practice-h">Practice</h1>
+      <div class="session-bar" id="session-bar">
+        <span id="session-count">Question 1</span>
+        <span class="track" aria-hidden="true"><i id="session-track" style="width:0%"></i></span>
+        <span id="session-time"></span>
+        <button class="btn ghost" id="btn-end-session">End session</button>
+      </div>
+
+      <div class="practice-layout">
+        <div class="practice-main">
+          <div class="panel">
+            <div class="panel-head">
+              <h2 id="q-kind-label">Question</h2>
+              <div class="q-meta" id="q-meta" style="margin:0"></div>
+            </div>
+            <div class="panel-body">
+              <div class="q-prompt" id="q-prompt"></div>
+              <div class="q-example" id="q-example"></div>
             </div>
           </div>
 
-          <div style="margin-top:12px">
-            <label class="fld" for="inputs">Values for INPUT (one per line, used in order)</label>
-            <textarea id="inputs" class="plain" rows="2" spellcheck="false" placeholder="One value per line, e.g. 7"></textarea>
+          <div class="panel">
+            <div class="panel-head">
+              <h2 id="q-answer-head">Your answer</h2>
+              <div class="btn-row" id="q-toolbar" style="margin:0 0 0 auto"></div>
+            </div>
+            <div class="panel-body">
+              <div id="q-answer"></div>
+              <div class="btn-row" id="q-actions"></div>
+              <p class="status" id="q-status" role="status" aria-live="polite"></p>
+            </div>
           </div>
+        </div>
 
-          <div class="btns">
-            <button class="act primary" id="btn-step">Step</button>
-            <button class="act" id="btn-play">Auto-play</button>
-            <button class="act" id="btn-reset">Reset</button>
-            <button class="act" id="btn-copy-trace">Copy table</button>
+        <aside class="inspector" id="inspector" aria-label="Inspector">
+          <div class="inspector-tabs" role="tablist" aria-label="Inspector panels">
+            <button role="tab" id="itab-feedback" aria-selected="true" aria-controls="ipanel-feedback">Feedback</button>
+            <button role="tab" id="itab-trace" aria-selected="false" aria-controls="ipanel-trace" tabindex="-1">Trace</button>
+            <button role="tab" id="itab-output" aria-selected="false" aria-controls="ipanel-output" tabindex="-1">Output</button>
+            <button role="tab" id="itab-vars" aria-selected="false" aria-controls="ipanel-vars" tabindex="-1">Variables</button>
           </div>
-          <div class="status" id="trace-status">Click "Step" to start running line by line.</div>
+          <div class="inspector-body">
+            <div class="inspector-panel is-active" id="ipanel-feedback" role="tabpanel" aria-labelledby="itab-feedback" tabindex="0">
+              <p class="status" id="feedback-empty">Write an answer, then use <b>Run</b> to see what it does or <b>Check answer</b> to have it marked.</p>
+              <div id="mark-breakdown"></div>
+            </div>
+            <div class="inspector-panel" id="ipanel-trace" role="tabpanel" aria-labelledby="itab-trace" tabindex="0">
+              <div class="scroll-x" id="insp-trace"><p class="empty">Run your program to see its trace.</p></div>
+            </div>
+            <div class="inspector-panel" id="ipanel-output" role="tabpanel" aria-labelledby="itab-output" tabindex="0">
+              <pre class="outcode" id="insp-output"></pre>
+            </div>
+            <div class="inspector-panel" id="ipanel-vars" role="tabpanel" aria-labelledby="itab-vars" tabindex="0">
+              <div class="scroll-x" id="insp-vars"><p class="empty">Run your program to see its variables.</p></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
 
-          <details class="help">
-            <summary>Which syntax is supported? (click to expand)</summary>
-            <div class="inner">
+    <!-- ================= Pseudocode Lab ================= -->
+    <section class="view" id="view-lab-pseudocode" aria-labelledby="lab-h">
+      <div class="page-head">
+        <h1 id="lab-h">Pseudocode Lab</h1>
+        <p>Free tools, not marked. Move an algorithm between every representation and see where they disagree.</p>
+      </div>
+
+      <div class="inspector-tabs" role="tablist" aria-label="Pseudocode tools" style="border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:16px;background:var(--surface)">
+        <button role="tab" id="tab-trace" aria-selected="true" aria-controls="p-trace">Trace simulator</button>
+        <button role="tab" id="tab-eng" aria-selected="false" aria-controls="p-eng" tabindex="-1">English → code</button>
+        <button role="tab" id="tab-tt" aria-selected="false" aria-controls="p-tt" tabindex="-1">Table → code</button>
+        <button role="tab" id="tab-flow" aria-selected="false" aria-controls="p-flow" tabindex="-1">Flowchart</button>
+      </div>
+
+      <div id="p-trace" role="tabpanel" aria-labelledby="tab-trace" tabindex="0">
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><h2>Pseudocode</h2></div>
+            <div class="panel-body">
+              <label class="field-label" for="example">Load an example</label>
+              <select id="example" class="control" style="margin-bottom:12px"></select>
+
+              <label class="field-label" for="code">Pseudocode editor</label>
+              <div class="editor">
+                <div class="gutter" id="gutter" aria-hidden="true"></div>
+                <div class="ed-wrap">
+                  <div class="hl" aria-hidden="true"><div class="hl-bar" id="hlbar"></div></div>
+                  <textarea id="code" spellcheck="false" wrap="off" aria-describedby="code-help"></textarea>
+                </div>
+              </div>
+              <p class="sr-only" id="code-help">Write CIE pseudocode. Use the left arrow symbol for assignment.</p>
+
+              <div style="margin-top:12px">
+                <label class="field-label" for="inputs">Values for INPUT (one per line, used in order)</label>
+                <textarea id="inputs" class="control" rows="2" spellcheck="false" placeholder="One value per line, e.g. 7"></textarea>
+              </div>
+
+              <div class="btn-row">
+                <button class="btn primary" id="btn-step">Step</button>
+                <button class="btn" id="btn-play">Auto-play</button>
+                <button class="btn" id="btn-reset">Reset</button>
+                <button class="btn" id="btn-copy-trace">Copy table</button>
+              </div>
+              <p class="status" id="trace-status" role="status" aria-live="polite">Click "Step" to start running line by line.</p>
+
+              <details style="margin-top:16px">
+                <summary style="cursor:pointer;color:var(--text-secondary);font-size:13px">Which syntax is supported?</summary>
+                <div class="q-example" style="margin-top:8px" id="syntax-help">
 DECLARE x : INTEGER / REAL / BOOLEAN / CHAR / STRING<br>
-DECLARE a : ARRAY[1:10] OF INTEGER&nbsp;&nbsp;<span style="color:var(--warn)">indices start at 1</span><br>
+DECLARE a : ARRAY[1:10] OF INTEGER&nbsp;&nbsp;<span style="color:var(--warning)">indices start at 1</span><br>
 CONSTANT PI = 3.14<br>
-x ← expression&nbsp;&nbsp;<span style="color:var(--warn)">always assign with ← (you may also type &lt;-)</span><br>
+x ← expression&nbsp;&nbsp;<span style="color:var(--warning)">always assign with ← (you may also type &lt;-)</span><br>
 Operators: + - * / MOD DIV &amp; (string join)<br>
 Comparison: = &lt;&gt; &lt; &gt; &lt;= &gt;=&nbsp;&nbsp;&nbsp;Logic: AND OR NOT<br>
 IF … THEN … ELSE … ENDIF&nbsp;&nbsp;(THEN may be omitted)<br>
@@ -216,191 +747,236 @@ FOR i ← 1 TO 5 STEP 2 … NEXT i (or ENDFOR)<br>
 WHILE condition DO … ENDWHILE&nbsp;&nbsp;&nbsp;REPEAT … UNTIL condition<br>
 OUTPUT expression, expression&nbsp;&nbsp;&nbsp;INPUT x<br>
 Functions: LENGTH MID LEFT RIGHT UCASE LCASE INT ROUND<br>
-Comments: start the line with //<br><br>
-<span style="color:var(--dim)">v1 does not support user-defined PROCEDURE / FUNCTION, recursion, 2-D arrays or file handling
-— these hardly ever appear in trace table questions.</span>
+Comments: start the line with //
+                </div>
+              </details>
             </div>
-          </details>
+          </div>
+
+          <div class="panel" style="margin:0">
+            <div class="panel-head"><h2>Trace table</h2></div>
+            <div class="panel-body">
+              <div class="scroll-x" id="trace-out" role="region" aria-label="Trace table"><p class="empty">Nothing has been run yet.</p></div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="card">
-        <h2>Trace Table</h2>
-        <div class="body">
-          <div class="tbl-scroll" id="trace-out"><div class="empty">Nothing has been run yet.</div></div>
+      <div id="p-eng" role="tabpanel" aria-labelledby="tab-eng" tabindex="0" hidden>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><h2>Structured English</h2></div>
+            <div class="panel-body">
+              <label class="field-label" for="eng">One instruction per line. Indent whatever sits inside a loop or an If.</label>
+              <textarea id="eng" class="control" rows="12" spellcheck="false" wrap="off"></textarea>
+              <div class="btn-row">
+                <button class="btn primary" id="btn-eng">Convert</button>
+                <button class="btn" id="btn-eng-copy">Copy</button>
+                <button class="btn" id="btn-eng-send">Send to simulator</button>
+              </div>
+              <p class="status" id="eng-status" role="status" aria-live="polite"></p>
+              <details style="margin-top:16px">
+                <summary style="cursor:pointer;color:var(--text-secondary);font-size:13px">Which sentences are understood?</summary>
+                <div class="q-example" style="margin-top:8px" id="eng-forms"></div>
+              </details>
+            </div>
+          </div>
+          <div class="stack">
+            <div class="panel" style="margin:0">
+              <div class="panel-head"><h2>CIE pseudocode</h2></div>
+              <div class="panel-body"><pre class="outcode" id="eng-code"></pre></div>
+            </div>
+            <div class="panel" style="margin:0">
+              <div class="panel-head"><h2>Trace table</h2></div>
+              <div class="panel-body"><div class="scroll-x" id="eng-trace" role="region" aria-label="Trace table of the converted program"><p class="empty">Nothing converted yet.</p></div></div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
 
-  <!-- ============ Tab 2 ============ -->
-  <section id="p-logic" role="tabpanel" aria-labelledby="tab-logic" hidden>
-    <div class="cols">
-      <div class="card">
-        <h2>Boolean Expression</h2>
-        <div class="body">
-          <label class="fld" for="expr">Expression</label>
-          <input id="expr" class="plain" spellcheck="false">
-          <div class="status">Supports AND OR NOT XOR NAND NOR and brackets. Variables are single capital letters A–Z.<br>
-            Precedence: ( ) &gt; NOT &gt; AND/NAND &gt; XOR &gt; OR/NOR</div>
-          <div class="btns">
-            <button class="act primary" id="btn-gen">Generate truth table &amp; circuit</button>
-            <button class="act" id="btn-copy-tt">Copy truth table</button>
+      <div id="p-tt" role="tabpanel" aria-labelledby="tab-tt" tabindex="0" hidden>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><h2>Your trace table</h2></div>
+            <div class="panel-body">
+              <label class="field-label" for="tt-vars">Variable columns (separate them with commas)</label>
+              <div style="display:flex;gap:8px">
+                <input id="tt-vars" class="control" spellcheck="false" value="i, total">
+                <button class="btn" id="btn-tt-cols">Apply</button>
+              </div>
+              <div class="scroll-x" id="tt-grid" style="margin-top:12px" role="region" aria-label="Editable trace table"></div>
+              <div class="btn-row">
+                <button class="btn" id="btn-tt-add">Add row</button>
+                <button class="btn" id="btn-tt-del">Remove last</button>
+                <button class="btn primary" id="btn-tt-gen">Generate</button>
+                <button class="btn" id="btn-tt-copy">Copy</button>
+                <button class="btn" id="btn-tt-send">Send to simulator</button>
+              </div>
+              <p class="status" id="tt-status" role="status" aria-live="polite">Fill the table in, then click Generate. Leave a cell blank when that variable does not change.</p>
+            </div>
           </div>
-          <div class="status" id="logic-status"></div>
+          <div class="panel" style="margin:0">
+            <div class="panel-head"><h2>CIE pseudocode</h2></div>
+            <div class="panel-body"><pre class="outcode" id="tt-code"></pre></div>
+          </div>
         </div>
       </div>
 
-      <div style="display:flex;flex-direction:column;gap:20px;min-width:0">
-        <div class="card">
-          <h2>Truth Table (with intermediate steps)</h2>
-          <div class="body"><div class="tbl-scroll" id="tt-out"><div class="empty">Click "Generate" to see it.</div></div></div>
-        </div>
-        <div class="card">
-          <h2>Logic Gate Circuit</h2>
-          <div class="body"><div class="tbl-scroll" id="circ-out"><div class="empty">Click "Generate" to see it.</div></div></div>
-        </div>
-      </div>
-    </div>
-  </section>
-  <!-- ============ Tab 3 ============ -->
-  <section id="p-eng" role="tabpanel" aria-labelledby="tab-eng" hidden>
-    <div class="cols">
-      <div class="card">
-        <h2>Structured English</h2>
-        <div class="body">
-          <label class="fld" for="eng">One instruction per line. Indent whatever sits inside a loop or an If.</label>
-          <textarea id="eng" class="plain" rows="14" spellcheck="false" wrap="off"></textarea>
-          <div class="btns">
-            <button class="act primary" id="btn-eng">Convert to pseudocode</button>
-            <button class="act" id="btn-eng-copy">Copy pseudocode</button>
-            <button class="act" id="btn-eng-send">Send to trace simulator</button>
+      <div id="p-flow" role="tabpanel" aria-labelledby="tab-flow" tabindex="0" hidden>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><h2>Your flowchart</h2></div>
+            <div class="panel-body">
+              <label class="field-label" for="flow-in">One box per line, as CIE pseudocode or plain structured English. START and STOP are optional.</label>
+              <textarea id="flow-in" class="control" rows="12" spellcheck="false" wrap="off"></textarea>
+              <div style="margin-top:12px">
+                <label class="field-label" for="flow-inputs">Values for INPUT (one per line)</label>
+                <textarea id="flow-inputs" class="control" rows="2" spellcheck="false"></textarea>
+              </div>
+              <div class="btn-row">
+                <button class="btn primary" id="btn-flow">Draw and convert</button>
+                <button class="btn" id="btn-flow-copy">Copy</button>
+                <button class="btn" id="btn-flow-send">Send to simulator</button>
+              </div>
+              <p class="status" id="flow-status" role="status" aria-live="polite"></p>
+            </div>
           </div>
-          <div class="status" id="eng-status"></div>
-          <details class="help">
-            <summary>Which sentences are understood? (click to expand)</summary>
-            <div class="inner" id="eng-forms"></div>
-          </details>
+          <div class="stack">
+            <div class="panel" style="margin:0">
+              <div class="panel-head"><h2>Flowchart</h2></div>
+              <div class="panel-body"><div class="scroll-x" id="flow-svg" role="region" aria-label="Generated flowchart"><p class="empty">Nothing drawn yet.</p></div></div>
+            </div>
+            <div class="panel" style="margin:0">
+              <div class="panel-head"><h2>CIE pseudocode</h2></div>
+              <div class="panel-body"><pre class="outcode" id="flow-code"></pre></div>
+            </div>
+            <div class="panel" style="margin:0">
+              <div class="panel-head"><h2>Trace table</h2></div>
+              <div class="panel-body"><div class="scroll-x" id="flow-trace" role="region" aria-label="Trace table of the flowchart"><p class="empty">Nothing traced yet.</p></div></div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="cols3">
-        <div class="card">
-          <h2>CIE Pseudocode</h2>
-          <div class="body"><pre class="outcode" id="eng-code"></pre></div>
-        </div>
-        <div class="card">
-          <h2>Trace Table</h2>
-          <div class="body"><div class="tbl-scroll" id="eng-trace"><div class="empty">Nothing converted yet.</div></div></div>
-        </div>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ============ Tab 4 ============ -->
-  <section id="p-tt" role="tabpanel" aria-labelledby="tab-tt" hidden>
-    <div class="cols">
-      <div class="card">
-        <h2>Your Trace Table</h2>
-        <div class="body">
-          <label class="fld" for="tt-vars">Variable columns (separate them with commas)</label>
-          <div style="display:flex;gap:8px">
-            <input id="tt-vars" class="plain" spellcheck="false" value="i, total">
-            <button class="act" id="btn-tt-cols">Apply</button>
+    <!-- ================= Logic Lab ================= -->
+    <section class="view" id="view-lab-logic" aria-labelledby="logic-h">
+      <div class="page-head">
+        <h1 id="logic-h">Logic Lab</h1>
+        <p>Every intermediate step gets its own column, and the circuit is drawn with the gate symbols used on the paper.</p>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head"><h2>Boolean expression</h2></div>
+          <div class="panel-body">
+            <label class="field-label" for="expr">Expression</label>
+            <input id="expr" class="control" spellcheck="false">
+            <p class="status">Supports AND OR NOT XOR NAND NOR and brackets. Variables are single capital letters A–Z.<br>Precedence: ( ) &gt; NOT &gt; AND/NAND &gt; XOR &gt; OR/NOR</p>
+            <div class="btn-row">
+              <button class="btn primary" id="btn-gen">Generate</button>
+              <button class="btn" id="btn-copy-tt">Copy truth table</button>
+            </div>
+            <p class="status" id="logic-status" role="status" aria-live="polite"></p>
           </div>
-          <div class="tbl-scroll" id="tt-grid" style="margin-top:12px"></div>
-          <div class="btns">
-            <button class="act" id="btn-tt-add">Add row</button>
-            <button class="act" id="btn-tt-del">Remove last row</button>
-            <button class="act primary" id="btn-tt-gen">Generate pseudocode</button>
-            <button class="act" id="btn-tt-copy">Copy pseudocode</button>
-            <button class="act" id="btn-tt-send">Send to trace simulator</button>
+        </div>
+        <div class="stack">
+          <div class="panel" style="margin:0">
+            <div class="panel-head"><h2>Truth table</h2></div>
+            <div class="panel-body"><div class="scroll-x" id="tt-out" role="region" aria-label="Truth table"><p class="empty">Click "Generate" to see it.</p></div></div>
           </div>
-          <div class="status" id="tt-status">Fill the table in, then click Generate. Leave a cell blank when that variable does not change.</div>
+          <div class="panel" style="margin:0">
+            <div class="panel-head"><h2>Logic circuit</h2></div>
+            <div class="panel-body"><div class="scroll-x" id="circ-out" role="region" aria-label="Logic circuit"><p class="empty">Click "Generate" to see it.</p></div></div>
+          </div>
         </div>
       </div>
-      <div class="card">
-        <h2>CIE Pseudocode</h2>
-        <div class="body"><pre class="outcode" id="tt-code"></pre></div>
-      </div>
-    </div>
-  </section>
-  <!-- ============ Tab 5 ============ -->
-  <section id="p-flow" role="tabpanel" aria-labelledby="tab-flow" hidden>
-    <div class="cols">
-      <div class="card">
-        <h2>Your Flowchart</h2>
-        <div class="body">
-          <label class="fld" for="flow-in">One box per line, top to bottom. Write each box as CIE pseudocode or as plain structured English — START and STOP are optional. Indent whatever sits inside a loop or a decision.</label>
-          <textarea id="flow-in" class="plain" rows="14" spellcheck="false" wrap="off"></textarea>
-          <div style="margin-top:12px">
-            <label class="fld" for="flow-inputs">Values for INPUT (one per line, used in order)</label>
-            <textarea id="flow-inputs" class="plain" rows="2" spellcheck="false" placeholder="One value per line, e.g. 4"></textarea>
-          </div>
-          <div class="btns">
-            <button class="act primary" id="btn-flow">Draw and convert</button>
-            <button class="act" id="btn-flow-copy">Copy pseudocode</button>
-            <button class="act" id="btn-flow-send">Send to trace simulator</button>
-          </div>
-          <div class="status" id="flow-status"></div>
-        </div>
-      </div>
-      <div class="cols3">
-        <div class="card">
-          <h2>Flowchart</h2>
-          <div class="body"><div class="tbl-scroll" id="flow-svg"><div class="empty">Nothing drawn yet.</div></div></div>
-        </div>
-        <div class="card">
-          <h2>CIE Pseudocode</h2>
-          <div class="body"><pre class="outcode" id="flow-code"></pre></div>
-        </div>
-        <div class="card">
-          <h2>Trace Table</h2>
-          <div class="body"><div class="tbl-scroll" id="flow-trace"><div class="empty">Nothing traced yet.</div></div></div>
-        </div>
-      </div>
-    </div>
-  </section>
-  <!-- ============ Practice ============ -->
-  <section id="p-practice" role="tabpanel" aria-labelledby="btn-practice" hidden>
-    <div class="cols">
-      <div class="card">
-        <h2>Question</h2>
-        <div class="body">
-          <label class="fld" for="q-kind">Question type</label>
-          <select id="q-kind" class="plain">
-            <option value="trace">Fill in the trace table</option>
-            <option value="output">What does this program output?</option>
-            <option value="truth">Complete the truth table</option>
-            <option value="topseudo">Write the pseudocode</option>
-          </select>
-          <div class="btns">
-            <button class="act primary" id="btn-q-new">New question</button>
-          </div>
-          <div id="q-prompt" style="margin-top:14px"></div>
-        </div>
-      </div>
-      <div class="card">
-        <h2>Your Answer</h2>
-        <div class="body">
-          <div id="q-answer"></div>
-          <div class="btns">
-            <button class="act primary" id="btn-q-check">Check answer</button>
-            <button class="act" id="btn-q-show">Show answer</button>
-          </div>
-          <div class="status" id="q-status"></div>
-          <div class="qscore" id="q-score"></div>
-        </div>
-      </div>
-    </div>
-  </section>
-</main>
+    </section>
 
-<footer>
-  A revision aid for use outside the exam hall — not for use in a real examination.<br>
-  Self-test: add <code style="color:var(--muted)">?selftest=1</code> to the URL to run the built-in tests and check the interpreter and truth tables are correct.
+    <!-- ================= Progress ================= -->
+    <section class="view" id="view-progress" aria-labelledby="prog-h">
+      <div class="page-head">
+        <h1 id="prog-h">Progress</h1>
+        <p id="prog-sub"></p>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Evidence by topic</h2></div>
+        <div class="panel-body"><div class="topic-map" id="prog-topics"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Review queue</h2></div>
+        <div class="panel-body"><div id="prog-reviews"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Every attempt</h2></div>
+        <div class="panel-body">
+          <div class="scroll-x" id="prog-attempts"></div>
+          <div class="btn-row">
+            <button class="btn" id="btn-export-json">Export JSON</button>
+            <button class="btn" id="btn-export-csv">Export CSV</button>
+          </div>
+          <p class="status" id="prog-export-status" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>How these are worked out</h2></div>
+        <div class="panel-body" id="method-body"></div>
+      </div>
+    </section>
+
+    <!-- ================= Settings ================= -->
+    <section class="view" id="view-settings" aria-labelledby="set-h">
+      <div class="page-head">
+        <h1 id="set-h">Settings</h1>
+        <p>Everything here is stored in this browser only. Nothing is uploaded.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Course</h2></div>
+        <div class="panel-body" id="settings-course"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Your data</h2></div>
+        <div class="panel-body">
+          <p>Your attempts, evidence and review queue live in this browser's storage. Export them if you are changing device or want to hand them to a teacher.</p>
+          <div class="btn-row">
+            <button class="btn" id="btn-set-export">Export everything</button>
+            <button class="btn danger" id="btn-set-reset">Erase my progress</button>
+          </div>
+          <p class="status" id="settings-status" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= About ================= -->
+    <section class="view" id="view-about" aria-labelledby="about-h">
+      <div class="page-head">
+        <h1 id="about-h">About DryRun</h1>
+        <p>An independent learning resource for Cambridge Computer Science, built as a single offline-capable page.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>What it is</h2></div>
+        <div class="panel-body" id="about-body"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>Check it for yourself</h2></div>
+        <div class="panel-body">
+          <p>Every rule in the interpreter, the graders, the syllabus registry and the progress logic is covered by assertions that run in your browser. Nothing is taken on trust.</p>
+          <div class="btn-row"><a class="btn" href="?selftest=1">Run the self-test</a></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="action-bar" id="action-bar" hidden></div>
+
+<footer class="legal">
+  <p><b>Independent learning resource — not endorsed by Cambridge International Education.</b></p>
+  <p>Cambridge International Education is not affiliated with this project and does not endorse it. "Cambridge", the syllabus codes and any related marks belong to their owners and are used here only to say which courses this resource is aimed at. Every question is original, written against publicly listed syllabus content; no past-paper material is reproduced.</p>
+  <p>A revision aid for use outside the exam hall — not for use in a real examination.</p>
 </footer>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <!-- =================================================================
      SCRIPT 1 — pure logic, no DOM. Runs directly in Node; the self-test relies on it.
@@ -3555,18 +4131,19 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
 (function () {
   const $ = id => document.getElementById(id);
   const LINE_H = 20, PAD_T = 10;
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 
   /* ---------- Self-test mode ---------- */
   if (/[?&]selftest=1/.test(location.search)) {
     const res = runSelfTest();
     const pass = res.filter(r => r.ok).length;
     document.body.innerHTML =
-      `<div id="selftest"><h2 style="font:600 15px var(--sans)">Self-test: ${pass} / ${res.length} passed</h2>` +
+      `<div id="selftest"><h2 style="font:600 16px var(--font-display)">Self-test: ${pass} / ${res.length} passed</h2>` +
       res.map(r => r.ok
-        ? `<div class="p">✓ ${r.name}</div>`
-        : `<div class="f">✗ ${r.name}<br><span style="white-space:pre-wrap;padding-left:2em">${r.err}</span></div>`
+        ? `<div class="p">✓ ${esc(r.name)}</div>`
+        : `<div class="f">✗ ${esc(r.name)}<br><span style="white-space:pre-wrap;padding-left:2em">${esc(r.err)}</span></div>`
       ).join('') +
-      `<p style="margin-top:20px"><a href="./" style="color:var(--accent)">← Back to the toolkit</a></p></div>`;
+      `<p style="margin-top:20px"><a href="./">← Back to DryRun</a></p></div>`;
     return;
   }
 
@@ -3576,7 +4153,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     const t = $('toast');
     t.textContent = msg; t.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.remove('show'), 1600);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
   }
   async function copyText(text, okMsg) {
     try { await navigator.clipboard.writeText(text); toast(okMsg); }
@@ -3584,29 +4161,815 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   }
   function tableToTSV(tbl) {
     return [...tbl.querySelectorAll('tr')]
-      .map(tr => [...tr.children].map(td => td.textContent).join('\t')).join('\n');
+      .map(tr => [...tr.children].map(td => (td.querySelector('input') || td).value !== undefined
+        ? (td.querySelector('input') ? td.querySelector('input').value : td.textContent)
+        : td.textContent).join('\t')).join('\n');
+  }
+  function download(name, text, type) {
+    const blob = new Blob([text], { type: type || 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  /* ---------- Tab switching ---------- */
-  const TABS = [['tab-trace', 'p-trace'], ['tab-logic', 'p-logic'], ['tab-eng', 'p-eng'],
-                ['tab-tt', 'p-tt'], ['tab-flow', 'p-flow'], ['btn-practice', 'p-practice']];
-  function showTab(btnId) {
-    TABS.forEach(([b, p]) => {
-      const on = b === btnId;
-      if (b === 'btn-practice') $(b).setAttribute('aria-pressed', String(on));
-      else $(b).setAttribute('aria-selected', String(on));
-      $(p).hidden = !on;
+  /* ---------- Trace rendering, shared by the labs and the inspector ---------- */
+  function traceHTML(shown, markLast) {
+    if (!shown.length) return '<p class="empty">No steps to show.</p>';
+    const names = Object.keys(shown[shown.length - 1].vars);
+    let html = '<table><thead><tr><th class="n">Line</th>' +
+      names.map(n => `<th>${esc(n)}</th>`).join('') + '<th>OUTPUT</th></tr></thead><tbody>';
+    shown.forEach((s, i) => {
+      const prev = i > 0 ? shown[i - 1].vars : {};
+      html += `<tr${markLast && i === shown.length - 1 ? ' class="cur"' : ''}><td class="n">${s.line}</td>` +
+        names.map(n => {
+          const v = s.vars[n] === undefined ? '' : s.vars[n];
+          const changed = prev[n] !== undefined && prev[n] !== v;
+          return `<td class="${changed ? 'chg' : ''}">${esc(v)}</td>`;
+        }).join('') +
+        `<td class="out">${esc(s.out)}</td></tr>`;
     });
-    // Refresh on entry, so nobody faces a blank panel and has to click again
-    if (btnId === 'tab-trace') { resetTrace(); renderGutter(); }
-    else if (btnId === 'tab-logic') generate();
+    return html + '</tbody></table>';
   }
-  TABS.forEach(([btnId]) => $(btnId).addEventListener('click', () => {
-    // The practice button toggles: press it again to go back to the tools
-    if (btnId === 'btn-practice' && $('btn-practice').getAttribute('aria-pressed') === 'true') showTab('tab-trace');
-    else showTab(btnId);
-  }));
 
+  /* ---------- Storage ---------- */
+  const store = createStore(window.localStorage);
+  function flagStoreError() {
+    if (store.error) { toast(store.error); store.clearError(); }
+  }
+
+  /* ============================================================
+     Router — hash based, no dependency
+     ============================================================ */
+  const VIEWS = {
+    onboarding:'view-onboarding', dashboard:'view-dashboard', practice:'view-practice',
+    'lab-pseudocode':'view-lab-pseudocode', 'lab-logic':'view-lab-logic',
+    progress:'view-progress', settings:'view-settings', about:'view-about'
+  };
+  const NAV = [
+    { id:'dashboard',       label:'Dashboard' },
+    { id:'practice',        label:'Practice' },
+    { id:'lab-pseudocode',  label:'Pseudocode Lab' },
+    { id:'lab-logic',       label:'Logic Lab' },
+    { id:'progress',        label:'Progress' },
+    { id:'settings',        label:'Settings' },
+    { id:'about',           label:'About' }
+  ];
+  let currentView = null;
+
+  function go(view, opts) {
+    if (!VIEWS[view]) view = 'dashboard';
+    if (!store.getProfile() && view !== 'onboarding' && view !== 'about') view = 'onboarding';
+    currentView = view;
+    Object.keys(VIEWS).forEach(v => $(VIEWS[v]).classList.toggle('is-active', v === view));
+    if (location.hash !== '#/' + view) history.replaceState(null, '', '#/' + view);
+    renderRail();
+    closeDrawer();
+    if (view === 'dashboard') renderDashboard();
+    if (view === 'progress') renderProgress();
+    if (view === 'settings') renderSettings();
+    if (view === 'about') renderAbout();
+    if (view === 'practice' && (!session || (opts && opts.fresh))) startSession(opts || {});
+    if (view === 'lab-pseudocode') { resetTrace(); renderGutter(); }
+    if (view === 'lab-logic') generate();
+    updateActionBar();
+    if (!(opts && opts.keepFocus)) $('main').focus();
+  }
+  window.addEventListener('hashchange', () => {
+    const v = location.hash.replace(/^#\//, '');
+    if (v && v !== currentView) go(v);
+  });
+
+  /* ============================================================
+     Rail
+     ============================================================ */
+  const EVIDENCE_CLASS = {
+    'SECURE':'is-secure', 'DEVELOPING':'is-developing', 'REVIEW DUE':'is-due', 'UNSCOUTED':'is-unscouted'
+  };
+  function railFilterText() { return ($('rail-filter').value || '').trim().toLowerCase(); }
+
+  function renderRail() {
+    $('rail-nav').innerHTML = NAV.map(n =>
+      `<button class="rail-item" role="listitem" data-go="${n.id}"${currentView === n.id ? ' aria-current="page"' : ''}>` +
+      `<span class="label">${esc(n.label)}</span></button>`).join('');
+
+    const profile = store.getProfile();
+    const topics = profile ? topicsOf(profile.syllabusId) : [];
+    const q = railFilterText();
+    const shown = topics.filter(t => !q || (t.name + ' ' + t.code).toLowerCase().includes(q));
+    $('rail-topics-empty').hidden = topics.length > 0;
+    $('rail-topics').innerHTML = shown.map(t => {
+      const p = store.topicProgress(t.code);
+      const n = questionsForTopic(t.code).length;
+      return `<button class="rail-item" role="listitem" data-topic="${esc(t.code)}" ` +
+        `aria-label="${esc(t.name)}, ${esc(p.evidence)}, ${n} question${n === 1 ? '' : 's'}">` +
+        `<span class="dot ${EVIDENCE_CLASS[p.evidence]}" aria-hidden="true"></span>` +
+        `<span class="label">${esc(t.name)}</span>` +
+        `<span class="count" aria-hidden="true">${n}</span></button>`;
+    }).join('') || (topics.length ? '<p class="rail-label" style="text-transform:none;letter-spacing:0">No topic matches that.</p>' : '');
+
+    // course chip + evidence pill
+    if (profile) {
+      const syl = syllabusById(profile.syllabusId);
+      $('course-chip-text').innerHTML = syl
+        ? `${esc(syl.code)} <span class="label-long">· ${esc(String(profile.examYear))}${profile.level ? ' · ' + esc(profile.level) : ''}</span>`
+        : 'Choose your course';
+    }
+    const all = store.allTopicProgress();
+    const due = store.dueReviews().length;
+    const secure = Object.keys(all).filter(k => all[k].evidence === 'SECURE').length;
+    const pill = $('evidence-pill');
+    if (due) { pill.textContent = `${due} to review`; pill.className = 'pill is-due'; }
+    else if (secure) { pill.textContent = `${secure} topic${secure === 1 ? '' : 's'} secure`; pill.className = 'pill is-secure'; }
+    else if (store.attempts().length) { pill.textContent = 'Building evidence'; pill.className = 'pill is-developing'; }
+    else { pill.textContent = 'No evidence yet'; pill.className = 'pill is-unscouted'; }
+  }
+
+  $('rail').addEventListener('click', ev => {
+    const btn = ev.target.closest('[data-go],[data-topic]');
+    if (!btn) return;
+    if (btn.dataset.go) go(btn.dataset.go, { fresh: btn.dataset.go === 'practice' });
+    else go('practice', { fresh:true, topicId: btn.dataset.topic });
+  });
+  $('rail-filter').addEventListener('input', renderRail);
+
+  /* ---------- Mobile drawer ---------- */
+  let drawerOpener = null;
+  function openDrawer() {
+    drawerOpener = document.activeElement;
+    $('rail').classList.add('is-open');
+    $('scrim').hidden = false; $('scrim').classList.add('is-open');
+    $('btn-menu').setAttribute('aria-expanded', 'true');
+    $('rail-filter').focus();
+  }
+  function closeDrawer() {
+    if (!$('rail').classList.contains('is-open')) return;
+    $('rail').classList.remove('is-open');
+    $('scrim').classList.remove('is-open'); $('scrim').hidden = true;
+    $('btn-menu').setAttribute('aria-expanded', 'false');
+    if (drawerOpener && drawerOpener.focus) drawerOpener.focus();
+    drawerOpener = null;
+  }
+  $('btn-menu').addEventListener('click', () => {
+    $('rail').classList.contains('is-open') ? closeDrawer() : openDrawer();
+  });
+  $('scrim').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeDrawer(); });
+
+  /* ============================================================
+     Onboarding
+     ============================================================ */
+  let draft = { qualification:null, examYear:null, level:null, confidence:null };
+
+  function renderCourseChoices() {
+    const quals = [];
+    for (const s of CURRENT_SYLLABUSES) if (!quals.includes(s.qualification)) quals.push(s.qualification);
+    $('course-choices').innerHTML = quals.map(q => {
+      const s = CURRENT_SYLLABUSES.find(x => x.qualification === q);
+      const who = q === '0478' ? 'Usually Year 10–11' : 'Usually Year 12–13';
+      return `<button class="choice" data-qual="${esc(q)}" aria-pressed="${draft.qualification === q}">` +
+        `<span class="code">${esc(s.code)}</span>` +
+        `<span class="name">${esc(s.title)}</span>` +
+        `<span class="who">${esc(who)}</span></button>`;
+    }).join('');
+  }
+  function renderYearChoices() {
+    const versions = syllabusesFor(draft.qualification);
+    const years = [];
+    versions.forEach(v => v.examYears.forEach(y => { if (!years.includes(y)) years.push(y); }));
+    years.sort();
+    $('year-choices').innerHTML = years.map(y =>
+      `<button class="btn${draft.examYear === y ? ' primary' : ''}" data-year="${y}" aria-pressed="${draft.examYear === y}">${y}</button>`).join('');
+    const syl = draft.examYear ? syllabusForYear(draft.qualification, draft.examYear) : null;
+    const note = $('syllabus-note');
+    if (syl && syl.note) { note.textContent = syl.note; note.className = 'status warn'; }
+    else if (syl) { note.textContent = `${syl.versionLabel}. Pseudocode is assessed on this version.`; note.className = 'status'; }
+    else { note.textContent = ''; note.className = 'status'; }
+
+    const levels = syl ? syl.levels : [];
+    $('level-step').hidden = levels.length < 2;
+    $('level-choices').innerHTML = levels.map(l =>
+      `<button class="btn${draft.level === l ? ' primary' : ''}" data-level="${esc(l)}" aria-pressed="${draft.level === l}">${esc(l)}</button>`).join('');
+    if (levels.length === 1) draft.level = levels[0];
+
+    const CONF = ['Just starting', 'Getting there', 'Fairly confident'];
+    $('confidence-choices').innerHTML = CONF.map(c =>
+      `<button class="btn${draft.confidence === c ? ' primary' : ''}" data-conf="${esc(c)}" aria-pressed="${draft.confidence === c}">${esc(c)}</button>`).join('');
+
+    $('btn-onboard-done').disabled = !(draft.qualification && draft.examYear && draft.level);
+  }
+  $('course-choices').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-qual]'); if (!b) return;
+    draft.qualification = b.dataset.qual; draft.examYear = null; draft.level = null;
+    renderCourseChoices();
+    $('year-step').hidden = false;
+    renderYearChoices();
+  });
+  $('year-step').addEventListener('click', ev => {
+    const y = ev.target.closest('[data-year]'), l = ev.target.closest('[data-level]'), c = ev.target.closest('[data-conf]');
+    if (y) draft.examYear = Number(y.dataset.year);
+    else if (l) draft.level = l.dataset.level;
+    else if (c) draft.confidence = c.dataset.conf;
+    else return;
+    renderYearChoices();
+  });
+  $('btn-onboard-done').addEventListener('click', () => {
+    const syl = syllabusForYear(draft.qualification, draft.examYear);
+    store.setProfile({
+      qualification: draft.qualification, syllabusId: syl.id,
+      examYear: draft.examYear, level: draft.level, confidence: draft.confidence
+    });
+    flagStoreError();
+    go('dashboard');
+  });
+
+  // Live demo on the landing page — the same interpreter the marking uses.
+  const DEMO = 'DECLARE total : INTEGER\nDECLARE i : INTEGER\ntotal ← 0\nFOR i ← 1 TO 4\n    total ← total + i\nNEXT i\nOUTPUT total';
+  function runDemo() {
+    try {
+      const { steps } = runProgram($('demo-code').value, '');
+      $('demo-trace').innerHTML = traceHTML(steps, false);
+    } catch (e) {
+      $('demo-trace').innerHTML = `<p class="empty">${esc(e.line ? 'Line ' + e.line + ': ' + e.message : e.message)}</p>`;
+    }
+  }
+  $('demo-code').value = DEMO;
+  $('demo-code').addEventListener('input', runDemo);
+
+  /* ============================================================
+     Dashboard
+     ============================================================ */
+  function renderDashboard() {
+    const profile = store.getProfile();
+    const syl = syllabusById(profile.syllabusId);
+    $('dash-sub').textContent = `${syl.title} (${syl.code}) · ${syl.versionLabel} · sitting ${profile.examYear}` +
+      (profile.level ? ' · ' + profile.level : '');
+
+    const attempts = store.attempts();
+    const due = store.dueReviews();
+    const all = store.allTopicProgress();
+    const topics = topicsOf(profile.syllabusId).filter(t => questionsForTopic(t.code).length);
+    const weakest = topics
+      .map(t => ({ t, p: all[t.code] || store.topicProgress(t.code) }))
+      .sort((a, b) => rank(a.p.evidence) - rank(b.p.evidence))[0];
+
+    const actions = [];
+    if (!attempts.length) {
+      actions.push({ title:'Start with a short diagnostic', sub:'Six questions across the topics, so your first evidence is real rather than guessed.', go:'practice', opts:{ fresh:true, diagnostic:true }, primary:true });
+    } else {
+      if (lastSession) actions.push({ title:'Continue where you left off', sub:lastSession.label, go:'practice', opts:{ fresh:true, topicId:lastSession.topicId }, primary:true });
+      if (due.length) actions.push({ title:`Review ${due.length} question${due.length === 1 ? '' : 's'}`, sub:'These are things you got wrong, come back round on a spacing schedule.', go:'practice', opts:{ fresh:true, review:true } });
+      if (weakest) actions.push({ title:`Practise ${weakest.t.name}`, sub:`Your weakest evidence right now: ${weakest.p.evidence.toLowerCase()}.`, go:'practice', opts:{ fresh:true, topicId:weakest.t.code } });
+    }
+    $('dash-actions').innerHTML = actions.map((a, i) =>
+      `<button class="action${a.primary ? ' primary' : ''}" data-action="${i}">` +
+      `<span class="body"><span class="title">${esc(a.title)}</span><span class="sub">${esc(a.sub)}</span></span>` +
+      `<span class="chev" aria-hidden="true">→</span></button>`).join('');
+    $('dash-actions').onclick = ev => {
+      const b = ev.target.closest('[data-action]'); if (!b) return;
+      const a = actions[Number(b.dataset.action)];
+      go(a.go, a.opts);
+    };
+
+    $('dash-topics').innerHTML = topics.map(t => {
+      const p = all[t.code] || store.topicProgress(t.code);
+      const n = questionsForTopic(t.code).length;
+      return `<button class="topic-row" data-topic="${esc(t.code)}">` +
+        `<span class="dot ${EVIDENCE_CLASS[p.evidence]}" aria-hidden="true" style="width:8px;height:8px;border-radius:50%"></span>` +
+        `<span class="name">${esc(t.name)}<br><span class="code">${esc(t.code)} · ${n} question${n === 1 ? '' : 's'} · ${esc(t.paper)}</span></span>` +
+        `<span class="pill ${EVIDENCE_CLASS[p.evidence]}">${esc(p.evidence)}</span></button>`;
+    }).join('') || '<p class="empty">No practice topics for this syllabus version yet.</p>';
+    $('dash-topics').onclick = ev => {
+      const b = ev.target.closest('[data-topic]'); if (!b) return;
+      go('practice', { fresh:true, topicId:b.dataset.topic });
+    };
+
+    $('dash-recent').innerHTML = attempts.length
+      ? attemptsTable(attempts.slice(-8).reverse())
+      : '<p class="empty">No evidence yet — nothing has been attempted, which is not the same as getting things wrong.</p>';
+  }
+  const rank = e => ({ 'REVIEW DUE':0, 'UNSCOUTED':1, 'DEVELOPING':2, 'SECURE':3 })[e];
+
+  function attemptsTable(list) {
+    return '<table><thead><tr><th>When</th><th>Question</th><th>Topic</th><th>Result</th><th class="n">Marks</th></tr></thead><tbody>' +
+      list.map(a => `<tr><td>${esc(new Date(a.timestamp).toLocaleString())}</td>` +
+        `<td>${esc(a.questionId || a.kind || '—')}</td><td>${esc(a.topicId || '—')}</td>` +
+        `<td style="color:var(--${a.correct ? 'success' : 'danger'})">${a.correct ? '✓ correct' : '✗ ' + esc(a.status || 'incorrect')}</td>` +
+        `<td class="n">${a.marksAvailable ? a.marksAwarded + '/' + a.marksAvailable : '—'}</td></tr>`).join('') +
+      '</tbody></table>';
+  }
+
+  /* ============================================================
+     Practice session
+     ============================================================ */
+  let session = null, lastSession = null;
+  let item = null;              // the question on screen
+  let attemptsOnItem = 0, itemStart = 0, marked = false;
+
+  function buildSession(opts) {
+    const profile = store.getProfile();
+    const topics = topicsOf(profile.syllabusId);
+    const items = [];
+    const addBank = q => items.push({ type:'bank', id:q.id, topicId:q.topicId });
+
+    if (opts.review) {
+      store.dueReviews().forEach(r => { if (questionById(r.questionId)) addBank(questionById(r.questionId)); });
+    }
+    if (opts.topicId) {
+      const bank = questionsForTopic(opts.topicId);
+      bank.forEach(addBank);
+      const topic = topics.find(t => t.code === opts.topicId);
+      const types = (topic && topic.exerciseTypes) || [];
+      let seed = Date.now() >>> 0;
+      ['trace', 'output', 'truth'].forEach(k => {
+        if (types.includes(k)) items.push({ type:'gen', kind:k, seed: (seed += 7919) >>> 0, topicId:opts.topicId });
+      });
+    }
+    if (!items.length) {
+      // diagnostic / general: a spread across this syllabus
+      questionsForSyllabus(profile.syllabusId).slice(0, 4).forEach(addBank);
+      let seed = Date.now() >>> 0;
+      const first = topics[0] ? topics[0].code : null;
+      items.push({ type:'gen', kind:'trace', seed:(seed += 104729) >>> 0, topicId:first });
+      items.push({ type:'gen', kind:'output', seed:(seed += 104729) >>> 0, topicId:first });
+    }
+    // interleave so it is not four code questions in a row
+    const bank = items.filter(i => i.type === 'bank'), gen = items.filter(i => i.type === 'gen');
+    const mixed = [];
+    while (bank.length || gen.length) {
+      if (bank.length) mixed.push(bank.shift());
+      if (gen.length) mixed.push(gen.shift());
+    }
+    return mixed.slice(0, 8);
+  }
+
+  function startSession(opts) {
+    const items = buildSession(opts || {});
+    if (!items.length) { toast('No questions for that topic yet'); go('dashboard'); return; }
+    session = { items, index:0, startedAt:Date.now(), label: opts.review ? 'Review session' : (opts.topicId ? 'Topic practice' : 'Mixed practice'), topicId: opts.topicId || null };
+    lastSession = { label:session.label + ' · ' + items.length + ' questions', topicId:session.topicId };
+    loadItem();
+  }
+
+  function loadItem() {
+    const it = session.items[session.index];
+    attemptsOnItem = 0; marked = false; itemStart = Date.now();
+    item = it.type === 'bank'
+      ? { kind:'code', q: questionById(it.id), topicId: it.topicId }
+      : { kind: it.kind, q: makeQuestion(it.kind, it.seed), topicId: it.topicId };
+    renderSessionBar();
+    renderItem();
+    clearInspector();
+  }
+
+  function renderSessionBar() {
+    const n = session.items.length, i = session.index;
+    $('session-count').textContent = `Question ${i + 1} of ${n}`;
+    $('session-track').style.width = Math.round((i / n) * 100) + '%';
+    const mins = Math.max(1, Math.round((n - i) * 4));
+    $('session-time').textContent = `about ${mins} min left`;
+  }
+
+  const KIND_LABEL = { code:'Write the pseudocode', trace:'Complete the trace table', output:'Predict the output', truth:'Complete the truth table' };
+
+  function renderItem() {
+    $('q-kind-label').textContent = KIND_LABEL[item.kind] || 'Question';
+    const q = item.q;
+
+    if (item.kind === 'code') {
+      const topic = (topicsOf(store.getProfile().syllabusId).find(t => t.code === q.topicId) || {});
+      $('q-meta').innerHTML =
+        `<span class="pill">${esc(topic.name || q.topicId)}</span>` +
+        `<span class="pill">${esc(q.paper)}</span>` +
+        `<span class="pill">${esc(q.difficulty)}</span>` +
+        `<span class="pill">${q.marks} marks</span>` +
+        `<span class="pill">~${q.estimatedMinutes} min</span>`;
+      $('q-prompt').textContent = q.prompt;
+      const ex = q.visibleExamples[0];
+      $('q-example').innerHTML = `<b>Worked example</b><br>Input: ${esc((ex.inputs || []).join(', '))}<br>${esc(ex.note || '')}`;
+      $('q-answer').innerHTML =
+        '<label class="field-label" for="q-code">Your pseudocode</label>' +
+        `<div class="editor"><div class="ed-wrap"><textarea id="q-code" spellcheck="false" wrap="off" aria-describedby="q-code-help"></textarea></div></div>` +
+        '<p class="sr-only" id="q-code-help">Write a complete CIE pseudocode program. It will be run against test cases you cannot see.</p>' +
+        '<div style="margin-top:12px"><label class="field-label" for="q-inputs">Values for INPUT when you press Run</label>' +
+        `<input id="q-inputs" class="control" value="${esc((ex.inputs || []).join(', '))}"></div>`;
+      $('q-code').value = q.starterCode || '';
+      $('q-toolbar').innerHTML =
+        '<button class="btn" id="btn-q-run">Run</button>' +
+        '<button class="btn" id="btn-q-hint">Hint</button>' +
+        '<button class="btn ghost" id="btn-q-restart">Reset</button>';
+      $('btn-q-run').onclick = runStudentProgram;
+      $('btn-q-hint').onclick = showHint;
+      $('btn-q-restart').onclick = () => { $('q-code').value = q.starterCode || ''; };
+    } else if (item.kind === 'trace') {
+      $('q-meta').innerHTML = `<span class="pill">Trace table</span><span class="pill">${q.steps.length} rows</span>`;
+      $('q-prompt').textContent = 'Complete the trace table for this program. The Line column is filled in for you; leave a cell blank if that variable does not change on that line.';
+      $('q-example').innerHTML = `<pre class="outcode">${esc(q.code)}</pre>`;
+      $('q-answer').innerHTML = traceInputTable(q);
+      $('q-toolbar').innerHTML = '';
+    } else if (item.kind === 'output') {
+      $('q-meta').innerHTML = '<span class="pill">Predict the output</span>';
+      $('q-prompt').textContent = 'What does this program output?';
+      $('q-example').innerHTML = `<pre class="outcode">${esc(q.code)}</pre>`;
+      $('q-answer').innerHTML = '<label class="field-label" for="q-out">Write the outputs in order, separated by commas</label>' +
+        '<input id="q-out" class="control" spellcheck="false">';
+      $('q-toolbar').innerHTML = '';
+    } else {
+      $('q-meta').innerHTML = '<span class="pill">Truth table</span>';
+      $('q-prompt').textContent = 'Complete the final column of the truth table for this expression.';
+      $('q-example').innerHTML = `<pre class="outcode">${esc(q.expr)}</pre>`;
+      $('q-answer').innerHTML = truthInputTable(q);
+      $('q-toolbar').innerHTML = '';
+    }
+
+    $('q-actions').innerHTML =
+      '<button class="btn primary" id="btn-q-check">Check answer</button>' +
+      '<button class="btn" id="btn-q-next">Skip</button>' +
+      '<button class="btn ghost" id="btn-q-show" disabled title="Have two goes first">Show answer</button>';
+    $('btn-q-check').onclick = checkAnswer;
+    $('btn-q-next').onclick = nextItem;
+    $('btn-q-show').onclick = showAnswer;
+    $('q-status').textContent = '';
+    $('q-status').className = 'status';
+    updateActionBar();
+  }
+
+  function traceInputTable(q) {
+    let html = '<div class="scroll-x"><table><caption class="sr-only">Trace table to complete</caption><thead><tr><th class="n">Line</th>' +
+      q.vars.map(n => `<th>${esc(n)}</th>`).join('') + '<th>OUTPUT</th></tr></thead><tbody>';
+    q.steps.forEach((s, i) => {
+      html += `<tr><td class="n">${s.line}</td>` +
+        q.vars.map(n => `<td><input class="cell" data-r="${i}" data-v="${esc(n)}" spellcheck="false" ` +
+          `aria-label="Row ${i + 1}, line ${s.line}, variable ${esc(n)}"></td>`).join('') +
+        `<td><input class="cell" data-r="${i}" data-f="output" spellcheck="false" aria-label="Row ${i + 1}, line ${s.line}, output"></td></tr>`;
+    });
+    return html + '</tbody></table></div>';
+  }
+  function truthInputTable(q) {
+    const t = q.table;
+    let html = '<div class="scroll-x"><table><caption class="sr-only">Truth table to complete</caption><thead><tr>' +
+      t.vars.map(v => `<th>${esc(v)}</th>`).join('') +
+      `<th>${esc(t.cols[t.cols.length - 1])}</th></tr></thead><tbody>`;
+    t.rows.forEach((row, i) => {
+      html += '<tr>' + t.vars.map((v, k) => `<td>${row[k] ? 1 : 0}</td>`).join('') +
+        `<td><input class="cell" data-r="${i}" inputmode="numeric" maxlength="5" ` +
+        `aria-label="Row ${i + 1}, result for ${esc(t.vars.map((v, k) => v + '=' + (row[k] ? 1 : 0)).join(' '))}"></td></tr>`;
+    });
+    return html + '</tbody></table></div>';
+  }
+
+  /* ---------- Run: shows behaviour, awards nothing ---------- */
+  function runStudentProgram() {
+    const code = $('q-code').value;
+    const inputs = ($('q-inputs').value || '').split(/[,\n]/).map(x => x.trim()).filter(x => x !== '').join('\n');
+    try {
+      const { steps, env } = runProgram(code, inputs);
+      $('insp-trace').innerHTML = traceHTML(steps, false);
+      $('insp-output').textContent = env.output.map(fmt).join('\n') || '(no output)';
+      const last = steps[steps.length - 1];
+      $('insp-vars').innerHTML = last
+        ? '<table><thead><tr><th>Variable</th><th>Value</th></tr></thead><tbody>' +
+          Object.keys(last.vars).map(k => `<tr><td>${esc(k)}</td><td>${esc(last.vars[k])}</td></tr>`).join('') + '</tbody></table>'
+        : '<p class="empty">Nothing was declared.</p>';
+      say('q-status', `Ran with your inputs. It printed [${env.output.map(fmt).join(', ')}]. This does not award marks — use Check answer for that.`, '');
+      showInspector('trace');
+    } catch (e) {
+      const msg = e.line && !/^Line /.test(e.message) ? `Line ${e.line}: ${e.message}` : e.message;
+      say('q-status', msg, 'err');
+      $('insp-output').textContent = msg;
+      showInspector('output');
+    }
+  }
+
+  function showHint() {
+    const hints = item.q.hints || [];
+    if (!hints.length) { toast('No hints for this one'); return; }
+    const i = Math.min(attemptsOnItem, hints.length - 1);
+    say('q-status', 'Hint: ' + hints[i], 'warn');
+  }
+
+  // Named `say` rather than setStatus: the trace simulator further down
+  // declares its own two-argument setStatus, and hoisting made them collide.
+  function say(id, msg, cls) {
+    const el = $(id);
+    el.textContent = msg;
+    el.className = 'status' + (cls ? ' ' + cls : '');
+  }
+
+  /* ---------- Check: hidden cases, marks, and an attempt on the record ---------- */
+  function checkAnswer() {
+    attemptsOnItem++;
+    if (attemptsOnItem >= 2) {
+      const b = $('btn-q-show');
+      b.disabled = false; b.title = '';
+    }
+    if (item.kind === 'code') return checkCode();
+    if (item.kind === 'trace') return checkTrace();
+    if (item.kind === 'output') return checkOutput();
+    return checkTruth();
+  }
+
+  function record(correct, extra) {
+    const entry = Object.assign({
+      questionId: item.kind === 'code' ? item.q.id : null,
+      topicId: item.topicId, kind: item.kind, correct,
+      durationMs: Date.now() - itemStart
+    }, extra || {});
+    store.recordAttempt(entry);
+    flagStoreError();
+    marked = true;
+    renderRail();
+  }
+
+  function checkCode() {
+    const res = gradeSubmission(item.q, $('q-code').value);
+    renderMarks(res);
+    record(res.status === 'correct', {
+      marksAwarded:res.marksAwarded, marksAvailable:res.marksAvailable,
+      status:res.status, misconceptions:res.misconceptions
+    });
+    say('q-status', res.feedback, res.status === 'correct' ? 'ok' : 'err');
+    showInspector('feedback');
+    if (res.status === 'correct') offerNext();
+  }
+
+  function renderMarks(res) {
+    $('feedback-empty').hidden = true;
+    const next = res.status === 'correct'
+      ? 'Move on to the next question.'
+      : res.status === 'syntax-error' ? 'Fix the line the message names, then check again.'
+      : res.status === 'missing-construct' ? 'Rewrite it using the structure the question asks for.'
+      : res.status === 'runtime-error' ? 'Run it with the worked example inputs to see where it stops.'
+      : 'Look at the case described below and trace your program by hand for it.';
+    $('mark-breakdown').innerHTML =
+      res.breakdown.map(b =>
+        `<div class="mark-row ${b.passed ? 'is-hit' : 'is-miss'}">` +
+        `<span class="glyph" aria-hidden="true">${b.passed ? '✓' : '○'}</span>` +
+        `<span class="label">${esc(b.label)}</span>` +
+        `<span class="marks">${b.marks}/${b.max}</span>` +
+        `<span class="sr-only">${b.passed ? 'awarded' : 'not awarded'}</span></div>`).join('') +
+      `<div class="mark-total"><span>Total</span><b>${res.marksAwarded} / ${res.marksAvailable}</b></div>` +
+      `<p style="margin-top:12px">${esc(res.feedback)}</p>` +
+      `<p><b>Test cases passed:</b> ${res.passedCases} of ${res.totalCases}</p>` +
+      `<p><b>Next step:</b> ${esc(next)}</p>`;
+  }
+
+  function checkTrace() {
+    const q = item.q;
+    const rows = q.steps.map(() => ({ values:{}, output:'' }));
+    $('q-answer').querySelectorAll('input').forEach(el => {
+      const r = rows[Number(el.dataset.r)];
+      if (!r) return;
+      if (el.dataset.f === 'output') r.output = el.value; else r.values[el.dataset.v] = el.value;
+    });
+    const m = markTrace(q, rows);
+    const bad = new Set(m.wrong.map(w => w.row + '/' + w.col));
+    $('q-answer').querySelectorAll('input').forEach(el => {
+      const key = el.dataset.r + '/' + (el.dataset.f === 'output' ? 'OUTPUT' : el.dataset.v);
+      const wrong = bad.has(key);
+      el.classList.toggle('is-wrong', wrong);
+      el.classList.toggle('is-right', !wrong);
+      el.parentElement.classList.add('marked');
+      el.parentElement.classList.toggle('is-wrong', wrong);
+      el.parentElement.classList.toggle('is-right', !wrong);
+    });
+    record(m.ok, { marksAwarded:m.correct, marksAvailable:m.total,
+                   status: m.ok ? 'correct' : 'incorrect-logic',
+                   misconceptions: m.ok ? [] : ['trace'] });
+    say('q-status', m.ok
+      ? `All ${m.total} cells correct.`
+      : `${m.correct} of ${m.total} cells correct. First mistake: row ${m.firstWrong.row}, column ${m.firstWrong.col} — you wrote "${m.firstWrong.got}", it should be "${m.firstWrong.want}". Anything after a wrong cell usually follows from it.`,
+      m.ok ? 'ok' : 'err');
+    if (m.ok) offerNext();
+  }
+
+  function checkOutput() {
+    const m = markOutput(item.q, $('q-out').value);
+    record(m.ok, { marksAwarded:m.ok ? 1 : 0, marksAvailable:1,
+                   status:m.ok ? 'correct' : 'incorrect-logic', misconceptions:m.ok ? [] : ['output-prediction'] });
+    say('q-status', m.ok ? 'Correct.' : `Not right yet — you wrote "${m.got}". Try stepping through it in the Pseudocode Lab.`, m.ok ? 'ok' : 'err');
+    if (m.ok) offerNext();
+  }
+
+  function checkTruth() {
+    const bits = [];
+    $('q-answer').querySelectorAll('input').forEach(el => bits.push(el.value.trim() === '' ? '?' : el.value.trim()));
+    const m = markTruth(item.q, bits.join(''));
+    $('q-answer').querySelectorAll('input').forEach((el, i) => {
+      const ok = m.got[i] === m.want[i];
+      el.classList.toggle('is-wrong', !ok); el.classList.toggle('is-right', ok);
+      el.parentElement.classList.add('marked');
+      el.parentElement.classList.toggle('is-wrong', !ok);
+      el.parentElement.classList.toggle('is-right', ok);
+    });
+    record(m.ok, { marksAwarded:m.correct, marksAvailable:m.total,
+                   status:m.ok ? 'correct' : 'incorrect-logic', misconceptions:m.ok ? [] : ['boolean'] });
+    say('q-status', m.ok ? `All ${m.total} rows correct.` : `${m.correct} of ${m.total} rows correct.`, m.ok ? 'ok' : 'err');
+    if (m.ok) offerNext();
+  }
+
+  function showAnswer() {
+    if (!marked) record(false, { status:'shown-answer', misconceptions:['gave-up'] });
+    if (item.kind === 'code') {
+      $('q-code').value = item.q.solution;
+      say('q-status', 'One correct answer. Yours can look different and still be right — ' + item.q.explanation, 'warn');
+    } else if (item.kind === 'trace') {
+      $('q-answer').querySelectorAll('input').forEach(el => {
+        const s = item.q.steps[Number(el.dataset.r)];
+        el.value = el.dataset.f === 'output' ? (s.out || '') : (s.vars[el.dataset.v] || '');
+        el.classList.remove('is-wrong', 'is-right');
+        el.parentElement.classList.remove('marked', 'is-wrong', 'is-right');
+      });
+      say('q-status', 'This is the worked answer.', 'warn');
+    } else if (item.kind === 'output') {
+      $('q-out').value = item.q.output.join(', ');
+      say('q-status', 'This is the answer.', 'warn');
+    } else {
+      $('q-answer').querySelectorAll('input').forEach((el, i) => {
+        el.value = item.q.answer[i];
+        el.classList.remove('is-wrong', 'is-right');
+        el.parentElement.classList.remove('marked', 'is-wrong', 'is-right');
+      });
+      say('q-status', 'This is the answer.', 'warn');
+    }
+  }
+
+  function offerNext() {
+    const b = $('btn-q-next');
+    b.textContent = session.index < session.items.length - 1 ? 'Next question' : 'Finish session';
+    b.classList.add('primary');
+  }
+  function nextItem() {
+    if (session.index >= session.items.length - 1) {
+      const done = store.attempts().filter(a => a.timestamp >= session.startedAt);
+      const right = done.filter(a => a.correct).length;
+      session = null;
+      go('dashboard');
+      toast(`Session finished — ${right} of ${done.length} correct`);
+      return;
+    }
+    session.index++;
+    loadItem();
+  }
+  $('btn-end-session').addEventListener('click', () => { session = null; go('dashboard'); });
+
+  /* ---------- Inspector ---------- */
+  const ITABS = [['itab-feedback', 'ipanel-feedback'], ['itab-trace', 'ipanel-trace'],
+                 ['itab-output', 'ipanel-output'], ['itab-vars', 'ipanel-vars']];
+  function showInspector(which) {
+    const id = 'itab-' + which;
+    ITABS.forEach(([t, p]) => {
+      const on = t === id;
+      $(t).setAttribute('aria-selected', String(on));
+      $(t).tabIndex = on ? 0 : -1;
+      $(p).classList.toggle('is-active', on);
+    });
+  }
+  wireTablist($('inspector').querySelector('.inspector-tabs'), ITABS, showInspector);
+  function clearInspector() {
+    $('feedback-empty').hidden = false;
+    $('mark-breakdown').innerHTML = '';
+    $('insp-trace').innerHTML = '<p class="empty">Run your program to see its trace.</p>';
+    $('insp-output').textContent = '';
+    $('insp-vars').innerHTML = '<p class="empty">Run your program to see its variables.</p>';
+    showInspector('feedback');
+  }
+
+  // Shared roving-tabindex handling: arrow keys move between tabs, as expected.
+  function wireTablist(container, pairs, activate) {
+    container.addEventListener('click', ev => {
+      const b = ev.target.closest('[role="tab"]'); if (!b) return;
+      activate(b.id.replace(/^i?tab-/, ''));
+    });
+    container.addEventListener('keydown', ev => {
+      const ids = pairs.map(p => p[0]);
+      const i = ids.indexOf(document.activeElement.id);
+      if (i < 0) return;
+      let j = null;
+      if (ev.key === 'ArrowRight') j = (i + 1) % ids.length;
+      else if (ev.key === 'ArrowLeft') j = (i - 1 + ids.length) % ids.length;
+      else if (ev.key === 'Home') j = 0;
+      else if (ev.key === 'End') j = ids.length - 1;
+      if (j === null) return;
+      ev.preventDefault();
+      activate(ids[j].replace(/^i?tab-/, ''));
+      $(ids[j]).focus();
+    });
+  }
+
+  /* ---------- Sticky mobile action bar ---------- */
+  function updateActionBar() {
+    const bar = $('action-bar');
+    if (currentView !== 'practice' || !item) { bar.hidden = true; bar.innerHTML = ''; return; }
+    bar.hidden = false;
+    bar.innerHTML = item.kind === 'code'
+      ? '<button class="btn" data-bar="run">Run</button><button class="btn" data-bar="hint">Hint</button><button class="btn primary" data-bar="check">Check</button>'
+      : '<button class="btn" data-bar="show">Answer</button><button class="btn primary" data-bar="check">Check</button><button class="btn" data-bar="next">Next</button>';
+  }
+  $('action-bar').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-bar]'); if (!b) return;
+    ({ run:runStudentProgram, hint:showHint, check:checkAnswer, show:showAnswer, next:nextItem })[b.dataset.bar]();
+  });
+
+  /* ============================================================
+     Progress, Settings, About
+     ============================================================ */
+  function renderProgress() {
+    const profile = store.getProfile();
+    const attempts = store.attempts();
+    $('prog-sub').textContent = attempts.length
+      ? `${attempts.length} attempt${attempts.length === 1 ? '' : 's'} recorded in this browser.`
+      : 'Nothing attempted yet. Evidence appears here once you answer something.';
+
+    const topics = topicsOf(profile.syllabusId);
+    $('prog-topics').innerHTML = topics.map(t => {
+      const p = store.topicProgress(t.code);
+      const detail = p.attempts
+        ? `${p.attempts} attempt${p.attempts === 1 ? '' : 's'} · ${p.distinctCorrect} question${p.distinctCorrect === 1 ? '' : 's'} fully right`
+        : 'No attempts yet';
+      return `<div class="topic-row" style="cursor:default">` +
+        `<span class="name">${esc(t.name)}<br><span class="code">${esc(detail)}</span></span>` +
+        `<span class="pill ${EVIDENCE_CLASS[p.evidence]}">${esc(p.evidence)}</span></div>`;
+    }).join('');
+
+    const due = store.dueReviews();
+    const all = Object.keys(store.all().reviews);
+    $('prog-reviews').innerHTML = all.length
+      ? '<table><thead><tr><th>Question</th><th>Why</th><th>Due</th></tr></thead><tbody>' +
+        all.map(id => {
+          const r = store.all().reviews[id];
+          const isDue = r.dueAt <= Date.now();
+          return `<tr><td>${esc(id)}</td><td>${esc(r.reason)}</td>` +
+            `<td style="color:var(--${isDue ? 'danger' : 'text-secondary'})">${isDue ? 'now' : new Date(r.dueAt).toLocaleDateString()}</td></tr>`;
+        }).join('') + '</tbody></table>' +
+        (due.length ? `<div class="btn-row"><button class="btn primary" id="btn-do-review">Review ${due.length} now</button></div>` : '')
+      : '<p class="empty">Nothing in the review queue. Questions arrive here by themselves when you get one wrong.</p>';
+    if ($('btn-do-review')) $('btn-do-review').onclick = () => go('practice', { fresh:true, review:true });
+
+    $('prog-attempts').innerHTML = attempts.length
+      ? attemptsTable(attempts.slice().reverse())
+      : '<p class="empty">No attempts recorded.</p>';
+
+    $('method-body').innerHTML =
+      '<p>Evidence states come from what you actually did, never from a guess:</p>' +
+      '<ul style="color:var(--text-secondary);font-size:14px">' +
+      '<li><b>UNSCOUTED</b> — fewer than two attempts on the topic. Shown instead of 0%, which would wrongly suggest you got everything wrong.</li>' +
+      '<li><b>DEVELOPING</b> — attempted, but not yet three attempts with two different questions fully right.</li>' +
+      '<li><b>SECURE</b> — at least three attempts, at least two different questions fully right, and the most recent attempt correct.</li>' +
+      '<li><b>REVIEW DUE</b> — something you got wrong here has come back round on the spacing schedule (1, 3, 7, 16 then 35 days).</li>' +
+      '</ul>' +
+      '<p>Marks on a written program come from running it against hidden test cases, not from comparing one output. A program that prints the right answer without computing it fails, by design.</p>';
+  }
+
+  $('btn-export-json').addEventListener('click', () => {
+    download('dryrun-progress.json', store.exportJSON(), 'application/json');
+    say('prog-export-status', 'Exported as JSON.', 'ok');
+  });
+  $('btn-export-csv').addEventListener('click', () => {
+    download('dryrun-attempts.csv', store.exportCSV(), 'text/csv');
+    say('prog-export-status', 'Exported as CSV.', 'ok');
+  });
+
+  function renderSettings() {
+    const p = store.getProfile();
+    const syl = syllabusById(p.syllabusId);
+    $('settings-course').innerHTML =
+      `<p>You are working towards <b>${esc(syl.title)} (${esc(syl.code)})</b>, ${esc(syl.versionLabel)}, sitting ${esc(String(p.examYear))}${p.level ? ', ' + esc(p.level) : ''}.</p>` +
+      (syl.note ? `<p class="status warn">${esc(syl.note)}</p>` : '') +
+      '<div class="btn-row"><button class="btn" id="btn-change-course">Change course</button></div>';
+    $('btn-change-course').onclick = () => {
+      draft = { qualification:p.qualification, examYear:p.examYear, level:p.level, confidence:p.confidence };
+      renderCourseChoices();
+      $('year-step').hidden = false;
+      renderYearChoices();
+      go('onboarding');
+    };
+  }
+  $('btn-set-export').addEventListener('click', () => {
+    download('dryrun-progress.json', store.exportJSON(), 'application/json');
+    say('settings-status', 'Exported. Keep the file somewhere safe.', 'ok');
+  });
+  $('btn-set-reset').addEventListener('click', () => {
+    if (!confirm('Erase every attempt, all evidence and the review queue in this browser? Export first if you want to keep them.')) return;
+    store.reset();
+    say('settings-status', 'Progress erased.', 'warn');
+    renderRail();
+  });
+
+  function renderAbout() {
+    $('about-body').innerHTML =
+      '<p>DryRun is a reasoning workbench, not a compiler. The same algorithm can be looked at as structured English, as pseudocode, as a trace table, as a flowchart or as a logic circuit — and understanding usually breaks when you move between two of them. The labs let you move an algorithm across all five and see exactly where the versions stop agreeing.</p>' +
+      '<p>It is one HTML file with no dependencies and no network calls, so it works offline and nothing you type leaves your browser. Questions are original, written against publicly listed syllabus content.</p>' +
+      '<p><b>Independent learning resource — not endorsed by Cambridge International Education.</b></p>';
+  }
+
+  /* ============================================================
+     Header buttons
+     ============================================================ */
+  $('btn-start').addEventListener('click', () => go('practice', { fresh:true }));
+  $('btn-settings').addEventListener('click', () => go('settings'));
+  $('course-chip').addEventListener('click', () => go('settings'));
   /* ================= Tab 1: trace table ================= */
   const code = $('code'), gutter = $('gutter'), hlbar = $('hlbar');
 
@@ -3661,8 +5024,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     const cur = box.querySelector('tr.cur');
     if (cur) cur.scrollIntoView({ block:'nearest' });
   }
-  // Function declaration (not const) so the example dropdown above can call it
-  function esc(s) { return String(s).replace(/[&<>]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c])); }
+
 
   function setStatus(msg, cls) {
     const el = $('trace-status');
@@ -4045,174 +5407,38 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   });
   drawFlowchart();
 
-  /* ================= Practice mode ================= */
-  let pq = null;                       // the question on screen
-  let pqSeed = Math.floor(Math.random() * 1e9);
-  let pqChecked = false;
-
-  const PQ_STORE = 'cie-practice-score';
-  function pqLoadScore() {
-    try { return JSON.parse(localStorage.getItem(PQ_STORE)) || { asked:0, right:0 }; }
-    catch (e) { return { asked:0, right:0 }; }
-  }
-  function pqSaveScore(sc) { try { localStorage.setItem(PQ_STORE, JSON.stringify(sc)); } catch (e) {} }
-  function pqShowScore() {
-    const sc = pqLoadScore();
-    $('q-score').textContent = sc.asked
-      ? `Questions attempted: ${sc.asked} · fully correct: ${sc.right}` + (pq ? `  ·  seed ${pq.seed}` : '')
-      : 'Nothing attempted yet.' + (pq ? `  ·  seed ${pq.seed}` : '');
-  }
-  function pqStatus(msg, cls) {
-    const el = $('q-status');
-    el.textContent = msg;
-    el.className = 'status' + (cls ? ' ' + cls : '');
-  }
-  function pqCountAttempt(allRight) {
-    if (pqChecked) return;             // one question counts once
-    pqChecked = true;
-    const sc = pqLoadScore();
-    sc.asked++;
-    if (allRight) sc.right++;
-    pqSaveScore(sc);
-  }
-
-  function newQuestion() {
-    pqSeed = (pqSeed + 1) >>> 0;
-    pqChecked = false;
-    pq = makeQuestion($('q-kind').value, pqSeed);
-    renderQuestion();
-    pqStatus('');
-    pqShowScore();
-  }
-
-  function renderQuestion() {
-    const prompt = $('q-prompt'), answer = $('q-answer');
-    if (pq.kind === 'truth') {
-      prompt.innerHTML = `<div class="fld">Complete the final column of the truth table for</div>` +
-        `<pre>${esc(pq.expr)}</pre>`;
-      const t = pq.table;
-      let html = '<table><thead><tr>' + t.vars.map(v => `<th>${esc(v)}</th>`).join('') +
-        `<th>${esc(t.cols[t.cols.length - 1])}</th></tr></thead><tbody>`;
-      t.rows.forEach((row, i) => {
-        html += '<tr>' + t.vars.map((v, k) => `<td>${row[k] ? 1 : 0}</td>`).join('') +
-          `<td><input data-r="${i}" inputmode="numeric" maxlength="5"></td></tr>`;
-      });
-      answer.innerHTML = html + '</tbody></table>';
-      return;
-    }
-    if (pq.kind === 'output') {
-      prompt.innerHTML = `<div class="fld">What does this program output?</div><pre>${esc(pq.code)}</pre>`;
-      answer.innerHTML = '<label class="fld" for="q-out">Write the outputs in order, separated by commas</label>' +
-        '<input id="q-out" class="plain" spellcheck="false">';
-      return;
-    }
-    if (pq.kind === 'topseudo') {
-      prompt.innerHTML = '<div class="fld">Write this algorithm as CIE pseudocode</div>' +
-        `<pre>${esc(pq.english)}</pre>`;
-      answer.innerHTML = '<label class="fld" for="q-code">Your pseudocode (any working program is accepted)</label>' +
-        '<textarea id="q-code" class="plain" rows="12" spellcheck="false" wrap="off"></textarea>';
-      return;
-    }
-    // trace
-    prompt.innerHTML = '<div class="fld">Complete the trace table for this program. ' +
-      'The Line column is filled in for you; leave a cell blank if that variable does not change.</div>' +
-      `<pre>${esc(pq.code)}</pre>`;
-    let html = '<div class="tbl-scroll"><table><thead><tr><th class="n">Line</th>' +
-      pq.vars.map(n => `<th>${esc(n)}</th>`).join('') + '<th>OUTPUT</th></tr></thead><tbody>';
-    pq.steps.forEach((s, i) => {
-      html += `<tr><td class="n">${s.line}</td>` +
-        pq.vars.map(n => `<td><input data-r="${i}" data-v="${esc(n)}" spellcheck="false"></td>`).join('') +
-        `<td><input data-r="${i}" data-f="output" spellcheck="false"></td></tr>`;
+  /* ============================================================
+     Pseudocode Lab sub-tabs
+     ============================================================ */
+  const LABTABS = [['tab-trace', 'p-trace'], ['tab-eng', 'p-eng'], ['tab-tt', 'p-tt'], ['tab-flow', 'p-flow']];
+  function showLabTab(which) {
+    const id = which.indexOf('tab-') === 0 ? which : 'tab-' + which;
+    LABTABS.forEach(([t, p]) => {
+      const on = t === id;
+      $(t).setAttribute('aria-selected', String(on));
+      $(t).tabIndex = on ? 0 : -1;
+      $(p).hidden = !on;
     });
-    answer.innerHTML = html + '</tbody></table></div>';
+    if (id === 'tab-trace') { resetTrace(); renderGutter(); }
+  }
+  wireTablist(document.querySelector('#view-lab-pseudocode .inspector-tabs'), LABTABS, showLabTab);
+
+  // The lab tools call showTab(...) to hand work to each other; route it
+  // through the view router so the lab is actually on screen first.
+  function showTab(id) {
+    go('lab-pseudocode', { keepFocus:true });
+    showLabTab(id);
   }
 
-  function pqReadTrace() {
-    const rows = pq.steps.map(() => ({ values:{}, output:'' }));
-    $('q-answer').querySelectorAll('input').forEach(el => {
-      const r = rows[Number(el.dataset.r)];
-      if (!r) return;
-      if (el.dataset.f === 'output') r.output = el.value;
-      else r.values[el.dataset.v] = el.value;
-    });
-    return rows;
-  }
-
-  function checkAnswer() {
-    if (!pq) return;
-    if (pq.kind === 'trace') {
-      const m = markTrace(pq, pqReadTrace());
-      const bad = new Set(m.wrong.map(w => w.row + '/' + w.col));
-      $('q-answer').querySelectorAll('input').forEach(el => {
-        const key = el.dataset.r + '/' + (el.dataset.f === 'output' ? 'OUTPUT' : el.dataset.v);
-        el.classList.toggle('wrong', bad.has(key));
-        el.classList.toggle('right', !bad.has(key));
-      });
-      pqCountAttempt(m.ok);
-      pqStatus(m.ok
-        ? `✓ All ${m.total} cells correct.`
-        : `${m.correct} / ${m.total} cells correct. First mistake: row ${m.firstWrong.row}, column ${m.firstWrong.col} — you wrote "${m.firstWrong.got}", it should be "${m.firstWrong.want}". Everything after a wrong cell usually follows from it.`,
-        m.ok ? 'ok' : 'err');
-    } else if (pq.kind === 'output') {
-      const m = markOutput(pq, $('q-out').value);
-      pqCountAttempt(m.ok);
-      pqStatus(m.ok ? '✓ Correct.' : `Not right yet — you wrote "${m.got}". Try stepping through it in the simulator.`, m.ok ? 'ok' : 'err');
-    } else if (pq.kind === 'truth') {
-      const bits = [];
-      $('q-answer').querySelectorAll('input').forEach(el => bits.push(el.value.trim() === '' ? '?' : el.value.trim()));
-      const m = markTruth(pq, bits.join(''));
-      $('q-answer').querySelectorAll('input').forEach((el, i) => {
-        const ok = m.got[i] === m.want[i];
-        el.classList.toggle('wrong', !ok);
-        el.classList.toggle('right', ok);
-      });
-      pqCountAttempt(m.ok);
-      pqStatus(m.ok ? `✓ All ${m.total} rows correct.` : `${m.correct} / ${m.total} rows correct.`, m.ok ? 'ok' : 'err');
-    } else {
-      const m = markPseudocode(pq, $('q-code').value);
-      pqCountAttempt(m.ok);
-      pqStatus(m.error ? 'Your pseudocode did not run — ' + m.error
-        : m.ok ? '✓ Correct — it outputs ' + m.want + '.'
-        : `Not right yet — yours outputs [${m.got || 'nothing'}], the algorithm should output [${m.want}].`,
-        m.ok ? 'ok' : 'err');
-    }
-    pqShowScore();
-  }
-
-  function showAnswer() {
-    if (!pq) return;
-    pqCountAttempt(false);
-    if (pq.kind === 'trace') {
-      $('q-answer').querySelectorAll('input').forEach(el => {
-        const s = pq.steps[Number(el.dataset.r)];
-        el.value = el.dataset.f === 'output' ? (s.out || '') : (s.vars[el.dataset.v] || '');
-        el.classList.remove('wrong', 'right');
-      });
-      pqStatus('This is the worked answer — press "New question" for a fresh one.');
-    } else if (pq.kind === 'output') {
-      $('q-out').value = pq.output.join(', ');
-      pqStatus('This is the answer — press "New question" for a fresh one.');
-    } else if (pq.kind === 'truth') {
-      $('q-answer').querySelectorAll('input').forEach((el, i) => {
-        el.value = pq.answer[i];
-        el.classList.remove('wrong', 'right');
-      });
-      pqStatus('This is the answer — press "New question" for a fresh one.');
-    } else {
-      $('q-code').value = pq.code;
-      pqStatus('One correct answer — yours may differ and still be right, as long as it outputs ' + pq.output.join(', ') + '.');
-    }
-    pqShowScore();
-  }
-
-  $('btn-q-new').addEventListener('click', newQuestion);
-  $('q-kind').addEventListener('change', newQuestion);
-  $('btn-q-check').addEventListener('click', checkAnswer);
-  $('btn-q-show').addEventListener('click', showAnswer);
-  newQuestion();
-
-  generate();   // something to look at as soon as the page opens
+  /* ============================================================
+     Boot
+     ============================================================ */
+  renderCourseChoices();
+  runDemo();
+  const startView = (location.hash || '').replace(/^#\//, '');
+  go(store.getProfile() ? (VIEWS[startView] ? startView : 'dashboard') : 'onboarding');
 })();
+
 </script>
 
 <!--
