@@ -41,6 +41,12 @@ A failing hidden case is described in words ("when given two equal numbers") wit
 | **Progress** | Evidence per topic, the review queue, every attempt, and a page explaining exactly how each state is worked out. |
 | **Evidence** | Diagnostic scores, learning gain, retention, feedback, and an anonymised export. |
 
+## One record per course
+
+A profile is `qualification | syllabus version | exam year | level`, and every attempt, review item, diagnostic and session belongs to exactly one. Switching between IGCSE and A Level — or between AS 2026 and A Level 2028, which share topic codes — never mixes the two, and an attempt is never relabelled as belonging to a course it was not earned on. Export and import keep that ownership.
+
+Stored under `dryrun.store.v3`. Data written by an earlier version is migrated under the profile that was active when it was written; if there was none, it is kept aside rather than erased or attributed to a course at random.
+
 ## Progress is evidence, not a percentage
 
 | State | When |
@@ -103,7 +109,7 @@ Three tests hold the bank to account, so it cannot rot as it grows: every refere
 
 ## Built-in self-test
 
-120 assertions covering the interpreter, the CIE-specific errors, both pseudocode converters, flowchart drawing, truth tables, hidden-case grading, the syllabus registry, the storage layer and its migrations, accessibility and the metadata. The contrast check reads the live custom properties, so the stylesheet itself is what gets tested.
+136 assertions covering the interpreter, the CIE-specific errors, both pseudocode converters, flowchart drawing, truth tables, hidden-case grading, the syllabus registry, the storage layer and its migrations, accessibility and the metadata. The contrast check reads the live custom properties, so the stylesheet itself is what gets tested.
 
 Add `?selftest=1` to the URL, or run it from the command line:
 
