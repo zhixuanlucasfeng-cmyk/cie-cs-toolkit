@@ -2,7 +2,9 @@
 
 A reasoning workbench for Cambridge Computer Science (IGCSE 0478 and AS & A Level 9618). One self-contained HTML file: no framework, no build step, no dependencies, no network calls. It works offline and nothing you type leaves your browser.
 
-**Live:** https://cie-cs-toolkit.vercel.app　·　[run the self-test](https://cie-cs-toolkit.vercel.app/?selftest=1)
+**Live:** https://dryruncs.com　·　[run the self-test](https://dryruncs.com/?selftest=1)
+
+The original address, `cie-cs-toolkit.vercel.app`, still works and redirects here, so links already shared with students and teachers keep working.
 
 > **Independent learning resource — not endorsed by Cambridge International Education.**
 > Cambridge International Education is not affiliated with this project. The syllabus codes are used only to say which courses this is aimed at. Every question is original, written against publicly listed syllabus content; no past-paper material is reproduced.
