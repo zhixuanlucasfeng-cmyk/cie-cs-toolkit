@@ -1349,8 +1349,35 @@ Comments: start the line with //
         <p>Everything here is stored in this browser only. Nothing is uploaded.</p>
       </div>
       <div class="panel">
+        <div class="panel-head"><h2>Who is using this browser</h2></div>
+        <div class="panel-body">
+          <p>If you share a computer — a school machine, a family laptop — add yourself here so your work is kept apart from everyone else's. Names stay on this device and are never uploaded.</p>
+          <div id="learner-list" class="topic-map"></div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <label class="sr-only" for="learner-name">Your name or nickname</label>
+            <input id="learner-name" class="control" placeholder="Your name or nickname" maxlength="40" autocomplete="off">
+            <button class="btn" id="btn-learner-add">Add</button>
+          </div>
+          <p class="status" id="learner-status" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+
+      <div class="panel">
         <div class="panel-head"><h2>Course</h2></div>
         <div class="panel-body" id="settings-course"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Automatic copies on this device</h2></div>
+        <div class="panel-body">
+          <p>DryRun keeps the last few copies of your work in this browser and takes one before anything risky, such as an import. If a record is ever damaged, it is restored from the newest copy by itself.</p>
+          <div id="snapshot-list"></div>
+          <div class="btn-row">
+            <button class="btn" id="btn-snap-now">Save a copy now</button>
+          </div>
+          <p class="status" id="snapshot-status" role="status" aria-live="polite"></p>
+          <p class="hint" id="storage-report">Checking how this browser is storing your work…</p>
+        </div>
       </div>
       <div class="panel">
         <div class="panel-head"><h2>Your data</h2></div>
@@ -1408,6 +1435,8 @@ Comments: start the line with //
       <div class="panel">
         <div class="panel-head"><h2>Exporting and erasing</h2></div>
         <div class="panel-body">
+          <p><b>Automatic copies:</b> the last few versions of your work are kept in this browser, and one is taken before anything risky such as an import. If a record is ever damaged it is restored from the newest copy by itself. They live on this device only, and erasing everything removes them too — an erase that left copies behind would not be an erase.</p>
+          <p><b>Sharing a computer:</b> if several people use one browser, each can be added in Settings and gets their own separate record. Names are labels typed on this device; they are not accounts and are never uploaded.</p>
           <p><b>Export:</b> Settings → Export everything, or the Evidence page for an anonymised copy. You get a JSON file; the CSV export has one row per attempt, each naming its course.</p>
           <p><b>Erase:</b> Settings lets you erase the current course or everything. Both are immediate and cannot be undone.</p>
           <p><b>If you clear your browser data</b> — including using private browsing or switching device or browser — your progress is gone unless you exported it. Restore a backup from Settings, or from the first screen before choosing a course.</p>
@@ -4656,8 +4685,53 @@ const ALL_VIEWS = ['welcome', 'onboarding', 'dashboard', 'practice', 'lab-pseudo
                    'progress', 'evidence', 'settings', 'privacy', 'about'];
 
 const STORE_VERSION = 3;
-const STORE_KEY = 'dryrun.store.v3';
+/*
+  One browser can be shared by a whole class, so each learner gets their own
+  keyspace. The first learner keeps the original key exactly, so anyone who
+  used an earlier build finds their work where it already was.
+*/
+const LEARNERS_KEY = 'dryrun.learners';
+const DEFAULT_LEARNER = 'default';
+const storeKeyFor = id => (id === DEFAULT_LEARNER ? 'dryrun.store.v3' : 'dryrun.store.v3.' + id);
+const snapshotKeyFor = id => (id === DEFAULT_LEARNER ? 'dryrun.snapshots' : 'dryrun.snapshots.' + id);
 const LEGACY_KEYS = ['dryrun.store.v2', 'cie-practice-score'];
+
+// How many rolling copies to keep, and how often a new one is worth taking.
+const MAX_SNAPSHOTS = 4;
+const SNAPSHOT_EVERY_MS = 5 * 60 * 1000;
+
+function learnerId(label) {
+  const slug = String(label || '').trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 24);
+  return slug || ('learner-' + Date.now().toString(36));
+}
+
+/*
+  The register of learners sharing this browser. It holds labels only — a
+  first name or a nickname the student types — and never leaves the device.
+*/
+function readLearners(backend) {
+  let raw = null;
+  try { raw = backend.getItem(LEARNERS_KEY); } catch (e) {}
+  if (!raw) {
+    // An existing single-learner install: adopt it as the default, in place.
+    let had = null;
+    try { had = backend.getItem(storeKeyFor(DEFAULT_LEARNER)); } catch (e) {}
+    return { active: DEFAULT_LEARNER,
+             list: [{ id: DEFAULT_LEARNER, label: 'This device', createdAt: had ? 0 : Date.now() }] };
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.list) || !parsed.list.length) throw new Error('empty');
+    if (!parsed.list.some(l => l.id === parsed.active)) parsed.active = parsed.list[0].id;
+    return parsed;
+  } catch (e) {
+    return { active: DEFAULT_LEARNER, list: [{ id: DEFAULT_LEARNER, label: 'This device', createdAt: Date.now() }] };
+  }
+}
+function writeLearners(backend, reg) {
+  try { backend.setItem(LEARNERS_KEY, JSON.stringify(reg)); return true; } catch (e) { return false; }
+}
 
 const EVIDENCE = { UNSCOUTED:'UNSCOUTED', DEVELOPING:'DEVELOPING', SECURE:'SECURE', REVIEW_DUE:'REVIEW DUE' };
 
@@ -4756,9 +4830,102 @@ function migrateStore(raw) {
 
 // The storage interface. `backend` is anything with getItem/setItem/removeItem,
 // so tests pass a plain object and the browser passes localStorage.
-function createStore(backend) {
+function createStore(backend, opts) {
+  const options = opts || {};
+  let reg = readLearners(backend);
+  let who = options.learner || reg.active || DEFAULT_LEARNER;
+  if (!reg.list.some(l => l.id === who)) who = reg.list[0].id;
+  let STORE_KEY = storeKeyFor(who);
+  let SNAP_KEY = snapshotKeyFor(who);
+
   let cache = null;
   let lastError = null;
+  let lastSnapshotAt = 0;
+  let snapSeq = 0;
+  let persistAsked = false;
+
+  /*
+    Rolling copies of this learner's record, kept beside it. They protect
+    against the failure that actually loses work: a write that half-succeeds,
+    a corrupted record, or a mistaken import. They are deliberately NOT a
+    defence against "erase everything", which removes them too — an erase
+    that leaves copies behind would not be an erase.
+  */
+  /*
+    Two different jobs, kept apart on purpose:
+
+    `latest` mirrors the last thing successfully written, refreshed on every
+    save. It is what recovery uses, so a damaged record never costs more than
+    the work since the last save.
+
+    `history` is a short list of points worth going back to. Entries are
+    immutable once written — an earlier version refreshed them in place, which
+    meant a copy a student had been shown silently changed underneath them.
+  */
+  function readSnapshots() {
+    let raw = null;
+    try { raw = backend.getItem(SNAP_KEY); } catch (e) { return { latest:null, history:[] }; }
+    if (!raw) return { latest:null, history:[] };
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return { latest:null, history:parsed };   // an older shape
+      return { latest: parsed.latest || null, history: Array.isArray(parsed.history) ? parsed.history : [] };
+    } catch (e) { return { latest:null, history:[] }; }
+  }
+  function writeSnapshots(box) {
+    try { backend.setItem(SNAP_KEY, JSON.stringify(box)); return true; }
+    catch (e) { return false; }   // a full quota must never block the real save
+  }
+  // Newest first: the live copy, then the points in history.
+  function snapshotList() {
+    const box = readSnapshots();
+    const out = [];
+    if (box.latest) out.push({ id:'latest', at:box.latest.at, reason:'latest', body:box.latest.body });
+    for (let i = box.history.length - 1; i >= 0; i--) out.push(box.history[i]);
+    return out;
+  }
+
+  function takeSnapshot(reason, force, body) {
+    const now = Date.now();
+    if (body === undefined) { try { body = backend.getItem(STORE_KEY); } catch (e) { return; } }
+    if (!body) return;
+    const box = readSnapshots();
+
+    box.latest = { at: now, body };          // always current
+
+    const last = box.history[box.history.length - 1];
+    const tooSoon = !force && now - lastSnapshotAt < SNAPSHOT_EVERY_MS;
+    const sameAsLast = last && last.body === body;
+    // A forced copy is an explicit marker and is kept even if nothing changed,
+    // because what matters is the moment, not the bytes.
+    if (!tooSoon && !(sameAsLast && !force)) {
+      box.history.push({ id:'s' + now.toString(36) + '-' + (snapSeq++).toString(36),
+                         at: now, reason: reason || 'autosave', body });
+      while (box.history.length > MAX_SNAPSHOTS) box.history.shift();
+      lastSnapshotAt = now;
+    }
+    writeSnapshots(box);
+  }
+
+  function dropOldestSnapshot() {
+    const box = readSnapshots();
+    if (box.history.length) { box.history.shift(); writeSnapshots(box); return true; }
+    if (box.latest) { box.latest = null; writeSnapshots(box); return true; }
+    return false;
+  }
+
+  // Ask the browser not to evict this data when space runs short. Best effort:
+  // it is a request, not a guarantee, and it is never required for correctness.
+  function askToPersist() {
+    if (persistAsked) return;
+    persistAsked = true;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
+        navigator.storage.persisted().then(already => { if (!already) navigator.storage.persist(); })
+          .catch(() => {});
+      }
+    } catch (e) {}
+  }
 
   function read() {
     if (cache) return cache;
@@ -4791,8 +4958,19 @@ function createStore(backend) {
       const parsed = JSON.parse(raw);
       cache = parsed.version === STORE_VERSION ? parsed : migrateStore(parsed);
     } catch (e) {
-      // Never silently erase: keep the unreadable copy aside.
+      // Never silently erase: keep the unreadable copy aside, then try to
+      // recover from the most recent good snapshot before giving up.
       try { backend.setItem(STORE_KEY + '.corrupt.' + Date.now(), raw); } catch (e2) {}
+      const snaps = snapshotList();             // newest first
+      for (const snap of snaps) {
+        try {
+          const recovered = JSON.parse(snap.body);
+          cache = recovered.version === STORE_VERSION ? recovered : migrateStore(recovered);
+          lastError = 'Saved progress could not be read, so it was restored from the automatic copy taken ' +
+                      new Date(snap.at).toLocaleString() + '. The unreadable copy was kept aside.';
+          return cache;
+        } catch (e3) {}
+      }
       lastError = 'Saved progress could not be read, so a fresh record was started. The old copy was kept.';
       cache = emptyStore();
       cache.createdAt = Date.now();
@@ -4801,10 +4979,30 @@ function createStore(backend) {
     return cache;
   }
 
-  function write() {
-    try { backend.setItem(STORE_KEY, JSON.stringify(cache)); lastError = null; return true; }
-    catch (e) {
-      lastError = /quota/i.test(e.name + e.message)
+  function write(snapshotReason) {
+    const body = JSON.stringify(cache);
+    try {
+      backend.setItem(STORE_KEY, body);
+      lastError = null;
+      askToPersist();
+      // Copy what was just saved, so the newest copy is the last good state.
+      // Copying beforehand would always be one save behind, which is what
+      // testing a damaged record actually showed.
+      takeSnapshot(snapshotReason || 'autosave', !!snapshotReason, body);
+      return true;
+    } catch (e) {
+      const full = /quota/i.test(e.name + e.message);
+      if (full) {
+        // Make room by dropping the oldest copies rather than losing the save.
+        while (dropOldestSnapshot()) {
+          try {
+            backend.setItem(STORE_KEY, body);
+            lastError = 'Storage was full, so older automatic copies were removed to save your work. Export your progress soon.';
+            return true;
+          } catch (e2) {}
+        }
+      }
+      lastError = full
         ? 'Your browser storage is full, so this was not saved. Export your progress, then clear some space.'
         : 'This could not be saved: ' + e.message;
       return false;
@@ -4910,6 +5108,82 @@ function createStore(backend) {
     },
     reviews() { const d = active(); return d ? d.reviews : {}; },
     activeData: () => active(),
+
+    /* ---- the safety copies kept beside this learner's record ---- */
+    snapshots: () => readSnapshots().history
+      .map(x => ({ id:x.id, at:x.at, reason:x.reason, bytes:x.body.length })).reverse(),
+    snapshotNow: reason => { takeSnapshot(reason || 'manual', true); },
+    restoreSnapshot(id) {
+      // Match on the copy's own id; a timestamp is not unique enough, because
+      // two copies can be taken in the same millisecond.
+      const found = snapshotList().filter(x => x.id === id)[0];
+      if (!found) return { ok:false, error:'That copy is no longer here.' };
+      let parsed;
+      try { parsed = JSON.parse(found.body); }
+      catch (e) { return { ok:false, error:'That copy could not be read.' }; }
+      takeSnapshot('before-restore', true);          // the current state is itself worth keeping
+      cache = parsed.version === STORE_VERSION ? parsed : migrateStore(parsed);
+      if (!write('restored')) return { ok:false, error:lastError || 'Could not save the restored copy.' };
+      const n = Object.keys(cache.profiles || {}).length;
+      return { ok:true, at:found.at, profiles:n };
+    },
+
+    /* ---- who is using this browser ---- */
+    learners: () => reg.list.map(l => Object.assign({}, l, { active: l.id === who })),
+    currentLearner: () => reg.list.filter(l => l.id === who)[0] || null,
+    addLearner(label) {
+      const clean = String(label || '').trim().slice(0, 40);
+      if (!clean) return { ok:false, error:'Type a name first.' };
+      const id = learnerId(clean);
+      if (reg.list.some(l => l.id === id)) return { ok:false, error:'Someone is already using that name on this browser.' };
+      if (reg.list.length >= 40) return { ok:false, error:'This browser already holds 40 people. Remove one first.' };
+      reg.list.push({ id, label:clean, createdAt:Date.now() });
+      writeLearners(backend, reg);
+      return { ok:true, id, label:clean };
+    },
+    switchLearner(id) {
+      if (!reg.list.some(l => l.id === id)) return { ok:false, error:'No one by that name on this browser.' };
+      who = id; reg.active = id;
+      STORE_KEY = storeKeyFor(who);
+      SNAP_KEY = snapshotKeyFor(who);
+      cache = null; lastSnapshotAt = 0;
+      writeLearners(backend, reg);
+      return { ok:true, id };
+    },
+    renameLearner(id, label) {
+      const l = reg.list.filter(x => x.id === id)[0];
+      if (!l) return { ok:false, error:'No one by that name on this browser.' };
+      l.label = String(label || '').trim().slice(0, 40) || l.label;
+      writeLearners(backend, reg);
+      return { ok:true };
+    },
+    removeLearner(id) {
+      if (reg.list.length <= 1) return { ok:false, error:'This is the only person on this browser.' };
+      reg.list = reg.list.filter(l => l.id !== id);
+      try { backend.removeItem(storeKeyFor(id)); backend.removeItem(snapshotKeyFor(id)); } catch (e) {}
+      if (reg.active === id) { reg.active = reg.list[0].id; who = reg.active; STORE_KEY = storeKeyFor(who); SNAP_KEY = snapshotKeyFor(who); cache = null; }
+      writeLearners(backend, reg);
+      return { ok:true };
+    },
+
+    // What the browser will tell us about durability. Best effort: a browser
+    // is free to answer nothing, and the app must not depend on it.
+    async storageReport() {
+      const out = { persisted:null, usage:null, quota:null };
+      try {
+        if (typeof navigator !== 'undefined' && navigator.storage) {
+          if (navigator.storage.persisted) out.persisted = await navigator.storage.persisted();
+          if (navigator.storage.estimate) {
+            const e = await navigator.storage.estimate();
+            out.usage = e.usage; out.quota = e.quota;
+          }
+        }
+      } catch (e) {}
+      const box = readSnapshots();
+      out.snapshots = box.history.length;
+      out.hasLive = !!box.latest;
+      return out;
+    },
     attempts() { const d = active(); return d ? d.attempts.slice() : []; },
 
     getSession() { const d = active(); return d ? d.session : null; },
@@ -4985,6 +5259,7 @@ function createStore(backend) {
       than throwing, so the UI can say what happened.
     */
     importJSON(text) {
+      takeSnapshot('before-import', true);
       let incoming;
       try { incoming = JSON.parse(text); }
       catch (e) { return { ok:false, error:'That file is not readable JSON.' }; }
@@ -5026,17 +5301,23 @@ function createStore(backend) {
       if (!write()) return { ok:false, error:lastError || 'Could not save the imported data.' };
       return report;
     },
-    // Erases everything, or just the course currently selected.
+    // Erases everything, or just the course currently selected. Erasing
+    // everything removes the automatic copies too — an erase that quietly
+    // left copies behind would not be an erase.
     reset(scope) {
       const s = read();
       if (scope === 'profile' && s.activeProfileId) {
+        takeSnapshot('before-erase-course', true);
         delete s.profiles[s.activeProfileId];
         s.activeProfileId = null;
+        write();
       } else {
         cache = emptyStore();
         cache.createdAt = Date.now();
+        try { backend.setItem(STORE_KEY, JSON.stringify(cache)); } catch (e) {}
+        try { backend.removeItem(SNAP_KEY); } catch (e) {}
+        lastSnapshotAt = 0;
       }
-      write();
     }
   };
 }
@@ -6628,6 +6909,178 @@ const TESTS = [
       assert(ALL_VIEWS.includes(v), `${v} should be a known view`);
     });
   }],
+  /* ---- Durability: every learner keeps their own safety copies ---- */
+  ['Durability: copies are kept and pruned to a bounded number', () => {
+    const s = testStore();
+    assertEq(s.snapshots().length, 1, 'choosing a course is itself a point worth keeping');
+    for (let i = 0; i < 8; i++) {
+      s.recordAttempt({ questionId:'q-' + i, topicId:'0478.8', correct:true });
+      s.snapshotNow('test');            // force, so the time window does not skip any
+    }
+    const snaps = s.snapshots();
+    assert(snaps.length > 0, 'copies should be kept');
+    assert(snaps.length <= 4, `at most four copies should be kept, found ${snaps.length}`);
+    assert(snaps[0].at >= snaps[snaps.length - 1].at, 'the newest copy is listed first');
+    snaps.forEach(x => assert(x.bytes > 0, 'each copy should hold something'));
+  }],
+  ['Durability: a copy can be restored, and restoring keeps the current state too', () => {
+    const s = testStore();
+    s.recordAttempt({ questionId:'q-one', topicId:'0478.8', correct:true });
+    s.snapshotNow('good');
+    const good = s.snapshots().filter(x => x.reason === 'good')[0].id;
+    s.recordAttempt({ questionId:'q-two', topicId:'0478.8', correct:false });
+    assertEq(s.attempts().length, 2, 'two attempts before restoring');
+
+    const r = s.restoreSnapshot(good);
+    assert(r.ok, 'the restore should succeed: ' + (r.error || ''));
+    assertEq(s.attempts().length, 1, 'the earlier state is back');
+    assertEq(s.attempts()[0].questionId, 'q-one', 'and it is the right one');
+    assert(s.snapshots().some(x => x.reason === 'before-restore'),
+      'the state that was replaced is itself kept, so a restore is reversible');
+  }],
+  ['Durability: unreadable data is recovered from the newest good copy', () => {
+    const mem = memoryBackend();
+    const a = createStore(mem);
+    a.setProfile({ qualification:'0478', syllabusId:'0478-2026-2028', examYear:2027, level:'IGCSE' });
+    a.recordAttempt({ questionId:'q-larger-of-two', topicId:'0478.8', correct:true });
+    a.snapshotNow('good');
+
+    mem.setItem('dryrun.store.v3', '{ this is not json');     // simulate a half-written record
+    const b = createStore(mem);
+    assertEq(b.attempts().length, 1, 'the attempt should come back from the automatic copy');
+    assert(/restored from the automatic copy/i.test(b.error || ''), 'and the student should be told: ' + b.error);
+    assert(Object.keys(mem.data).some(k => /corrupt/.test(k)), 'the unreadable copy is still kept aside');
+  }],
+  ['Durability: a full quota drops old copies rather than losing the save', () => {
+    // A backend that refuses anything over a small budget.
+    const data = {};
+    let budget = 2200;
+    const tight = {
+      data,
+      getItem: k => (k in data ? data[k] : null),
+      setItem: (k, v) => {
+        const size = Object.keys(data).reduce((a, key) => a + (key === k ? 0 : data[key].length), 0) + String(v).length;
+        if (size > budget) { const e = new Error('QuotaExceededError'); e.name = 'QuotaExceededError'; throw e; }
+        data[k] = String(v);
+      },
+      removeItem: k => { delete data[k]; }
+    };
+    const s = createStore(tight);
+    s.setProfile({ qualification:'0478', syllabusId:'0478-2026-2028', examYear:2027, level:'IGCSE' });
+    for (let i = 0; i < 6; i++) {
+      s.recordAttempt({ questionId:'q-' + i, topicId:'0478.8', correct:true, marksAwarded:5, marksAvailable:5 });
+      s.snapshotNow('fill');
+    }
+    // The work itself must have survived, whatever happened to the copies.
+    assertEq(createStore(tight).attempts().length, 6, 'every attempt should still be saved');
+  }],
+  ['Durability: erasing everything removes the copies too', () => {
+    const s = testStore();
+    s.recordAttempt({ questionId:'q-a', topicId:'0478.8', correct:true });
+    s.snapshotNow('x');
+    assert(s.snapshots().length > 0, 'there are copies to remove');
+    s.reset();
+    assertEq(s.snapshots().length, 0, 'an erase that left copies behind would not be an erase');
+    assertEq(s.attempts().length, 0, 'and the record itself is gone');
+  }],
+  ['Durability: erasing one course keeps a copy, because it is not an erase-all', () => {
+    const s = testStore();
+    s.recordAttempt({ questionId:'q-a', topicId:'0478.8', correct:true });
+    s.reset('profile');
+    assertEq(s.getProfile(), null, 'the course is gone');
+    assert(s.snapshots().some(x => x.reason === 'before-erase-course'),
+      'but the moment before it went is recoverable');
+  }],
+
+  /* ---- Several learners sharing one browser ---- */
+  ['Learners: a shared browser gives each person their own record', () => {
+    const mem = memoryBackend();
+    const s = createStore(mem);
+    assertEq(s.learners().length, 1, 'one learner to begin with');
+    assertEq(s.currentLearner().id, 'default', 'and it is the original keyspace');
+
+    s.setProfile({ qualification:'0478', syllabusId:'0478-2026-2028', examYear:2027, level:'IGCSE' });
+    s.recordAttempt({ questionId:'q-larger-of-two', topicId:'0478.8', correct:true });
+
+    const added = s.addLearner('Ama');
+    assert(added.ok, 'a second person can be added: ' + (added.error || ''));
+    s.switchLearner(added.id);
+    assertEq(s.getProfile(), null, 'the second person starts with nothing');
+    assertEq(s.attempts().length, 0, 'and cannot see the work of the first person');
+
+    s.setProfile({ qualification:'9618', syllabusId:'9618-2026', examYear:2026, level:'AS' });
+    s.recordAttempt({ questionId:'q-digit-count', topicId:'9618.11', correct:true });
+
+    s.switchLearner('default');
+    assertEq(s.attempts().length, 1, 'the first person still has their own attempt');
+    assertEq(s.attempts()[0].questionId, 'q-larger-of-two', 'unchanged');
+    assertEq(s.getProfile().qualification, '0478', 'and their own course');
+  }],
+  ['Learners: the choice of person survives a reload', () => {
+    const mem = memoryBackend();
+    const a = createStore(mem);
+    const added = a.addLearner('Bo');
+    a.switchLearner(added.id);
+    a.setProfile({ qualification:'9618', syllabusId:'9618-2026', examYear:2026, level:'AS' });
+    a.recordAttempt({ questionId:'q-digit-count', topicId:'9618.11', correct:true });
+
+    const b = createStore(mem);           // a fresh page load
+    assertEq(b.currentLearner().label, 'Bo', 'the same person is still selected');
+    assertEq(b.attempts().length, 1, 'with their own record');
+  }],
+  ['Learners: removing someone takes their record and copies with them', () => {
+    const mem = memoryBackend();
+    const s = createStore(mem);
+    const added = s.addLearner('Cy');
+    s.switchLearner(added.id);
+    s.setProfile({ qualification:'0478', syllabusId:'0478-2026-2028', examYear:2027, level:'IGCSE' });
+    s.recordAttempt({ questionId:'q-a', topicId:'0478.8', correct:true });
+    s.snapshotNow('x');
+    assert(Object.keys(mem.data).some(k => k.indexOf(added.id) >= 0), 'their keys exist');
+
+    s.switchLearner('default');
+    assert(s.removeLearner(added.id).ok, 'they can be removed');
+    assert(!Object.keys(mem.data).some(k => k.indexOf(added.id) >= 0), 'and nothing of theirs is left behind');
+    assertEq(s.learners().length, 1, 'one person remains');
+    assertEq(s.removeLearner('default').ok, false, 'the last person cannot be removed');
+  }],
+  ['Learners: an existing single-learner install is adopted in place', () => {
+    const mem = memoryBackend();
+    // Someone who used the previous build: data under the original key, no register.
+    const a = createStore(mem);
+    a.setProfile({ qualification:'0478', syllabusId:'0478-2026-2028', examYear:2027, level:'IGCSE' });
+    a.recordAttempt({ questionId:'q-larger-of-two', topicId:'0478.8', correct:true });
+    delete mem.data['dryrun.learners'];          // as if the register had never been written
+
+    const b = createStore(mem);
+    assertEq(b.currentLearner().id, 'default', 'they are the default learner');
+    assertEq(b.attempts().length, 1, 'and their work is exactly where it was');
+    assert(mem.data['dryrun.store.v3'], 'still under the original key');
+  }],
+  ['Learners: switching never leaves another person’s course on screen', () => {
+    if (typeof document === 'undefined') return;
+    // The header chip is rewritten unconditionally, so it cannot keep showing
+    // a course belonging to whoever used the browser before.
+    const el = document.getElementById('course-chip-text');
+    assert(el, 'the course chip should exist');
+    assertEq(el.textContent.trim(), 'Choose your course',
+      'with no course chosen the chip must say so, not name someone else’s');
+  }],
+  ['Durability: recovery returns the last saved state, not the one before it', () => {
+    const mem = memoryBackend();
+    const a = createStore(mem);
+    a.setProfile({ qualification:'0478', syllabusId:'0478-2026-2028', examYear:2027, level:'IGCSE' });
+    a.recordAttempt({ questionId:'q-larger-of-two', topicId:'0478.8', correct:true, marksAwarded:5, marksAvailable:5 });
+    // No forced snapshot here on purpose: this is what an ordinary session
+    // looks like just before something damages the record.
+    mem.setItem('dryrun.store.v3', '{"version":3,"profiles":{ truncated');
+
+    const b = createStore(mem);
+    assertEq(b.attempts().length, 1, 'the attempt made just before the damage must come back');
+    assertEq(b.attempts()[0].questionId, 'q-larger-of-two', 'and be the right one');
+    assertEq(b.getProfile().qualification, '0478', 'with the course intact');
+    assert(/restored from the automatic copy/i.test(b.error || ''), 'and the student is told what happened');
+  }],
   ['Trace table: round trip through every non-array example', () => {
     for (const ex of EXAMPLES) {
       if (/ARRAY/.test(ex.code)) continue;
@@ -6844,13 +7297,12 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
         `<span class="count" aria-hidden="true">${n || 'soon'}</span></button>`;
     }).join('') || (topics.length ? '<p class="rail-label" style="text-transform:none;letter-spacing:0">No topic matches that.</p>' : '');
 
-    // course chip + evidence pill
-    if (profile) {
-      const syl = syllabusById(profile.syllabusId);
-      $('course-chip-text').innerHTML = syl
-        ? `${esc(syl.code)} <span class="label-long">· ${esc(String(profile.examYear))}${profile.level ? ' · ' + esc(profile.level) : ''}</span>`
-        : 'Choose your course';
-    }
+    // The chip is always rewritten, never left as it was: with no profile it
+    // must not keep showing the previous learner's course.
+    const syl = profile ? syllabusById(profile.syllabusId) : null;
+    $('course-chip-text').innerHTML = (profile && syl)
+      ? `${esc(syl.code)} <span class="label-long">· ${esc(String(profile.examYear))}${profile.level ? ' · ' + esc(profile.level) : ''}</span>`
+      : 'Choose your course';
     const all = store.allTopicProgress();
     const due = store.dueReviews().length;
     const secure = Object.keys(all).filter(k => all[k].evidence === 'SECURE').length;
@@ -7795,7 +8247,94 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     say('ev-status', 'Exported with no name, email or device identifier in it.', 'ok');
   });
 
+  function renderLearners() {
+    const list = store.learners();
+    $('learner-list').innerHTML = list.map(l =>
+      `<div class="topic-row" style="cursor:default">` +
+      `<span class="name">${esc(l.label)}${l.active ? '' : ''}` +
+      `<br><span class="code">${l.active ? 'using this now' : 'added ' + esc(new Date(l.createdAt || Date.now()).toLocaleDateString())}</span></span>` +
+      (l.active
+        ? '<span class="pill is-secure">You</span>'
+        : `<span style="display:flex;gap:8px"><button class="btn" data-switch="${esc(l.id)}">Switch to</button>` +
+          `<button class="btn danger" data-remove="${esc(l.id)}">Remove</button></span>`) +
+      '</div>').join('');
+
+    $('learner-list').querySelectorAll('[data-switch]').forEach(b => {
+      b.onclick = () => {
+        const r = store.switchLearner(b.dataset.switch);
+        if (!r.ok) { say('learner-status', r.error, 'err'); return; }
+        session = null; item = null;
+        renderRail();
+        toast('Switched to ' + (store.currentLearner() || {}).label);
+        go(store.getProfile() ? 'dashboard' : 'onboarding');
+      };
+    });
+    $('learner-list').querySelectorAll('[data-remove]').forEach(b => {
+      b.onclick = () => {
+        const who = list.filter(l => l.id === b.dataset.remove)[0];
+        if (!confirm(`Remove ${who ? who.label : 'this person'} and everything they have done on this browser? Their export file, if they made one, still works.`)) return;
+        const r = store.removeLearner(b.dataset.remove);
+        say('learner-status', r.ok ? 'Removed.' : r.error, r.ok ? 'warn' : 'err');
+        renderLearners();
+      };
+    });
+  }
+  $('btn-learner-add').addEventListener('click', () => {
+    const r = store.addLearner($('learner-name').value);
+    if (!r.ok) { say('learner-status', r.error, 'err'); return; }
+    $('learner-name').value = '';
+    say('learner-status', `Added ${r.label}. Use "Switch to" when it is their turn.`, 'ok');
+    renderLearners();
+  });
+  $('learner-name').addEventListener('keydown', ev => { if (ev.key === 'Enter') $('btn-learner-add').click(); });
+
+  const SNAP_REASON = {
+    autosave:'routine copy', manual:'you asked for it', 'before-import':'before an import',
+    'before-restore':'before a restore', 'before-erase-course':'before erasing a course',
+    restored:'after a restore'
+  };
+  function renderSnapshots() {
+    const snaps = store.snapshots();
+    $('snapshot-list').innerHTML = snaps.length
+      ? '<div class="scroll-x"><table><thead><tr><th>Taken</th><th>Why</th><th class="n">Size</th><th></th></tr></thead><tbody>' +
+        snaps.map(x => `<tr><td>${esc(new Date(x.at).toLocaleString())}</td>` +
+          `<td>${esc(SNAP_REASON[x.reason] || x.reason)}</td>` +
+          `<td class="n">${Math.round(x.bytes / 102.4) / 10} KB</td>` +
+          `<td><button class="btn" data-snap="${esc(x.id)}">Restore</button></td></tr>`).join('') +
+        '</tbody></table></div>'
+      : '<p class="empty">No copies yet. One is taken as soon as you have work worth keeping.</p>';
+    $('snapshot-list').querySelectorAll('[data-snap]').forEach(b => {
+      b.onclick = () => {
+        if (!confirm('Go back to this copy? What you have now is itself saved as a copy first, so this can be undone.')) return;
+        const r = store.restoreSnapshot(b.dataset.snap);
+        if (!r.ok) { say('snapshot-status', r.error, 'err'); return; }
+        session = null; item = null;
+        say('snapshot-status', `Restored the copy from ${new Date(r.at).toLocaleString()} — ${r.profiles} course record${r.profiles === 1 ? '' : 's'}.`, 'ok');
+        renderRail(); renderSnapshots();
+      };
+    });
+
+    store.storageReport().then(rep => {
+      const parts = [];
+      if (rep.persisted === true) parts.push('This browser has marked your work as persistent, so it will not be cleared to free space.');
+      else if (rep.persisted === false) parts.push('This browser has not marked your work as persistent, so it could be cleared if the device runs very low on space. Export now and then.');
+      if (rep.usage != null && rep.quota) {
+        parts.push(`Using ${Math.round(rep.usage / 1024)} KB of about ${Math.round(rep.quota / 1048576)} MB available.`);
+      }
+      parts.push((rep.hasLive ? 'A live copy of your last save is kept, plus ' : 'Keeping ') +
+        `${rep.snapshots} point${rep.snapshots === 1 ? '' : 's'} you can go back to.`);
+      $('storage-report').textContent = parts.join(' ');
+    });
+  }
+  $('btn-snap-now').addEventListener('click', () => {
+    store.snapshotNow('manual');
+    say('snapshot-status', 'Copy saved on this device.', 'ok');
+    renderSnapshots();
+  });
+
   function renderSettings() {
+    renderLearners();
+    renderSnapshots();
     const p = store.getProfile();
     const syl = syllabusById(p.syllabusId);
     const others = store.listProfiles().filter(x => !x.active);
@@ -7845,7 +8384,9 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     go('onboarding');
   });
   $('btn-set-reset-all').addEventListener('click', () => {
-    if (!confirm('Erase every course, every attempt and every review in this browser? This cannot be undone. Export first if you want a copy.')) return;
+    if (!confirm('Erase every course, every attempt, every review AND the automatic copies for ' +
+                 ((store.currentLearner() || {}).label || 'this person') +
+                 '? This cannot be undone. Export first if you want to keep anything.')) return;
     store.reset();
     session = null; item = null;
     say('settings-status', 'Everything erased.', 'warn');
