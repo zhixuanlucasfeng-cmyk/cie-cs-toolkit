@@ -37,6 +37,7 @@ A failing hidden case is described in words ("when given two equal numbers") wit
 
 | Area | What it does |
 |---|---|
+| **Pseudocode IDE** | A full editor for CIE pseudocode: syntax highlighting, problems reported as you type, auto-indent that closes blocks for you, click-a-line-number breakpoints, step and continue, with output, variables and a trace table beside it. Your program is saved in the browser as you type. |
 | **Practice** | 36 original questions plus generated ones, marked against hidden cases. Run executes your program and awards nothing; Check answer marks it and records an attempt. Show answer stays locked until two attempts. |
 | **Pseudocode Lab** | Trace simulator, Structured English → pseudocode, trace table → pseudocode, and flowchart → pseudocode + trace table + drawn chart. |
 | **Logic Lab** | Truth tables with a column per intermediate step, and the circuit drawn with textbook gate symbols. |
@@ -111,7 +112,7 @@ Three tests hold the bank to account, so it cannot rot as it grows: every refere
 
 ## Built-in self-test
 
-136 assertions covering the interpreter, the CIE-specific errors, both pseudocode converters, flowchart drawing, truth tables, hidden-case grading, the syllabus registry, the storage layer and its migrations, accessibility and the metadata. The contrast check reads the live custom properties, so the stylesheet itself is what gets tested.
+157 assertions covering the interpreter, the CIE-specific errors, both pseudocode converters, flowchart drawing, truth tables, hidden-case grading, the syllabus registry, the storage layer and its migrations, accessibility and the metadata. The contrast check reads the live custom properties, so the stylesheet itself is what gets tested.
 
 Add `?selftest=1` to the URL, or run it from the command line:
 
