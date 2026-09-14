@@ -635,7 +635,8 @@
     display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
     gap:var(--s12); align-items:start; padding-block:var(--s8) var(--s12);
   }
-  .landing-lede h1 { font-size:38px; line-height:1.18; margin-bottom:var(--s4); max-width:18ch; }
+  /* Balanced so the last line is never a single orphaned word. */
+  .landing-lede h1 { font-size:38px; line-height:1.18; margin-bottom:var(--s4); text-wrap:balance; }
   .landing-lede .lede { font-size:17px; color:var(--text-secondary); max-width:46ch; margin-bottom:var(--s6); }
 
   .landing-proof {
