@@ -954,100 +954,78 @@
       </div>
     </section>
 
-    <!-- ================= Welcome (public landing) ================= -->
+    <!-- ================= Welcome ================= -->
     <section class="view" id="view-welcome" aria-labelledby="wel-h">
       <div class="landing">
 
         <div class="landing-lede">
           <div>
-            <p class="eyebrow">Independent · Cambridge IGCSE 0478 &amp; AS/A Level 9618</p>
+            <p class="eyebrow">Cambridge IGCSE 0478 · AS &amp; A Level 9618</p>
             <h1 id="wel-h">Find where your reasoning breaks.</h1>
             <p class="lede">Write pseudocode, run it against hidden test cases, inspect the trace, and learn which step needs work.</p>
             <div class="btn-row">
               <button class="btn primary lg" id="btn-wel-start">Try the diagnostic</button>
-              <button class="btn lg" id="btn-wel-ide">Open the IDE</button>
+              <button class="btn lg" id="btn-wel-ide">Open the editor</button>
             </div>
-            <p class="hint">No account. Nothing uploaded. Works offline once loaded.</p>
+            <p class="hint">No account. Nothing uploaded. Works offline.</p>
           </div>
           <div class="landing-proof">
-            <div class="proof-head"><span class="dot is-due" aria-hidden="true"></span> Why a mark scheme is not enough</div>
+            <div class="proof-head"><span class="dot is-due" aria-hidden="true"></span> Why one right answer is not enough</div>
             <pre class="outcode" id="wel-wrong"></pre>
             <div class="proof-verdict" id="wel-verdict"></div>
           </div>
         </div>
 
-        <div class="landing-band">
-          <h2>How marking actually works</h2>
-          <div class="steps-row">
-            <div class="step-item"><span class="step-n">1</span><b>You write a program</b><p>Not a multiple choice. Real CIE pseudocode, in an editor that knows the syntax.</p></div>
-            <div class="step-item"><span class="step-n">2</span><b>It runs on cases you cannot see</b><p>Ordinary values, then the awkward ones: boundaries, zero, negatives, empty input.</p></div>
-            <div class="step-item"><span class="step-n">3</span><b>You get a mark breakdown</b><p>Which categories earned marks, the first case that failed, and what kind of mistake it looks like.</p></div>
-            <div class="step-item"><span class="step-n">4</span><b>Wrong answers come back</b><p>Anything you get wrong returns on a spacing schedule until you can do it unaided.</p></div>
-          </div>
-        </div>
-
         <div class="landing-split">
           <div>
-            <h2>The five representations</h2>
-            <p>The same algorithm is structured English, pseudocode, a trace table, a flowchart and a logic circuit. Understanding usually breaks when you move between two of them — so DryRun lets you move across all five and watch where the versions stop agreeing.</p>
+            <h2>What you get</h2>
             <ul class="plain-list">
-              <li>Structured English → pseudocode, with the trace of the result</li>
-              <li>A trace table you fill in → the program that would produce it</li>
-              <li>A flowchart → drawn chart, pseudocode and trace at once</li>
-              <li>Boolean expressions → truth table with every intermediate step, and the circuit</li>
+              <li>An editor with highlighting, live error checking and breakpoints</li>
+              <li>Questions marked by running your program, not by matching text</li>
+              <li>Wrong answers named: a boundary slip, negatives unhandled, a loop one out</li>
+              <li>Anything you get wrong returns on a spacing schedule</li>
+              <li>Structured English, trace tables, flowcharts and logic circuits, converted between</li>
             </ul>
           </div>
           <div>
-            <h2>What is actually covered</h2>
+            <h2>What is covered</h2>
             <div id="wel-coverage"></div>
           </div>
         </div>
 
         <div class="landing-band" id="wel-teachers">
           <h2>For teachers</h2>
-          <p class="lede-sm">A no-login diagnostic lab for Cambridge Computer Science. Students practise in the browser and export evidence for their teacher.</p>
+          <p class="lede-sm">A no-login diagnostic lab. Students practise in the browser and export evidence for you.</p>
           <div class="teacher-grid">
             <div>
-              <h3>How it works in a classroom</h3>
+              <h3>How it works</h3>
               <ul class="plain-list">
-                <li>Send the link. There is nothing to install and no account to create.</li>
-                <li>Students take a short diagnostic, then practise; wrong answers return on a schedule.</li>
-                <li>They export a JSON or CSV file and hand it to you. Every row names the course it belongs to.</li>
-                <li>Questions are original, written against publicly listed syllabus content.</li>
+                <li>Send the link. Nothing to install, no accounts.</li>
+                <li>Students take a diagnostic, then practise.</li>
+                <li>They export JSON or CSV and hand it to you. Every row names its course.</li>
+                <li>Questions are original, written against published syllabus content.</li>
               </ul>
             </div>
             <div>
-              <h3>What it does not do</h3>
+              <h3>What it is not</h3>
               <ul class="plain-list">
-                <li>It does not cover a whole syllabus. Coverage is listed above, generated from the question bank.</li>
-                <li>There is no class dashboard yet — evidence arrives as files from students.</li>
-                <li>Progress lives in each student's browser. Clearing site data loses it unless exported.</li>
-                <li>No past-paper material is reproduced, and no grade improvement is claimed.</li>
+                <li>Not a full syllabus. Coverage is listed above, counted from the question bank.</li>
+                <li>No class dashboard yet. Evidence arrives as files.</li>
+                <li>Progress lives in each student's browser and is lost if they clear it.</li>
+                <li>No past-paper material, and no claim about grades.</li>
               </ul>
             </div>
           </div>
           <div class="pilot-note">
             <b>Teacher pilot evidence coming soon.</b>
-            <p>No classroom study has been run yet, so there are no adoption figures, testimonials or grade claims on this page — and there will not be until there is real data to show.</p>
-          </div>
-        </div>
-
-        <div class="landing-split">
-          <div>
-            <h2>Your data stays with you</h2>
-            <p>Your answers and progress stay in this browser. Nothing is uploaded. Export your progress before changing device or clearing browser data.</p>
-            <div class="btn-row"><button class="btn" id="btn-wel-privacy">Read the privacy note</button></div>
-          </div>
-          <div>
-            <h2>Independence</h2>
-            <p><b>Independent learning resource — not endorsed by Cambridge International Education.</b></p>
-            <p class="hint">Cambridge International Education is not affiliated with this project and does not endorse it. The syllabus codes are used only to say which courses this resource is aimed at.</p>
+            <p>No classroom study has been run, so there are no adoption figures or grade claims here.</p>
           </div>
         </div>
 
         <div class="landing-finish">
           <button class="btn primary lg" id="btn-wel-start-2">Try the diagnostic</button>
-          <button class="btn lg" id="btn-wel-labs-2">Explore the labs</button>
+          <button class="btn lg" id="btn-wel-labs-2">Browse the converters</button>
+          <button class="btn ghost lg" id="btn-wel-privacy">How your data is handled</button>
         </div>
       </div>
     </section>
@@ -1227,89 +1205,23 @@
     <!-- ================= Pseudocode Lab ================= -->
     <section class="view" id="view-lab-pseudocode" aria-labelledby="lab-h">
       <div class="page-head">
-        <h1 id="lab-h">Pseudocode Lab</h1>
-        <p>Free tools, not marked. Move an algorithm between every representation and see where they disagree.</p>
+        <h1 id="lab-h">Convert</h1>
+        <p>Turn one representation into another. Nothing here is marked.</p>
       </div>
 
       <div class="inspector-tabs" role="tablist" aria-label="Pseudocode tools" style="border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:16px;background:var(--surface)">
-        <button role="tab" id="tab-trace" aria-selected="true" aria-controls="p-trace">Trace simulator</button>
-        <button role="tab" id="tab-eng" aria-selected="false" aria-controls="p-eng" tabindex="-1">English → code</button>
+        <button role="tab" id="tab-eng" aria-selected="true" aria-controls="p-eng">English → code</button>
         <button role="tab" id="tab-tt" aria-selected="false" aria-controls="p-tt" tabindex="-1">Table → code</button>
         <button role="tab" id="tab-flow" aria-selected="false" aria-controls="p-flow" tabindex="-1">Flowchart</button>
+        <button role="tab" id="tab-make" aria-selected="false" aria-controls="p-make" tabindex="-1">Write a question</button>
       </div>
 
-      <div id="p-trace" role="tabpanel" aria-labelledby="tab-trace" tabindex="0">
-        <div class="grid-2">
-          <div class="panel">
-            <div class="panel-head"><h2>Pseudocode</h2></div>
-            <div class="panel-body">
-              <label class="field-label" for="example">Load an example</label>
-              <select id="example" class="control" style="margin-bottom:12px"></select>
-
-              <label class="field-label" for="code">Pseudocode editor</label>
-              <div class="editor">
-                <div class="gutter" id="gutter" aria-hidden="true"></div>
-                <div class="ed-wrap">
-                  <div class="hl" aria-hidden="true"><div class="hl-bar" id="hlbar"></div></div>
-                  <textarea id="code" spellcheck="false" wrap="off" aria-describedby="code-help"></textarea>
-                </div>
-              </div>
-              <p class="sr-only" id="code-help">Write CIE pseudocode. Use the left arrow symbol for assignment.</p>
-
-              <div style="margin-top:12px">
-                <label class="field-label" for="inputs">Values for INPUT (one per line, used in order)</label>
-                <textarea id="inputs" class="control" rows="2" spellcheck="false" placeholder="One value per line, e.g. 7"></textarea>
-              </div>
-
-              <div class="btn-row">
-                <button class="btn primary" id="btn-step">Step</button>
-                <button class="btn" id="btn-play">Auto-play</button>
-                <button class="btn" id="btn-reset">Reset</button>
-                <button class="btn" id="btn-copy-trace">Copy table</button>
-              </div>
-              <p class="status" id="trace-status" role="status" aria-live="polite">Click "Step" to start running line by line.</p>
-
-              <details style="margin-top:16px">
-                <summary style="cursor:pointer;color:var(--text-secondary);font-size:13px">Which syntax is supported?</summary>
-                <div class="q-example" style="margin-top:8px" id="syntax-help">
-DECLARE x : INTEGER / REAL / BOOLEAN / CHAR / STRING<br>
-DECLARE a : ARRAY[1:10] OF INTEGER&nbsp;&nbsp;<span style="color:var(--warning)">indices start at 1</span><br>
-DECLARE g : ARRAY[1:3, 1:4] OF INTEGER&nbsp;&nbsp;then g[row, col]<br>
-CONSTANT PI = 3.14<br>
-x ← expression&nbsp;&nbsp;<span style="color:var(--warning)">always assign with ← (you may also type &lt;-)</span><br>
-Operators: + - * / MOD DIV &amp; (string join)<br>
-Comparison: = &lt;&gt; &lt; &gt; &lt;= &gt;=&nbsp;&nbsp;&nbsp;Logic: AND OR NOT<br>
-IF … THEN … ELSE … ENDIF&nbsp;&nbsp;(THEN may be omitted)<br>
-CASE OF x / value : statement / OTHERWISE statement / ENDCASE<br>
-FOR i ← 1 TO 5 STEP 2 … NEXT i (or ENDFOR)<br>
-WHILE condition DO … ENDWHILE&nbsp;&nbsp;&nbsp;REPEAT … UNTIL condition<br>
-OUTPUT expression, expression&nbsp;&nbsp;&nbsp;INPUT x<br>
-Functions: LENGTH MID LEFT RIGHT UCASE LCASE INT ROUND<br>
-PROCEDURE Name(a : INTEGER, BYREF b : INTEGER) … ENDPROCEDURE&nbsp;&nbsp;then CALL Name(x, y)<br>
-FUNCTION Name(n : INTEGER) RETURNS INTEGER … RETURN … ENDFUNCTION&nbsp;&nbsp;<span style="color:var(--warning)">recursion allowed</span><br>
-OPENFILE "f.txt" FOR READ / WRITE / APPEND&nbsp;&nbsp;READFILE "f.txt", x&nbsp;&nbsp;WRITEFILE "f.txt", x<br>
-CLOSEFILE "f.txt"&nbsp;&nbsp;EOF("f.txt")&nbsp;&nbsp;<span style="color:var(--text-muted)">files live in memory for one run only</span><br>
-Comments: start the line with //
-                </div>
-              </details>
-            </div>
-          </div>
-
-          <div class="panel" style="margin:0">
-            <div class="panel-head"><h2>Trace table</h2></div>
-            <div class="panel-body">
-              <div class="scroll-x" id="trace-out" role="region" aria-label="Trace table"><p class="empty">Nothing has been run yet.</p></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="p-eng" role="tabpanel" aria-labelledby="tab-eng" tabindex="0" hidden>
+      <div id="p-eng" role="tabpanel" aria-labelledby="tab-eng" tabindex="0">
         <div class="grid-2">
           <div class="panel">
             <div class="panel-head"><h2>Structured English</h2></div>
             <div class="panel-body">
-              <label class="field-label" for="eng">One instruction per line. Indent whatever sits inside a loop or an If.</label>
+              <label class="field-label" for="eng">One instruction per line. Indent what sits inside a loop or an If.</label>
               <textarea id="eng" class="control" rows="12" spellcheck="false" wrap="off"></textarea>
               <div class="btn-row">
                 <button class="btn primary" id="btn-eng">Convert</button>
@@ -1354,7 +1266,7 @@ Comments: start the line with //
                 <button class="btn" id="btn-tt-copy">Copy</button>
                 <button class="btn" id="btn-tt-send">Send to simulator</button>
               </div>
-              <p class="status" id="tt-status" role="status" aria-live="polite">Fill the table in, then click Generate. Leave a cell blank when that variable does not change.</p>
+              <p class="status" id="tt-status" role="status" aria-live="polite">Blank cell means unchanged.</p>
             </div>
           </div>
           <div class="panel" style="margin:0">
@@ -1369,7 +1281,7 @@ Comments: start the line with //
           <div class="panel">
             <div class="panel-head"><h2>Your flowchart</h2></div>
             <div class="panel-body">
-              <label class="field-label" for="flow-in">One box per line, as CIE pseudocode or plain structured English. START and STOP are optional.</label>
+              <label class="field-label" for="flow-in">One box per line. CIE pseudocode or structured English. START and STOP optional.</label>
               <textarea id="flow-in" class="control" rows="12" spellcheck="false" wrap="off"></textarea>
               <div style="margin-top:12px">
                 <label class="field-label" for="flow-inputs">Values for INPUT (one per line)</label>
@@ -1399,13 +1311,62 @@ Comments: start the line with //
           </div>
         </div>
       </div>
+
+      <div id="p-make" role="tabpanel" aria-labelledby="tab-make" tabindex="0" hidden>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><h2>Your question</h2></div>
+            <div class="panel-body">
+              <div style="display:flex;gap:8px">
+                <div style="flex:1;min-width:0">
+                  <label class="field-label" for="mk-title">Title</label>
+                  <input id="mk-title" class="control" maxlength="60" placeholder="Largest of three">
+                </div>
+                <div style="width:38%;min-width:0">
+                  <label class="field-label" for="mk-author">Your name (optional)</label>
+                  <input id="mk-author" class="control" maxlength="40">
+                </div>
+              </div>
+              <div style="margin-top:12px">
+                <label class="field-label" for="mk-prompt">What should the program do?</label>
+                <textarea id="mk-prompt" class="control" rows="3" placeholder="Read three whole numbers and output the largest of them."></textarea>
+              </div>
+              <div style="margin-top:12px">
+                <label class="field-label" for="mk-solution">Your solution. The marking comes from running this.</label>
+                <textarea id="mk-solution" class="control" rows="9" spellcheck="false" wrap="off"></textarea>
+              </div>
+              <div style="margin-top:12px">
+                <label class="field-label" for="mk-cases">Test cases, one per line. Commas separate the INPUT values.</label>
+                <textarea id="mk-cases" class="control" rows="4" spellcheck="false" placeholder="1, 2, 3&#10;9, 4, 7&#10;5, 5, 5"></textarea>
+              </div>
+              <div style="margin-top:12px">
+                <label class="field-label" for="mk-hints">Hints, one per line (optional)</label>
+                <textarea id="mk-hints" class="control" rows="2"></textarea>
+              </div>
+              <div class="btn-row">
+                <button class="btn primary" id="btn-mk-check">Check it works</button>
+                <button class="btn" id="btn-mk-try" disabled>Try it</button>
+                <button class="btn" id="btn-mk-save" disabled>Save to a file</button>
+                <button class="btn ghost" id="btn-mk-open">Open someone's question</button>
+                <input type="file" id="mk-file" accept="application/json,.json" class="sr-only"
+                       aria-label="Choose a question file to open">
+              </div>
+              <p class="status" id="mk-status" role="status" aria-live="polite"></p>
+            </div>
+          </div>
+          <div class="panel" style="margin:0">
+            <div class="panel-head"><h2>What your question will do</h2></div>
+            <div class="panel-body"><div id="mk-preview"><p class="empty">Write a question, then check it.</p></div></div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- ================= Logic Lab ================= -->
     <section class="view" id="view-lab-logic" aria-labelledby="logic-h">
       <div class="page-head">
-        <h1 id="logic-h">Logic Lab</h1>
-        <p>Every intermediate step gets its own column, and the circuit is drawn with the gate symbols used on the paper.</p>
+        <h1 id="logic-h">Logic</h1>
+        <p>Truth tables with every intermediate step, and the matching circuit.</p>
       </div>
       <div class="grid-2">
         <div class="panel">
@@ -1460,18 +1421,6 @@ Comments: start the line with //
         </div>
       </div>
       <div class="panel">
-        <div class="panel-head"><h2>How these are worked out</h2></div>
-        <div class="panel-body" id="method-body"></div>
-      </div>
-    </section>
-
-    <!-- ================= Evidence ================= -->
-    <section class="view" id="view-evidence" aria-labelledby="ev-h">
-      <div class="page-head">
-        <h1 id="ev-h">Evidence</h1>
-        <p>Does this actually help anyone learn? This page only ever shows what has really been recorded on this device. Where there is no data, it says so rather than filling the space.</p>
-      </div>
-      <div class="panel">
         <div class="panel-head"><h2>Learning gain</h2></div>
         <div class="panel-body" id="ev-gain"></div>
       </div>
@@ -1482,6 +1431,10 @@ Comments: start the line with //
       <div class="panel">
         <div class="panel-head"><h2>Slips that keep coming back</h2></div>
         <div class="panel-body" id="ev-slips"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h2>How these are worked out</h2></div>
+        <div class="panel-body" id="method-body"></div>
       </div>
       <div class="panel">
         <div class="panel-head"><h2>Tell us what you think</h2></div>
@@ -1513,22 +1466,18 @@ Comments: start the line with //
           <div id="ev-feedback-list" style="margin-top:16px"></div>
         </div>
       </div>
-      <div class="panel">
-        <div class="panel-head"><h2>How a study would be run</h2></div>
-        <div class="panel-body" id="ev-method"></div>
-      </div>
     </section>
 
     <!-- ================= Settings ================= -->
     <section class="view" id="view-settings" aria-labelledby="set-h">
       <div class="page-head">
         <h1 id="set-h">Settings</h1>
-        <p>Everything here is stored in this browser only. Nothing is uploaded.</p>
+        <p>Stored in this browser only.</p>
       </div>
       <div class="panel">
         <div class="panel-head"><h2>Who is using this browser</h2></div>
         <div class="panel-body">
-          <p>If you share a computer — a school machine, a family laptop — add yourself here so your work is kept apart from everyone else's. Names stay on this device and are never uploaded.</p>
+          <p>Sharing a computer? Add yourself so your work stays separate. Names stay on this device.</p>
           <div id="learner-list" class="topic-map"></div>
           <div style="display:flex;gap:8px;margin-top:12px">
             <label class="sr-only" for="learner-name">Your name or nickname</label>
@@ -1547,7 +1496,7 @@ Comments: start the line with //
       <div class="panel">
         <div class="panel-head"><h2>Automatic copies on this device</h2></div>
         <div class="panel-body">
-          <p>DryRun keeps the last few copies of your work in this browser and takes one before anything risky, such as an import. If a record is ever damaged, it is restored from the newest copy by itself.</p>
+          <p>The last few versions are kept here, and one is taken before anything risky. A damaged record is restored automatically.</p>
           <div id="snapshot-list"></div>
           <div class="btn-row">
             <button class="btn" id="btn-snap-now">Save a copy now</button>
@@ -1559,7 +1508,7 @@ Comments: start the line with //
       <div class="panel">
         <div class="panel-head"><h2>Your data</h2></div>
         <div class="panel-body">
-          <p>Your attempts, evidence and review queue live in this browser's storage. Export them if you are changing device or want to hand them to a teacher.</p>
+          <p>Export before changing device, or to hand evidence to a teacher.</p>
           <div class="btn-row">
             <button class="btn" id="btn-set-export">Export everything</button>
             <button class="btn" id="btn-set-import">Import a backup</button>
@@ -1575,73 +1524,44 @@ Comments: start the line with //
       </div>
     </section>
 
-    <!-- ================= Privacy ================= -->
-    <section class="view" id="view-privacy" aria-labelledby="priv-h">
-      <div class="page-head">
-        <h1 id="priv-h">Your data</h1>
-        <p>In plain language, because you should not need a lawyer to use a revision tool.</p>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><h2>What is stored</h2></div>
-        <div class="panel-body">
-          <ul class="plain-list">
-            <li>The course you chose: qualification, syllabus version, exam year and level.</li>
-            <li>Every attempt: the question, what you submitted, the marks, how long it took, and what kind of mistake it looked like.</li>
-            <li>Your evidence per topic, your review queue, and any practice session in progress.</li>
-            <li>Any feedback you choose to write on the Evidence page.</li>
-          </ul>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><h2>Where it is stored</h2></div>
-        <div class="panel-body">
-          <p>In this browser, in its local storage, under the key <code>dryrun.store.v3</code>. It never leaves the device. There is no server to send it to.</p>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><h2>What is not collected</h2></div>
-        <div class="panel-body">
-          <ul class="plain-list">
-            <li>No account, no name, no email, no school.</li>
-            <li>No analytics, no tracking, no advertising, no cookies for tracking.</li>
-            <li>No third-party fonts or scripts. The page makes no network requests after it loads.</li>
-            <li>Your code is never uploaded. It runs in your own browser.</li>
-          </ul>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><h2>Exporting and erasing</h2></div>
-        <div class="panel-body">
-          <p><b>Automatic copies:</b> the last few versions of your work are kept in this browser, and one is taken before anything risky such as an import. If a record is ever damaged it is restored from the newest copy by itself. They live on this device only, and erasing everything removes them too — an erase that left copies behind would not be an erase.</p>
-          <p><b>Sharing a computer:</b> if several people use one browser, each can be added in Settings and gets their own separate record. Names are labels typed on this device; they are not accounts and are never uploaded.</p>
-          <p><b>Export:</b> Settings → Export everything, or the Evidence page for an anonymised copy. You get a JSON file; the CSV export has one row per attempt, each naming its course.</p>
-          <p><b>Erase:</b> Settings lets you erase the current course or everything. Both are immediate and cannot be undone.</p>
-          <p><b>If you clear your browser data</b> — including using private browsing or switching device or browser — your progress is gone unless you exported it. Restore a backup from Settings, or from the first screen before choosing a course.</p>
-        </div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><h2>For teachers and schools</h2></div>
-        <div class="panel-body">
-          <p>Because nothing leaves the browser, there is no student data for a school to process on our side, and no data-sharing agreement to sign. Evidence reaches you only when a student chooses to export a file and give it to you.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================= About ================= -->
+    <!-- ================= About and data ================= -->
     <section class="view" id="view-about" aria-labelledby="about-h">
       <div class="page-head">
         <h1 id="about-h">About DryRun</h1>
-        <p>An independent learning resource for Cambridge Computer Science, built as a single offline-capable page.</p>
+        <p>The same algorithm can be structured English, pseudocode, a trace table, a flowchart or a logic circuit. Understanding usually breaks when you move between two of them. DryRun lets you move across all five and see where the versions stop agreeing.</p>
       </div>
+
       <div class="panel">
-        <div class="panel-head"><h2>What it is</h2></div>
-        <div class="panel-body" id="about-body"></div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><h2>Check it for yourself</h2></div>
+        <div class="panel-head"><h2>Your data</h2></div>
         <div class="panel-body">
-          <p>Every rule in the interpreter, the graders, the syllabus registry and the progress logic is covered by assertions that run in your browser. Nothing is taken on trust.</p>
+          <p><b>Everything stays in this browser.</b> No account, no uploads, no analytics, no third-party scripts. After the page loads it makes no network requests at all.</p>
+          <p>Stored: the course you chose, every attempt and its marks, your topic evidence, your review queue, your saved editor program, and any feedback you write. All under <code>dryrun.store.v3</code> and a few keys beside it.</p>
+          <p>The last few versions of your work are kept as automatic copies, and one is taken before anything risky. A damaged record is restored from the newest copy by itself.</p>
+          <p><b>If you clear your browser data, switch device or use private browsing, your progress is gone unless you exported it.</b> Settings has Export, Import and Erase. Erasing everything removes the automatic copies too.</p>
+          <p>Several people can share one browser: add each of them in Settings and they get separate records. Names are labels typed on the device, not accounts.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>For schools</h2></div>
+        <div class="panel-body">
+          <p>Nothing leaves the browser, so there is no student data for a school to process on our side. Evidence reaches a teacher only when a student exports a file and hands it over.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Check it yourself</h2></div>
+        <div class="panel-body">
+          <p>The interpreter, the graders, the syllabus data and the progress logic are covered by assertions that run in your browser.</p>
           <div class="btn-row"><a class="btn" href="?selftest=1">Run the self-test</a></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Independence</h2></div>
+        <div class="panel-body">
+          <p><b>Independent learning resource, not endorsed by Cambridge International Education.</b></p>
+          <p>Cambridge International Education is not affiliated with this project. The syllabus codes say which courses it is aimed at, nothing more. Every question is original, written against publicly listed syllabus content.</p>
         </div>
       </div>
     </section>
@@ -4857,9 +4777,9 @@ function questionsForSyllabus(syllabusId) {
   and must stay off this list: gating them silently was what made the nav look
   broken before anyone had onboarded.
 */
-const VIEWS_NEEDING_COURSE = ['dashboard', 'practice', 'progress', 'evidence', 'settings'];
-const ALL_VIEWS = ['ide', 'welcome', 'onboarding', 'dashboard', 'practice', 'lab-pseudocode', 'lab-logic',
-                   'progress', 'evidence', 'settings', 'privacy', 'about'];
+const VIEWS_NEEDING_COURSE = ['dashboard', 'practice', 'progress', 'settings'];
+const ALL_VIEWS = ['ide', 'welcome', 'onboarding', 'dashboard', 'practice',
+                   'lab-pseudocode', 'lab-logic', 'progress', 'settings', 'about'];
 
 const STORE_VERSION = 3;
 /*
@@ -5145,6 +5065,9 @@ function createStore(backend, opts) {
           cache = recovered.version === STORE_VERSION ? recovered : migrateStore(recovered);
           lastError = 'Saved progress could not be read, so it was restored from the automatic copy taken ' +
                       new Date(snap.at).toLocaleString() + '. The unreadable copy was kept aside.';
+          // Persist the recovery at once, so the damaged bytes are not left
+          // sitting on disk waiting for the next save.
+          try { backend.setItem(STORE_KEY, JSON.stringify(cache)); } catch (e4) {}
           return cache;
         } catch (e3) {}
       }
@@ -5797,6 +5720,143 @@ function dedentFor(currentIndent) {
   return currentIndent.length >= INDENT_UNIT.length
     ? currentIndent.slice(0, currentIndent.length - INDENT_UNIT.length)
     : '';
+}
+
+/* ======================================================================
+   Module K: questions a student writes themselves
+
+   A question is a small object with a reference solution. Hidden cases are
+   derived by running that solution, so an author cannot publish a question
+   whose answers disagree with its own algorithm — the same rule the built-in
+   bank lives by. Questions travel as files, which is why this needs no
+   server and no account.
+   ====================================================================== */
+
+const SHARE_SCHEMA = 'dryrun-question';
+const SHARE_VERSION = 1;
+
+/*
+  Turns a draft into a question the existing grader can mark, or explains why
+  it cannot. Validation is strict on purpose: a shared question that does not
+  work wastes the time of everyone who opens it.
+*/
+function buildSharedQuestion(draft) {
+  const errors = [];
+  const title = String(draft.title || '').trim();
+  const prompt = String(draft.prompt || '').trim();
+  const solution = String(draft.solution || '').trim();
+  const author = String(draft.author || '').trim().slice(0, 40);
+
+  if (title.length < 3) errors.push('Give the question a title.');
+  if (prompt.length < 20) errors.push('Write a prompt of at least 20 characters, so it is clear what to do.');
+  if (!solution) errors.push('Write a solution. It is what the marking is derived from.');
+
+  // Each case is a line of comma-separated inputs; an empty line means no input.
+  const rawCases = String(draft.cases || '').split('\n')
+    .map(l => l.trim()).filter(l => l !== '');
+  const cases = rawCases.map(line => ({
+    inputs: line.split(',').map(x => {
+      const t = x.trim();
+      if (/^-?\d+(\.\d+)?$/.test(t)) return parseFloat(t);
+      if (/^TRUE$/i.test(t)) return true;
+      if (/^FALSE$/i.test(t)) return false;
+      return t.replace(/^"(.*)"$/, '$1');
+    }).filter(v => v !== '')
+  }));
+  if (!cases.length) errors.push('Add at least one test case, one per line.');
+  if (cases.length > 25) errors.push('That is more test cases than a question needs; keep it under 25.');
+  if (errors.length) return { ok:false, errors };
+
+  // The solution has to parse, run, and actually print something.
+  let parsed;
+  try { parsed = parseProgram(tokenize(solution)); }
+  catch (e) {
+    return { ok:false, errors:[(e.line ? `Line ${e.line}: ` : '') + e.message + ' (in your solution)'] };
+  }
+  const constructs = [...detectConstructs(parsed)];
+  const results = [];
+  for (let i = 0; i < cases.length; i++) {
+    const r = runCase(solution, cases[i].inputs);
+    if (!r.ok) {
+      return { ok:false, errors:[`Your solution stops on test case ${i + 1} (${cases[i].inputs.join(', ') || 'no input'}): ${r.error}`] };
+    }
+    results.push(r.output);
+  }
+  if (results.every(o => o.length === 0)) {
+    return { ok:false, errors:['Your solution never outputs anything, so there is nothing to mark.'] };
+  }
+  // A question whose answer never changes cannot tell understanding from
+  // copying — the same hole the built-in bank is built to avoid.
+  const distinct = new Set(results.map(o => o.join('')));
+  if (cases.length > 1 && distinct.size === 1) {
+    return { ok:false, errors:['Every test case gives the same answer, so anyone could pass by printing it. Add cases that produce different outputs.'] };
+  }
+
+  const marks = Math.max(2, Math.min(8, 1 + cases.length));
+  const q = {
+    id: 'shared-' + (draft.id || Math.random().toString(36).slice(2, 10)),
+    shared: true, author: author || null, title,
+    qualification: draft.qualification || null,
+    topicId: draft.topicId || 'shared',
+    skill: 'shared', difficulty: draft.difficulty || 'intermediate',
+    paper: 'Shared question', marks, estimatedMinutes: Math.max(3, cases.length),
+    prompt,
+    starterCode: String(draft.starterCode || ''),
+    requiredConstructs: (draft.requiredConstructs || []).filter(c => constructs.includes(c)),
+    visibleExamples: [{ inputs: cases[0].inputs, note: 'gives ' + (results[0].join(', ') || 'no output') }],
+    hiddenCases: cases.map((c, i) => ({
+      inputs: c.inputs, tag: i === 0 ? 'core' : (i < 2 ? 'core' : 'edge'),
+      describe: 'the values ' + (c.inputs.join(', ') || '(none)')
+    })),
+    markingRules: [
+      { id:'runs', label:'Program runs without errors', marks:1 },
+      { id:'core', label:'Correct for the first cases', marks:Math.ceil((marks - 1) / 2), cases:'core' },
+      { id:'edge', label:'Correct for the rest', marks:Math.floor((marks - 1) / 2), cases:'edge' }
+    ],
+    hints: (draft.hints || '').split('\n').map(h => h.trim()).filter(Boolean),
+    explanation: String(draft.explanation || '').trim() || 'Written by a student using DryRun.',
+    solution, sourceType:'shared', version: SHARE_VERSION
+  };
+  // Balance the rubric against the stated marks, the same check the bank has.
+  const total = q.markingRules.reduce((a, r) => a + r.marks, 0);
+  if (total !== q.marks) q.markingRules[1].marks += q.marks - total;
+
+  // Last gate: the grader itself must give the author full marks.
+  const check = gradeSubmission(q, solution);
+  if (check.status !== 'correct') {
+    return { ok:false, errors:['The marking does not accept your own solution: ' + check.feedback] };
+  }
+  return { ok:true, question:q, marks:q.marks, cases:cases.length };
+}
+
+function exportQuestion(q) {
+  return JSON.stringify({ schema:SHARE_SCHEMA, version:SHARE_VERSION, exportedAt:Date.now(), question:q }, null, 2);
+}
+
+/*
+  Reads a shared question. Everything in the file was typed by a stranger, so
+  it is validated as if it were a fresh draft rather than trusted: the
+  solution must still parse, still run, and still earn full marks.
+*/
+function importQuestion(text) {
+  let data;
+  try { data = JSON.parse(text); }
+  catch (e) { return { ok:false, error:'That file is not readable JSON.' }; }
+  if (!data || data.schema !== SHARE_SCHEMA || !data.question) {
+    return { ok:false, error:'That file is not a DryRun question.' };
+  }
+  const q = data.question;
+  const rebuilt = buildSharedQuestion({
+    id: String(q.id || '').replace(/^shared-/, ''),
+    title: q.title, prompt: q.prompt, solution: q.solution, author: q.author,
+    starterCode: q.starterCode, explanation: q.explanation,
+    hints: (q.hints || []).join('\n'),
+    difficulty: q.difficulty, qualification: q.qualification,
+    requiredConstructs: q.requiredConstructs,
+    cases: (q.hiddenCases || []).map(c => (c.inputs || []).join(', ')).join('\n')
+  });
+  if (!rebuilt.ok) return { ok:false, error:'This question does not work: ' + rebuilt.errors[0] };
+  return { ok:true, question: rebuilt.question };
 }
 
 /* ======================================================================
@@ -6638,7 +6698,7 @@ const TESTS = [
   }],
   ['Accessibility: the code editor is labelled, not placeholder-only', () => {
     if (typeof document === 'undefined') return;
-    const lab = document.querySelector('label[for="code"]');
+    const lab = document.querySelector('label[for="ide-src"]');
     assert(lab && lab.textContent.trim(), 'the pseudocode editor needs a real label');
     const qlab = document.querySelector('label[for="expr"]');
     assert(qlab && qlab.textContent.trim(), 'the boolean expression input needs a real label');
@@ -6649,7 +6709,7 @@ const TESTS = [
     assert(document.querySelector('main#main'), 'there should be a main landmark');
     assert(document.querySelector('nav[aria-label]'), 'the rail should be a labelled nav');
     const live = [...document.querySelectorAll('[aria-live]')].map(x => x.id);
-    ['q-status', 'trace-status', 'logic-status'].forEach(id =>
+    ['q-status', 'ide-status', 'logic-status'].forEach(id =>
       assert(live.includes(id), `${id} should announce its result`));
   }],
   ['Accessibility: every tablist uses roving tabindex', () => {
@@ -6869,7 +6929,7 @@ const TESTS = [
       assert(!VIEWS_NEEDING_COURSE.includes(v),
         `"${v}" must not need a course — it is a free tool, and gating it silently reads as broken`);
     }
-    for (const v of ['dashboard', 'practice', 'progress', 'evidence', 'settings']) {
+    for (const v of ['dashboard', 'practice', 'progress', 'settings']) {
       assert(VIEWS_NEEDING_COURSE.includes(v), `"${v}" reads the profile, so it does need a course`);
     }
     VIEWS_NEEDING_COURSE.forEach(v => assert(ALL_VIEWS.includes(v), `${v} should be a real view`));
@@ -7270,7 +7330,7 @@ const TESTS = [
   }],
   ['Routes: welcome and privacy exist and need no course', () => {
     if (typeof document === 'undefined') return;
-    ['welcome', 'privacy'].forEach(v => {
+    ['welcome', 'about', 'ide'].forEach(v => {
       assert(document.getElementById('view-' + v), `view-${v} should exist in the markup`);
       assert(!VIEWS_NEEDING_COURSE.includes(v), `${v} must be readable before choosing a course`);
       assert(ALL_VIEWS.includes(v), `${v} should be a known view`);
@@ -7447,6 +7507,10 @@ const TESTS = [
     assertEq(b.attempts()[0].questionId, 'q-larger-of-two', 'and be the right one');
     assertEq(b.getProfile().qualification, '0478', 'with the course intact');
     assert(/restored from the automatic copy/i.test(b.error || ''), 'and the student is told what happened');
+    // The recovery is written back at once, so the damaged bytes do not sit
+    // on disk waiting for the next save.
+    const onDisk = JSON.parse(mem.data['dryrun.store.v3']);
+    assertEq(Object.keys(onDisk.profiles).length, 1, 'the repaired record should already be saved');
   }],
   /* ---- Module J: the editor's language services ---- */
   ['Editor: highlighting never loses or invents a character', () => {
@@ -7550,6 +7614,81 @@ const TESTS = [
     ['ide-run', 'ide-step', 'ide-continue', 'ide-reset', 'ide-study'].forEach(id =>
       assert(document.getElementById(id), `${id} should exist`));
   }],
+  /* ---- Module K: questions students write themselves ---- */
+  ['Sharing: a good draft becomes a question the grader can mark', () => {
+    const r = buildSharedQuestion({
+      title:'Double it', author:'Ama',
+      prompt:'Read a whole number and output twice that number.',
+      solution:'DECLARE n : INTEGER\nINPUT n\nOUTPUT n * 2',
+      cases:'3\n7\n0\n-4'
+    });
+    assert(r.ok, 'it should build: ' + JSON.stringify(r.errors));
+    assertEq(gradeSubmission(r.question, r.question.solution).status, 'correct',
+      'the author’s own solution must earn full marks');
+    assert(gradeSubmission(r.question, 'DECLARE z : INTEGER\nOUTPUT 6').status !== 'correct',
+      'and hard-coding the visible answer must still fail');
+  }],
+  ['Sharing: a draft whose own solution is broken is refused', () => {
+    const syntax = buildSharedQuestion({
+      title:'Broken', prompt:'Read a number and output it doubled please.',
+      solution:'DECLARE n : INTEGER\nn = 1\nOUTPUT n', cases:'1'
+    });
+    assertEq(syntax.ok, false, 'a solution with = for assignment should be refused');
+    assert(/←/.test(syntax.errors[0]), 'and the reason should be the CIE message: ' + syntax.errors[0]);
+
+    const crashes = buildSharedQuestion({
+      title:'Crashes', prompt:'Read two numbers and divide the first by the second.',
+      solution:'DECLARE a : INTEGER\nDECLARE b : INTEGER\nINPUT a\nINPUT b\nOUTPUT a DIV b',
+      cases:'6, 3\n5, 0'
+    });
+    assertEq(crashes.ok, false, 'a solution that stops on its own test case should be refused');
+    assert(/test case 2/.test(crashes.errors[0]), 'and should name which case: ' + crashes.errors[0]);
+  }],
+  ['Sharing: a question with one possible answer is refused', () => {
+    // The whole point of the marking model: if every case gives the same
+    // answer, printing it beats understanding it.
+    const r = buildSharedQuestion({
+      title:'Always four', prompt:'Read a number and output the number four regardless.',
+      solution:'DECLARE n : INTEGER\nINPUT n\nOUTPUT 4', cases:'1\n2\n3'
+    });
+    assertEq(r.ok, false, 'a constant question should be refused');
+    assert(/same answer/i.test(r.errors[0]), 'and say why: ' + r.errors[0]);
+  }],
+  ['Sharing: an incomplete draft says what is missing', () => {
+    const r = buildSharedQuestion({ title:'', prompt:'too short', solution:'', cases:'' });
+    assertEq(r.ok, false, 'it should be refused');
+    assert(r.errors.length >= 3, 'and list every missing piece, got ' + JSON.stringify(r.errors));
+  }],
+  ['Sharing: a question survives export and import', () => {
+    const built = buildSharedQuestion({
+      title:'Largest of three', author:'Bo',
+      prompt:'Read three whole numbers and output the largest of them.',
+      solution:'DECLARE a : INTEGER\nDECLARE b : INTEGER\nDECLARE c : INTEGER\nDECLARE m : INTEGER\nINPUT a\nINPUT b\nINPUT c\nm ← a\nIF b > m THEN\n    m ← b\nENDIF\nIF c > m THEN\n    m ← c\nENDIF\nOUTPUT m',
+      cases:'1, 2, 3\n9, 4, 7\n5, 5, 5\n-1, -9, -4',
+      hints:'Keep the largest so far in its own variable.'
+    });
+    assert(built.ok, 'it should build: ' + JSON.stringify(built.errors));
+    const back = importQuestion(exportQuestion(built.question));
+    assert(back.ok, 'it should come back: ' + back.error);
+    assertEq(back.question.title, 'Largest of three', 'the title survives');
+    assertEq(back.question.author, 'Bo', 'and the author');
+    assertEq(back.question.hiddenCases.length, 4, 'and every test case');
+    assertEq(gradeSubmission(back.question, built.question.solution).status, 'correct',
+      'and it still marks the solution correct after the round trip');
+  }],
+  ['Sharing: an imported file is re-checked, never trusted', () => {
+    // Everything in the file was typed by a stranger, including the solution.
+    assertEq(importQuestion('not json').ok, false, 'unreadable input is refused');
+    assertEq(importQuestion('{"hello":1}').ok, false, 'a JSON file that is not a question is refused');
+    const tampered = JSON.stringify({
+      schema:SHARE_SCHEMA, version:1,
+      question:{ id:'shared-x', title:'Tampered', prompt:'Read a number and output it doubled.',
+                 solution:'DECLARE n : INTEGER\nn = 1', hiddenCases:[{ inputs:[1] }] }
+    });
+    const r = importQuestion(tampered);
+    assertEq(r.ok, false, 'a question whose solution no longer works must be refused');
+    assert(/does not work/i.test(r.error), 'and say so: ' + r.error);
+  }],
   ['Trace table: round trip through every non-array example', () => {
     for (const ex of EXAMPLES) {
       if (/ARRAY/.test(ex.code)) continue;
@@ -7585,7 +7724,8 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   profileId, describeProfile, migrateStore, rebuildDerived,
   VIEWS_NEEDING_COURSE, ALL_VIEWS,
   contrastRatio, Env, MAX_FILE_LINES, MAX_DEPTH, hoistRoutines,
-  highlight, highlightTokens, checkSource, indentFor, dedentFor, DEDENT_WORDS, AUTO_CLOSE }; } catch (e) {}
+  highlight, highlightTokens, checkSource, indentFor, dedentFor, DEDENT_WORDS, AUTO_CLOSE,
+  buildSharedQuestion, exportQuestion, importQuestion, SHARE_SCHEMA }; } catch (e) {}
 </script>
 
 <!-- =================================================================
@@ -7667,23 +7807,18 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
      Router — hash based, no dependency
      ============================================================ */
   const VIEWS = {
-    ide:'view-ide',
-    welcome:'view-welcome', privacy:'view-privacy',
-    onboarding:'view-onboarding', dashboard:'view-dashboard', practice:'view-practice',
+    ide:'view-ide', welcome:'view-welcome', onboarding:'view-onboarding',
+    dashboard:'view-dashboard', practice:'view-practice',
     'lab-pseudocode':'view-lab-pseudocode', 'lab-logic':'view-lab-logic',
-    progress:'view-progress', evidence:'view-evidence', settings:'view-settings', about:'view-about'
+    progress:'view-progress', settings:'view-settings', about:'view-about'
   };
   const NAV = [
-    { id:'ide',             label:'Pseudocode IDE' },
-    { id:'dashboard',       label:'Dashboard' },
+    { id:'ide',             label:'Editor' },
     { id:'practice',        label:'Practice' },
-    { id:'lab-pseudocode',  label:'Pseudocode Lab' },
-    { id:'lab-logic',       label:'Logic Lab' },
+    { id:'lab-pseudocode',  label:'Convert' },
+    { id:'lab-logic',       label:'Logic' },
     { id:'progress',        label:'Progress' },
-    { id:'evidence',        label:'Evidence' },
-    { id:'settings',        label:'Settings' },
-    { id:'privacy',         label:'Your data' },
-    { id:'about',           label:'About' }
+    { id:'settings',        label:'Settings' }
   ];
   let currentView = null;
 
@@ -7708,12 +7843,10 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     renderRail();
     closeDrawer();
     if (view === 'dashboard') renderDashboard();
-    if (view === 'progress') renderProgress();
-    if (view === 'evidence') renderEvidence();
+    if (view === 'progress') { renderProgress(); renderEvidence(); }
     if (view === 'welcome') renderWelcome();
     if (view === 'ide') renderIDE();
     if (view === 'settings') renderSettings();
-    if (view === 'about') renderAbout();
     if (view === 'practice') {
       // Only an explicit `fresh` starts a new session. Landing here any other
       // way — a reload straight onto #/practice included — picks the saved
@@ -7723,7 +7856,6 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
       else if (store.getSession()) resumeSession();
       else startSession(opts || {});
     }
-    if (view === 'lab-pseudocode') { resetTrace(); renderGutter(); }
     if (view === 'lab-logic') generate();
     updateActionBar();
     if (!(opts && opts.keepFocus)) $('main').focus();
@@ -7971,7 +8103,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     reader.readAsText(file);
     ev.target.value = '';
   });
-  $('btn-onboard-privacy').addEventListener('click', () => go('privacy'));
+  $('btn-onboard-privacy').addEventListener('click', () => go('about'));
 
   $('btn-onboard-done').addEventListener('click', () => {
     const syl = syllabusForYear(draft.qualification, draft.examYear);
@@ -7987,6 +8119,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     // with its own profile and is still there if that course is chosen again.
     const changed = store.profileId() !== before;
     if (changed) { session = null; item = null; }
+    if (sharedPending) { const q = sharedPending; sharedPending = null; startSharedSession(q); return; }
     go('dashboard');
     if (changed) toast(`Now working on ${describeProfile(store.getProfile())}`);
   });
@@ -8041,7 +8174,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   ['btn-wel-start', 'btn-wel-start-2'].forEach(id => $(id).addEventListener('click', toSetup));
   $('btn-wel-ide').addEventListener('click', () => go('ide'));
   $('btn-wel-labs-2').addEventListener('click', () => go('lab-pseudocode'));
-  $('btn-wel-privacy').addEventListener('click', () => go('privacy'));
+  $('btn-wel-privacy').addEventListener('click', () => go('about'));
 
   function renderDashboard() {
     const profile = store.getProfile();
@@ -8049,7 +8182,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     $('dash-sub').innerHTML =
       `${esc(syl.title)} (${esc(syl.code)}) · ${esc(syl.versionLabel)} · sitting ${esc(String(profile.examYear))}` +
       (profile.level ? ' · ' + esc(profile.level) : '') +
-      '<br><span style="color:var(--text-muted);font-size:13px">Everything below belongs to this course only.</span>';
+      '';
 
     const attempts = store.attempts();
     const due = store.dueReviews();
@@ -8116,7 +8249,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   let session = null;
   let item = null;              // the question on screen
   let attemptsOnItem = 0, itemStart = 0, marked = false, lastSubmission = null;
-  const sessionKey = i => (i.type === 'bank' ? i.id : i.kind + ':' + i.seed);
+  const sessionKey = i => (i.type === 'gen' ? i.kind + ':' + i.seed : i.id);
 
   function buildSession(opts) {
     const profile = store.getProfile();
@@ -8179,9 +8312,11 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   function loadItem() {
     const it = session.items[session.index];
     attemptsOnItem = 0; marked = false; itemStart = Date.now(); lastSubmission = null;
-    item = it.type === 'bank'
-      ? { kind:'code', q: questionById(it.id), topicId: it.topicId }
-      : { kind: it.kind, q: makeQuestion(it.kind, it.seed), topicId: it.topicId };
+    item = it.type === 'shared'
+      ? { kind:'code', q: session.sharedQuestion, topicId: null }
+      : it.type === 'bank'
+        ? { kind:'code', q: questionById(it.id), topicId: it.topicId }
+        : { kind: it.kind, q: makeQuestion(it.kind, it.seed), topicId: it.topicId };
     renderSessionBar();
     renderItem();
     clearInspector();
@@ -8350,6 +8485,9 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   }
 
   function record(correct, extra) {
+    // A shared question was not written against a syllabus, so however well it
+    // is answered it cannot stand as evidence on a topic.
+    if (session.noRecord) { marked = true; return; }
     const revealed = session.revealed.includes(sessionKey(session.items[session.index]));
     const entry = Object.assign({
       questionId: item.kind === 'code' ? item.q.id : null,
@@ -8815,7 +8953,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     $('settings-course').innerHTML =
       `<p>You are working towards <b>${esc(syl.title)} (${esc(syl.code)})</b>, ${esc(syl.versionLabel)}, sitting ${esc(String(p.examYear))}${p.level ? ', ' + esc(p.level) : ''}.</p>` +
       (syl.note ? `<p class="status warn">${esc(syl.note)}</p>` : '') +
-      '<p>Each course keeps its own attempts, evidence and review queue. Switching between them never mixes the two.</p>' +
+      '<p>Each course keeps its own record. Switching never mixes them.</p>' +
       (others.length
         ? '<h3 style="margin:16px 0 8px">Your other courses</h3>' +
           '<div class="topic-map">' + others.map(o =>
@@ -8885,12 +9023,6 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     ev.target.value = '';
   });
 
-  function renderAbout() {
-    $('about-body').innerHTML =
-      '<p>DryRun is a reasoning workbench, not a compiler. The same algorithm can be looked at as structured English, as pseudocode, as a trace table, as a flowchart or as a logic circuit — and understanding usually breaks when you move between two of them. The labs let you move an algorithm across all five and see exactly where the versions stop agreeing.</p>' +
-      '<p>It is one HTML file with no dependencies and no network calls, so it works offline and nothing you type leaves your browser. Questions are original, written against publicly listed syllabus content.</p>' +
-      '<p><b>Independent learning resource — not endorsed by Cambridge International Education.</b></p>';
-  }
 
   /* ============================================================
      Header buttons
@@ -8908,120 +9040,6 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   $('btn-settings').addEventListener('click', () => go('settings'));
   $('btn-home').addEventListener('click', () => go('welcome'));
   $('course-chip').addEventListener('click', () => go('settings'));
-  /* ================= Tab 1: trace table ================= */
-  const code = $('code'), gutter = $('gutter'), hlbar = $('hlbar');
-
-  // example dropdown
-  const sel = $('example');
-  sel.innerHTML = EXAMPLES.map((e, i) => `<option value="${i}">${esc(e.name)}</option>`).join('');
-  sel.addEventListener('change', () => {
-    const ex = EXAMPLES[sel.value];
-    code.value = ex.code;
-    $('inputs').value = ex.inputs;
-    resetTrace();
-    renderGutter();
-  });
-  code.value = EXAMPLES[0].code;
-
-  let steps = [], cursor = -1, playTimer = null;
-
-  function renderGutter() {
-    const n = code.value.split('\n').length;
-    let html = '';
-    const curLine = cursor >= 0 && steps[cursor] ? steps[cursor].line : -1;
-    for (let i = 1; i <= n; i++) html += `<div${i === curLine ? ' class="on"' : ''}>${i}</div>`;
-    gutter.innerHTML = html;
-    gutter.scrollTop = code.scrollTop;
-  }
-  function renderHighlight() {
-    if (cursor < 0 || !steps[cursor]) { hlbar.style.display = 'none'; return; }
-    hlbar.style.display = 'block';
-    hlbar.style.top = (PAD_T + (steps[cursor].line - 1) * LINE_H - code.scrollTop) + 'px';
-  }
-  // Shared by tab 1 (step by step) and tab 3 (the whole run at once)
-  function traceHTML(shown, markLast) {
-    const names = Object.keys(shown[shown.length - 1].vars);
-    let html = '<table><thead><tr><th class="n">Line</th>' +
-      names.map(n => `<th>${n}</th>`).join('') + '<th>OUTPUT</th></tr></thead><tbody>';
-    shown.forEach((s, i) => {
-      const prev = i > 0 ? shown[i - 1].vars : {};
-      html += `<tr${markLast && i === shown.length - 1 ? ' class="cur"' : ''}><td class="n">${s.line}</td>` +
-        names.map(n => {
-          const v = s.vars[n] === undefined ? '' : s.vars[n];
-          const changed = prev[n] !== undefined && prev[n] !== v;
-          return `<td class="${changed ? 'chg' : ''}">${esc(v)}</td>`;
-        }).join('') +
-        `<td class="out">${esc(s.out)}</td></tr>`;
-    });
-    return html + '</tbody></table>';
-  }
-  function renderTrace() {
-    const box = $('trace-out');
-    if (cursor < 0) { box.innerHTML = '<div class="empty">Nothing has been run yet.</div>'; return; }
-    box.innerHTML = traceHTML(steps.slice(0, cursor + 1), true);
-    const cur = box.querySelector('tr.cur');
-    if (cur) cur.scrollIntoView({ block:'nearest' });
-  }
-
-
-  function setStatus(msg, cls) {
-    const el = $('trace-status');
-    el.textContent = msg;
-    el.className = 'status' + (cls ? ' ' + cls : '');
-  }
-  function compile() {
-    try {
-      const r = runProgram(code.value, $('inputs').value);
-      steps = r.steps;
-      return true;
-    } catch (e) {
-      steps = []; cursor = -1;
-      stopPlay();
-      renderTrace(); renderGutter(); renderHighlight();
-      setStatus(e.line ? `Line ${e.line}: ${e.message}` : e.message, 'err');
-      return false;
-    }
-  }
-  function step() {
-    if (!steps.length && !compile()) return;
-    if (cursor >= steps.length - 1) {
-      stopPlay();
-      setStatus(`Finished — ${steps.length} steps in total.`, 'ok');
-      return;
-    }
-    cursor++;
-    renderTrace(); renderGutter(); renderHighlight();
-    setStatus(`Step ${cursor + 1} / ${steps.length} — now on line ${steps[cursor].line}`);
-  }
-  function resetTrace() {
-    stopPlay(); steps = []; cursor = -1;
-    renderTrace(); renderGutter(); renderHighlight();
-    setStatus('Reset. Click "Step" to start again.');
-  }
-  function stopPlay() {
-    if (playTimer) { clearInterval(playTimer); playTimer = null; $('btn-play').textContent = 'Auto-play'; }
-  }
-  $('btn-step').addEventListener('click', step);
-  $('btn-reset').addEventListener('click', resetTrace);
-  $('btn-play').addEventListener('click', () => {
-    if (playTimer) { stopPlay(); return; }
-    if (!steps.length && !compile()) return;
-    $('btn-play').textContent = 'Pause';
-    playTimer = setInterval(() => {
-      if (cursor >= steps.length - 1) { stopPlay(); setStatus(`Finished — ${steps.length} steps in total.`, 'ok'); return; }
-      step();
-    }, 500);
-  });
-  $('btn-copy-trace').addEventListener('click', () => {
-    const tbl = $('trace-out').querySelector('table');
-    if (!tbl) { toast('The table is still empty'); return; }
-    copyText(tableToTSV(tbl), 'Copied to clipboard');
-  });
-  code.addEventListener('input', () => { resetTrace(); });
-  code.addEventListener('scroll', () => { gutter.scrollTop = code.scrollTop; renderHighlight(); });
-  $('inputs').addEventListener('input', resetTrace);
-  renderGutter();
-
   /* ================= Tab 2: logic gates ================= */
   $('expr').value = SAMPLE_EXPR;
 
@@ -9198,9 +9216,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   $('btn-eng-send').addEventListener('click', () => {
     const c = $('eng-code').textContent.trim();
     if (!c) { toast('Convert something first'); return; }
-    code.value = c;
-    $('inputs').value = '';
-    showTab('tab-trace');
+    sendToIDE(c, '');
   });
 
   /* ================= Tab 4: trace table -> pseudocode ================= */
@@ -9276,9 +9292,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   $('btn-tt-send').addEventListener('click', () => {
     const c = $('tt-code').textContent.trim();
     if (!c) { toast('Generate something first'); return; }
-    code.value = c;
-    $('inputs').value = '';
-    showTab('tab-trace');
+    sendToIDE(c, '');
   });
 
   ttRender();
@@ -9339,16 +9353,14 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   $('btn-flow-send').addEventListener('click', () => {
     const c = $('flow-code').textContent.trim();
     if (!c) { toast('Draw something first'); return; }
-    code.value = c;
-    $('inputs').value = $('flow-inputs').value;
-    showTab('tab-trace');
+    sendToIDE(c, $('flow-inputs').value);
   });
   drawFlowchart();
 
   /* ============================================================
      Pseudocode Lab sub-tabs
      ============================================================ */
-  const LABTABS = [['tab-trace', 'p-trace'], ['tab-eng', 'p-eng'], ['tab-tt', 'p-tt'], ['tab-flow', 'p-flow']];
+  const LABTABS = [['tab-eng', 'p-eng'], ['tab-tt', 'p-tt'], ['tab-flow', 'p-flow'], ['tab-make', 'p-make']];
   function showLabTab(which) {
     const id = which.indexOf('tab-') === 0 ? which : 'tab-' + which;
     LABTABS.forEach(([t, p]) => {
@@ -9357,16 +9369,103 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
       $(t).tabIndex = on ? 0 : -1;
       $(p).hidden = !on;
     });
-    if (id === 'tab-trace') { resetTrace(); renderGutter(); }
   }
   wireTablist(document.querySelector('#view-lab-pseudocode .inspector-tabs'), LABTABS, showLabTab);
 
-  // The lab tools call showTab(...) to hand work to each other; route it
-  // through the view router so the lab is actually on screen first.
-  function showTab(id) {
-    go('lab-pseudocode', { keepFocus:true });
-    showLabTab(id);
+  // The converters hand their result to the IDE, which is the one place code
+  // is written and run. Two editors was one too many.
+  function sendToIDE(text, inputs) {
+    ideSrc.value = text;
+    $('ide-inputs').value = inputs || '';
+    ideReset(); idePaint(); ideCheck(); ideSave();
+    go('ide');
+    toast('Opened in the IDE');
   }
+
+
+  /* ================= Write a question ================= */
+  let mkBuilt = null;
+
+  function mkDraft() {
+    return {
+      title: $('mk-title').value, author: $('mk-author').value,
+      prompt: $('mk-prompt').value, solution: $('mk-solution').value,
+      cases: $('mk-cases').value, hints: $('mk-hints').value
+    };
+  }
+  function mkCheck() {
+    const r = buildSharedQuestion(mkDraft());
+    mkBuilt = r.ok ? r.question : null;
+    $('btn-mk-save').disabled = !r.ok;
+    $('btn-mk-try').disabled = !r.ok;
+    if (!r.ok) {
+      say('mk-status', r.errors[0], 'err');
+      $('mk-preview').innerHTML = '<p class="empty">' + esc(r.errors.join(' ')) + '</p>';
+      return;
+    }
+    const q = r.question;
+    say('mk-status', `Works. ${q.marks} marks, ${q.hiddenCases.length} test cases, and your own solution scores full marks.`, 'ok');
+    // Show what a marker would see, so the author can judge their own question.
+    const rows = q.hiddenCases.map(c => {
+      const out = runCase(q.solution, c.inputs);
+      return `<tr><td>${esc(c.inputs.join(', ') || '(none)')}</td><td>${esc((out.output || []).join(', '))}</td><td>${esc(c.tag)}</td></tr>`;
+    }).join('');
+    const hard = gradeSubmission(q, 'DECLARE z : INTEGER\n' +
+      (runCase(q.solution, q.hiddenCases[0].inputs).output || []).map(v =>
+        'OUTPUT ' + (/^-?\d+(\.\d+)?$/.test(v) ? v : '"' + v + '"')).join('\n'));
+    $('mk-preview').innerHTML =
+      `<p><b>${esc(q.title)}</b>${q.author ? ' · by ' + esc(q.author) : ''}</p>` +
+      `<p>${esc(q.prompt)}</p>` +
+      '<div class="scroll-x"><table><thead><tr><th>Input</th><th>Expected output</th><th>Kind</th></tr></thead><tbody>' +
+      rows + '</tbody></table></div>' +
+      `<p class="hint" style="margin-top:12px">Someone who just prints the first answer scores ` +
+      `${hard.marksAwarded} of ${q.marks}. If that is close to full marks, add cases whose answers differ more.</p>`;
+  }
+
+  $('btn-mk-check').addEventListener('click', mkCheck);
+  $('btn-mk-try').addEventListener('click', () => {
+    if (!mkBuilt) return;
+    startSharedSession(mkBuilt);
+  });
+  $('btn-mk-save').addEventListener('click', () => {
+    if (!mkBuilt) return;
+    const name = mkBuilt.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30) || 'question';
+    download(name + '.dryrun.json', exportQuestion(mkBuilt), 'application/json');
+    say('mk-status', 'Saved. Send that file to anyone with DryRun and they can try it.', 'ok');
+  });
+  $('btn-mk-open').addEventListener('click', () => $('mk-file').click());
+  $('mk-file').addEventListener('change', ev => {
+    const file = ev.target.files && ev.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const r = importQuestion(String(reader.result));
+      if (!r.ok) { say('mk-status', r.error, 'err'); return; }
+      startSharedSession(r.question);
+    };
+    reader.onerror = () => say('mk-status', 'That file could not be read.', 'err');
+    reader.readAsText(file);
+    ev.target.value = '';
+  });
+
+  // A shared question runs through the normal practice screen, but its result
+  // is never recorded: it was not written against a syllabus, so it is not
+  // evidence of anything.
+  function startSharedSession(q) {
+    if (!store.getProfile()) {
+      sharedPending = q;
+      toast('Choose a course first, then your question opens');
+      go('onboarding');
+      return;
+    }
+    session = { items:[{ type:'shared', id:q.id, topicId:null }], index:0, startedAt:Date.now(),
+                label:'Shared question', topicId:null, revealed:[], sharedQuestion:q, noRecord:true };
+    store.clearSession();
+    loadItem();
+    go('practice', { keepFocus:true });
+    toast('Not marked into your progress — shared questions are for trying, not evidence');
+  }
+  let sharedPending = null;
 
   /* ============================================================
      Pseudocode IDE
@@ -9642,10 +9741,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   $('ide-inputs').addEventListener('input', ideSave);
   $('ide-study').addEventListener('click', () => go(store.getProfile() ? 'dashboard' : 'onboarding'));
   $('ide-send').addEventListener('click', () => {
-    code.value = ideSrc.value;
-    $('inputs').value = $('ide-inputs').value;
-    showTab('tab-trace');
-    toast('Sent to the trace lab');
+    go('lab-pseudocode');
   });
   $('ide-examples').addEventListener('click', () => {
     const names = EXAMPLES.map((e, i) => `${i + 1}. ${e.name}`).join('\n');
