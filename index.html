@@ -11,7 +11,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="DryRun">
 <meta property="og:title" content="DryRun — find where your reasoning breaks">
-<meta property="og:description" content="Write Cambridge pseudocode, run it against hidden test cases, inspect the trace, and learn which step needs work. 0478 and 9618. No account, nothing uploaded.">
+<meta property="og:description" content="Write Cambridge pseudocode, run it against hidden test cases, and read the trace until you find the step that was wrong. For IGCSE 0478 and AS &amp; A Level 9618, entirely in your browser.">
 <meta property="og:url" content="https://dryruncs.com/">
 <meta property="og:image" content="https://dryruncs.com/og.svg">
 <meta property="og:image:alt" content="A DryRun mark breakdown: a hard-coded answer scoring 1 out of 5, with the failing hidden test case named.">
@@ -35,54 +35,99 @@
      decided. Components reference these, never raw values.
      ============================================================ */
   :root {
-    /* surfaces */
-    --bg:#0e1116;
-    --surface:#151a21;
-    --surface-raised:#1b222b;
-    --surface-active:#222c36;
-    --border:#303a45;
-    --border-strong:#3d4855;
+    /* Paper. A revision guide is read at a desk, in a classroom, under a
+       lamp, sometimes on a projector — so the page is printed stock, not a
+       terminal. The one place that stays dark is the code surface, where
+       the eye rests on a listing for a long time; see .on-dark below. */
+    --bg:#faf9f6;
+    --surface:#ffffff;
+    --surface-raised:#f3f1ea;
+    --surface-active:#e8e4d9;
+    --border:#ddd7c9;
+    --border-strong:#bdb5a2;
 
-    /* text — every one of these is checked against --bg by the self-test */
-    --text-primary:#f2f5f7;
-    --text-secondary:#b8c1ca;
-    --text-muted:#8995a1;
+    /* Ink — every one of these is checked against --bg by the self-test */
+    --text-primary:#1b1a17;
+    --text-secondary:#4d4840;
+    --text-muted:#6a645a;
 
     /* meaning */
-    --accent:#63d8bd;
-    --accent-strong:#86f0d6;
-    --accent-ink:#07231d;
-    --warning:#e8b86d;
-    --danger:#ef6a6a;
-    --success:#72d39f;
-    --focus:#9cdcff;
+    --accent:#14566b;
+    --accent-strong:#0d3b4a;
+    --accent-ink:#ffffff;
+    --warning:#8a5300;
+    --danger:#a32a2a;
+    --success:#1f6b42;
+    --focus:#1a5fb4;
 
     /* tinted fills, derived from the meaning colours */
-    --accent-wash:rgba(99,216,189,.12);
-    --danger-wash:rgba(239,106,106,.14);
-    --success-wash:rgba(114,211,159,.13);
-    --warning-wash:rgba(232,184,109,.13);
-    --row-stripe:rgba(255,255,255,.02);
+    --accent-wash:rgba(20,86,107,.08);
+    --danger-wash:rgba(163,42,42,.07);
+    --success-wash:rgba(31,107,66,.07);
+    --warning-wash:rgba(138,83,0,.07);
+    --row-stripe:rgba(27,26,23,.025);
 
-    /* type: named faces are used if the reader has them, otherwise the
-       system stack. Nothing is fetched, so the page still works offline. */
-    --font-display:"Space Grotesk","Avenir Next",Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+    /* Type set the way a revision guide is set: a serif for anything read
+       as prose, a sans for interface chrome, a mono for code and figures.
+       Named faces are used if the reader has them, otherwise the system
+       stack. Nothing is fetched, so the page still works offline. */
+    --font-display:"Iowan Old Style",Charter,"Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+    --font-prose:"Iowan Old Style",Charter,"Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
     --font-ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
     --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
 
     /* 4px spacing scale */
     --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s6:24px; --s8:32px; --s12:48px; --s16:64px;
 
-    --radius:6px;
-    --radius-lg:10px;
+    /* Printed matter has corners, not pills. */
+    --radius:3px;
+    --radius-lg:4px;
     --appbar-h:64px;
     --rail-w:240px;
     --inspector-w:360px;
     --motion:150ms;
   }
 
+  /* The code surface keeps its dark ground. Scoped, so it is a deliberate
+     material for listings rather than the mood of the whole product. */
+  .on-dark {
+    --bg:#15181d;
+    --surface:#1a1e24;
+    --surface-raised:#222830;
+    --surface-active:#2b323c;
+    --border:#333b45;
+    --border-strong:#454f5c;
+    --text-primary:#eef1f4;
+    --text-secondary:#b6bfc9;
+    --text-muted:#8b95a0;
+    --accent:#7cc7dd;
+    --accent-strong:#a5ddee;
+    --accent-ink:#0a2029;
+    --warning:#e0b070;
+    --danger:#ef7d7d;
+    --success:#7fd3a4;
+    --focus:#9cdcff;
+    --accent-wash:rgba(124,199,221,.12);
+    --danger-wash:rgba(239,125,125,.14);
+    --success-wash:rgba(127,211,164,.13);
+    --warning-wash:rgba(224,176,112,.13);
+    --row-stripe:rgba(255,255,255,.03);
+    background:var(--bg); color:var(--text-primary);
+  }
+
   * { box-sizing:border-box; }
   html { -webkit-text-size-adjust:100%; }
+  /* Surfaces the browser draws for us still belong to the page. */
+  ::selection { background:var(--accent-wash); color:var(--text-primary); }
+  ::-webkit-scrollbar { width:11px; height:11px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border-strong); border:3px solid var(--bg); border-radius:99px; }
+  ::-webkit-scrollbar-thumb:hover { background:var(--text-muted); }
+  * { scrollbar-color:var(--border-strong) var(--bg); scrollbar-width:thin; }
+  :is(textarea, input) { caret-color:var(--accent); }
+  a { text-underline-offset:.16em; text-decoration-thickness:from-font; }
+  /* Figures in a table of values line up the way they do in print. */
+  table, .mono, code, pre { font-variant-numeric:tabular-nums; }
   html, body {
     margin:0; background:var(--bg); color:var(--text-primary);
     font-family:var(--font-ui); font-size:15px; line-height:1.55;
@@ -91,11 +136,18 @@
      position:sticky in some browsers. */
   body { overflow-x:clip; }
 
-  h1,h2,h3 { font-family:var(--font-display); font-weight:600; letter-spacing:-.01em; margin:0; }
-  h1 { font-size:19px; }
-  h2 { font-size:16px; }
-  h3 { font-size:14px; }
+  /* A serif does not want the tight tracking a grotesque needs, and it
+     carries its weight at 600 rather than 700. */
+  h1,h2,h3 { font-family:var(--font-display); font-weight:600; letter-spacing:0; margin:0; }
+  h1 { font-size:21px; line-height:1.25; }
+  h2 { font-size:17px; line-height:1.3; }
+  h3 { font-size:14.5px; line-height:1.35; }
   p { margin:0 0 var(--s3); color:var(--text-secondary); }
+  /* Anything read as prose rather than operated as interface is set in the
+     reading face, at a measure a page of text is comfortable at. */
+  .prose, .lede, .lede-sm, .plain-list, .landing-band p, .data-notice p {
+    font-family:var(--font-prose);
+  }
   a { color:var(--accent); }
   code, pre, .mono { font-family:var(--font-mono); }
 
@@ -200,9 +252,8 @@
   .rail-search { padding:0 var(--s4) var(--s3); }
   .rail-group { margin-bottom:var(--s4); }
   .rail-label {
-    font-size:11px; text-transform:uppercase; letter-spacing:.08em;
+    font-size:12px; font-weight:600; letter-spacing:.01em;
     color:var(--text-muted); padding:0 var(--s4); margin-bottom:var(--s2);
-    font-family:var(--font-mono);
   }
   .rail-item {
     display:flex; align-items:center; gap:var(--s2); width:100%;
@@ -246,7 +297,7 @@
     display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap;
     padding:var(--s3) var(--s4); border-bottom:1px solid var(--border);
   }
-  .panel-head h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); font-family:var(--font-mono); font-weight:500; }
+  .panel-head h2 { font-size:14px; color:var(--text-secondary); font-weight:600; }
   .panel-body { padding:var(--s4); }
   .panel-body.tight { padding:var(--s3); }
 
@@ -381,7 +432,11 @@
     font:12.5px var(--font-mono); color:var(--text-muted); margin-bottom:var(--s3);
   }
   .session-bar .track { flex:1; min-width:120px; height:4px; background:var(--surface-active); border-radius:99px; overflow:hidden; }
-  .session-bar .track > i { display:block; height:100%; background:var(--accent); transition:width var(--motion); }
+  .session-bar .track > i {
+    display:block; height:100%; width:100%; background:var(--accent);
+    transform:scaleX(0); transform-origin:left;
+    transition:transform var(--motion) cubic-bezier(.16,1,.3,1);
+  }
 
   .mark-row {
     display:flex; align-items:center; gap:var(--s2); padding:var(--s2) 0;
@@ -394,8 +449,8 @@
   .mark-row .label { flex:1; color:var(--text-secondary); }
   .mark-row .marks { font-family:var(--font-mono); color:var(--text-primary); }
   .diagnosis {
-    border-left:2px solid var(--warning); background:var(--warning-wash);
-    padding:var(--s2) var(--s3); border-radius:0 var(--radius) var(--radius) 0;
+    border:1px solid var(--warning); background:var(--warning-wash);
+    padding:var(--s2) var(--s3); border-radius:var(--radius);
     margin-bottom:var(--s2);
   }
   .diagnosis p { margin:var(--s1) 0 0; font-size:13px; color:var(--text-secondary); }
@@ -540,13 +595,19 @@
   .ide-status.ok  { color:var(--success); }
 
   .prob {
-    display:flex; gap:var(--s2); align-items:baseline; width:100%; text-align:left;
-    background:none; border:0; border-left:2px solid var(--danger);
-    padding:var(--s2) var(--s3); margin-bottom:var(--s2); cursor:pointer;
-    color:var(--text-secondary); font-size:13px; border-radius:0 var(--radius) var(--radius) 0;
+    display:flex; gap:var(--s3); align-items:baseline; width:100%; text-align:left;
+    background:none; border:0; border-bottom:1px solid var(--border);
+    padding:var(--s2) var(--s3); cursor:pointer;
+    color:var(--text-secondary); font-size:13px;
   }
-  .prob:hover { background:var(--danger-wash); color:var(--text-primary); }
-  .prob b { color:var(--danger); font:12px var(--font-mono); flex-shrink:0; }
+  .prob:last-child { border-bottom:0; }
+  .prob:hover { background:var(--surface-raised); color:var(--text-primary); }
+  /* The line number is the thing you scan for, so it is set as a figure and
+     right-aligned into its own column. */
+  .prob b {
+    color:var(--danger); font:12px var(--font-mono); flex-shrink:0;
+    min-width:4ch; text-align:right; font-variant-numeric:tabular-nums;
+  }
 
   @media (max-width:1000px) {
     .ide-body { flex-direction:column; }
@@ -563,10 +624,6 @@
   /* ============================================================
      Landing, onboarding steps, coverage — all on the same tokens
      ============================================================ */
-  .eyebrow {
-    font:11.5px/1.5 var(--font-mono); letter-spacing:.08em; text-transform:uppercase;
-    color:var(--accent); margin-bottom:var(--s2);
-  }
   .lede-sm { font-size:15.5px; color:var(--text-secondary); max-width:62ch; }
   .hint { font-size:13px; color:var(--text-muted); margin:var(--s1) 0 0; }
   .btn.lg { min-height:44px; padding-inline:var(--s6); font-size:15px; }
@@ -578,17 +635,17 @@
     display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
     gap:var(--s12); align-items:start; padding-block:var(--s8) var(--s12);
   }
-  .landing-lede h1 { font-size:38px; line-height:1.12; margin-bottom:var(--s3); }
+  .landing-lede h1 { font-size:38px; line-height:1.18; margin-bottom:var(--s4); max-width:18ch; }
   .landing-lede .lede { font-size:17px; color:var(--text-secondary); max-width:46ch; margin-bottom:var(--s6); }
 
   .landing-proof {
-    border:1px solid var(--border); border-left:3px solid var(--danger);
-    border-radius:var(--radius-lg); background:var(--surface); padding:var(--s4);
+    border:1px solid var(--border); border-top:2px solid var(--text-primary);
+    border-radius:0; background:var(--surface); padding:var(--s6) var(--s4) var(--s4);
   }
   .proof-head {
     display:flex; align-items:center; gap:var(--s2);
-    font:12px var(--font-mono); color:var(--text-secondary);
-    text-transform:uppercase; letter-spacing:.06em; margin-bottom:var(--s3);
+    font-family:var(--font-prose); font-style:italic; font-size:14.5px;
+    color:var(--text-primary); margin-bottom:var(--s3);
   }
   .landing-proof pre { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:var(--s3); }
   .proof-verdict { margin-top:var(--s3); }
@@ -607,7 +664,8 @@
     display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:var(--s12);
     border-top:1px solid var(--border); padding-block:var(--s8); align-items:start;
   }
-  .landing-split h2 { font-size:19px; margin-bottom:var(--s3); }
+  .landing-split h2 { font-size:19px; margin:0 0 var(--s3); }
+  .landing-split > * { padding-top:var(--s2); }
   .plain-list { margin:0; padding-left:var(--s4); color:var(--text-secondary); font-size:14px; }
   .plain-list li { margin-bottom:var(--s2); }
   .teacher-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:var(--s8); margin-top:var(--s4); }
@@ -628,7 +686,7 @@
 
   /* ---- onboarding steps ---- */
   .setup-steps { list-style:none; margin:var(--s8) 0 0; padding:0; }
-  .setup-step { border-top:1px solid var(--border); padding-block:var(--s6); }
+  .setup-step { border-top:1px solid var(--border); padding-block:var(--s8) var(--s6); }
   .setup-step:first-child { border-top:0; padding-top:0; }
   .setup-head { display:flex; align-items:center; gap:var(--s3); margin-bottom:var(--s4); flex-wrap:wrap; }
   .setup-head h2 { font-size:18px; flex:1; min-width:0; }
@@ -638,9 +696,9 @@
     display:grid; place-items:center; font:600 12px var(--font-mono);
   }
   .req {
-    font:11px var(--font-mono); text-transform:uppercase; letter-spacing:.06em;
+    font-size:12px; font-weight:600;
     color:var(--warning); border:1px solid var(--warning); background:var(--warning-wash);
-    padding:1px var(--s2); border-radius:99px; white-space:nowrap;
+    padding:1px var(--s2); border-radius:var(--radius); white-space:nowrap;
   }
   .req.is-done { color:var(--success); border-color:var(--success); background:var(--success-wash); }
   .req.is-optional { color:var(--text-muted); border-color:var(--border-strong); background:none; }
@@ -655,8 +713,8 @@
   .coverage-list .dot.is-secure { background:var(--success); }
 
   .data-notice {
-    margin-top:var(--s8); border:1px solid var(--border); border-left:3px solid var(--accent);
-    border-radius:0 var(--radius-lg) var(--radius-lg) 0; background:var(--surface); padding:var(--s4) var(--s6);
+    margin-top:var(--s8); border:1px solid var(--border); border-top:2px solid var(--accent);
+    border-radius:0; background:var(--surface); padding:var(--s6);
   }
   .data-notice h2 { font-size:16px; margin-bottom:var(--s2); }
   .data-notice p { font-size:14px; }
@@ -911,7 +969,7 @@
           </div>
         </div>
 
-        <div class="ide-body">
+        <div class="ide-body on-dark">
           <div class="ide-editor-wrap">
             <div class="ide-editor" id="ide-editor">
               <div class="ide-gutter" id="ide-gutter" aria-hidden="true"></div>
@@ -960,14 +1018,16 @@
 
         <div class="landing-lede">
           <div>
-            <p class="eyebrow">Cambridge IGCSE 0478 · AS &amp; A Level 9618</p>
-            <h1 id="wel-h">Find where your reasoning breaks.</h1>
-            <p class="lede">Write pseudocode, run it against hidden test cases, inspect the trace, and learn which step needs work.</p>
+            <h1 id="wel-h">Cambridge pseudocode, written and run</h1>
+            <p class="lede">Write a program, run it against test cases you cannot see, then read the
+              trace line by line until you find the step that was wrong. Built for IGCSE 0478 and
+              AS &amp; A Level 9618.</p>
             <div class="btn-row">
               <button class="btn primary lg" id="btn-wel-start">Try the diagnostic</button>
               <button class="btn lg" id="btn-wel-ide">Open the editor</button>
             </div>
-            <p class="hint">No account. Nothing uploaded. Works offline.</p>
+            <p class="hint">Everything stays in this browser. There is nothing to sign in to, and it
+              keeps working with the network off.</p>
           </div>
           <div class="landing-proof">
             <div class="proof-head"><span class="dot is-due" aria-hidden="true"></span> Why one right answer is not enough</div>
@@ -978,54 +1038,56 @@
 
         <div class="landing-split">
           <div>
-            <h2>What you get</h2>
+            <h2>What it does</h2>
             <ul class="plain-list">
-              <li>An editor with highlighting, live error checking and breakpoints</li>
-              <li>Questions marked by running your program, not by matching text</li>
-              <li>Wrong answers named: a boundary slip, negatives unhandled, a loop one out</li>
-              <li>Anything you get wrong returns on a spacing schedule</li>
-              <li>Structured English, trace tables, flowcharts and logic circuits, converted between</li>
+              <li>An editor with syntax highlighting, live error checking and breakpoints.</li>
+              <li>Marking that runs your program against hidden test cases and reports what each one did.</li>
+              <li>A name for the mistake when you get one wrong: a boundary slip, negatives left
+                unhandled, a loop that runs one time too many.</li>
+              <li>Whatever you get wrong comes back on a spaced schedule until it stops being wrong.</li>
+              <li>Structured English, trace tables, flowcharts and logic circuits, converted between each other.</li>
             </ul>
           </div>
           <div>
-            <h2>What is covered</h2>
+            <h2>What it covers</h2>
             <div id="wel-coverage"></div>
           </div>
         </div>
 
         <div class="landing-band" id="wel-teachers">
           <h2>For teachers</h2>
-          <p class="lede-sm">A no-login diagnostic lab. Students practise in the browser and export evidence for you.</p>
+          <p class="lede-sm">Students practise in the browser without signing in to anything, and
+            export the evidence for you to read.</p>
           <div class="teacher-grid">
             <div>
               <h3>How it works</h3>
               <ul class="plain-list">
-                <li>Send the link. Nothing to install, no accounts.</li>
-                <li>Students take a diagnostic, then practise.</li>
-                <li>They export JSON or CSV and hand it to you. Every row names its course.</li>
-                <li>Questions are original, written against published syllabus content.</li>
+                <li>Send the link. There is nothing to install and no account to create.</li>
+                <li>Students take a short diagnostic, then practise against what it found.</li>
+                <li>They export JSON or CSV and hand it to you; every row names the course it came from.</li>
+                <li>The questions are original, written against published syllabus content.</li>
               </ul>
             </div>
             <div>
-              <h3>What it is not</h3>
+              <h3>Where it stops</h3>
               <ul class="plain-list">
-                <li>Not a full syllabus. Coverage is listed above, counted from the question bank.</li>
-                <li>No class dashboard yet. Evidence arrives as files.</li>
+                <li>Coverage is partial. The list above is counted from the question bank rather than claimed.</li>
+                <li>There is no class dashboard, so evidence reaches you as exported files.</li>
                 <li>Progress lives in each student's browser and is lost if they clear it.</li>
-                <li>No past-paper material, and no claim about grades.</li>
+                <li>None of the questions are past-paper material, and nothing here predicts a grade.</li>
               </ul>
             </div>
           </div>
           <div class="pilot-note">
-            <b>Teacher pilot evidence coming soon.</b>
-            <p>No classroom study has been run, so there are no adoption figures or grade claims here.</p>
+            <b>No classroom evidence yet.</b>
+            <p>A teacher pilot has not been run, which is why this page carries no adoption figures.</p>
           </div>
         </div>
 
         <div class="landing-finish">
-          <button class="btn primary lg" id="btn-wel-start-2">Try the diagnostic</button>
-          <button class="btn lg" id="btn-wel-labs-2">Browse the converters</button>
-          <button class="btn ghost lg" id="btn-wel-privacy">How your data is handled</button>
+          <button class="btn" id="btn-wel-start-2">Start the diagnostic</button>
+          <button class="btn ghost" id="btn-wel-labs-2">Browse the converters</button>
+          <button class="btn ghost" id="btn-wel-privacy">How your data is handled</button>
         </div>
       </div>
     </section>
@@ -1145,7 +1207,7 @@
       <h1 class="sr-only" id="practice-h">Practice</h1>
       <div class="session-bar" id="session-bar">
         <span id="session-count">Question 1</span>
-        <span class="track" aria-hidden="true"><i id="session-track" style="width:0%"></i></span>
+        <span class="track" aria-hidden="true"><i id="session-track" style="transform:scaleX(0)"></i></span>
         <span id="session-time"></span>
         <button class="btn ghost" id="btn-end-session">End session</button>
       </div>
@@ -1534,7 +1596,9 @@
       <div class="panel">
         <div class="panel-head"><h2>Your data</h2></div>
         <div class="panel-body">
-          <p><b>Everything stays in this browser.</b> No account, no uploads, no analytics, no third-party scripts. After the page loads it makes no network requests at all.</p>
+          <p><b>Everything stays in this browser.</b> There is no account to create and nothing is
+            uploaded; the page carries no analytics and no third-party scripts. Once it has loaded it
+            makes no network requests at all.</p>
           <p>Stored: the course you chose, every attempt and its marks, your topic evidence, your review queue, your saved editor program, and any feedback you write. All under <code>dryrun.store.v3</code> and a few keys beside it.</p>
           <p>The last few versions of your work are kept as automatic copies, and one is taken before anything risky. A damaged record is restored from the newest copy by itself.</p>
           <p><b>If you clear your browser data, switch device or use private browsing, your progress is gone unless you exported it.</b> Settings has Export, Import and Erase. Erasing everything removes the automatic copies too.</p>
@@ -1545,7 +1609,8 @@
       <div class="panel">
         <div class="panel-head"><h2>For schools</h2></div>
         <div class="panel-body">
-          <p>Nothing leaves the browser, so there is no student data for a school to process on our side. Evidence reaches a teacher only when a student exports a file and hands it over.</p>
+          <p>Because nothing leaves the browser, there is no student data for a school to process on
+            our side. Evidence reaches a teacher only when a student exports a file and hands it over.</p>
         </div>
       </div>
 
@@ -7374,7 +7439,9 @@ const TESTS = [
     // A quoted endorsement would be a testimonial whatever it is called.
     assertEq(wel.querySelectorAll('blockquote, cite, [class*=testimonial]').length, 0,
       'there must be no testimonial markup while there is nothing to quote');
-    assert(/Teacher pilot evidence coming soon/i.test(text),
+    // The wording may change; what must not change is that the gap is stated.
+    const note = wel.querySelector('.pilot-note');
+    assert(note && /no classroom evidence|pilot has not been run/i.test(renderedText(note)),
       'where proof does not exist, the placeholder must say so');
   }],
   ['Routes: welcome and privacy exist and need no course', () => {
@@ -8125,7 +8192,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
       soon.map(t => `<li><span class="dot" aria-hidden="true"></span>` +
         `<b>${esc(t.name)}</b> <span class="hint">Coming soon — this topic is not included in your progress calculation yet.</span></li>`).join('') +
       '</ul>' +
-      '<p class="hint">DryRun is a reasoning lab, not a complete revision course. It does not cover every part of the syllabus.</p>';
+      '<p class="hint">DryRun covers reasoning and code, and does not cover every part of the syllabus.</p>';
   }
 
   function renderYearChoices() {
@@ -8447,7 +8514,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   function renderSessionBar() {
     const n = session.items.length, i = session.index;
     $('session-count').textContent = `Question ${i + 1} of ${n}`;
-    $('session-track').style.width = Math.round((i / n) * 100) + '%';
+    $('session-track').style.transform = 'scaleX(' + (n ? i / n : 0) + ')';
     const mins = Math.max(1, Math.round((n - i) * 4));
     $('session-time').textContent = `about ${mins} min left`;
   }
@@ -9363,9 +9430,14 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     let html = '<table><thead><tr><th class="n">Line</th>' +
       ttCols.map(c => `<th>${esc(c)}</th>`).join('') + '<th>OUTPUT</th></tr></thead><tbody>';
     ttRows.forEach((r, i) => {
-      html += `<tr><td class="n"><input data-r="${i}" data-f="line" value="${esc(r.line)}"></td>` +
-        ttCols.map(c => `<td><input data-r="${i}" data-v="${esc(c)}" value="${esc(r.values[c] || '')}"></td>`).join('') +
-        `<td><input data-r="${i}" data-f="output" value="${esc(r.output)}"></td></tr>`;
+      // Each cell names itself, because a screen reader reaching a grid of bare
+      // boxes has no way to tell row 3's counter from row 9's.
+      html += `<tr><td class="n"><input data-r="${i}" data-f="line" value="${esc(r.line)}" ` +
+        `aria-label="Row ${i + 1}, line number"></td>` +
+        ttCols.map(c => `<td><input data-r="${i}" data-v="${esc(c)}" value="${esc(r.values[c] || '')}" ` +
+          `aria-label="Row ${i + 1}, ${esc(c)}"></td>`).join('') +
+        `<td><input data-r="${i}" data-f="output" value="${esc(r.output)}" ` +
+        `aria-label="Row ${i + 1}, output"></td></tr>`;
     });
     $('tt-grid').innerHTML = html + '</tbody></table>';
   }

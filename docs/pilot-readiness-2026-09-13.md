@@ -103,7 +103,7 @@ On the practice screen at phone widths: sticky bar shows Run / Hint / Check, the
 
 ## Remaining limitations
 
-- **No pilot data exists.** The Evidence page says so, and the landing page carries "Teacher pilot evidence coming soon" rather than invented figures.
+- **No pilot data exists.** The Evidence page says so, and the landing page carries "No classroom evidence yet — a teacher pilot has not been run" rather than invented figures.
 - **No class dashboard.** Teachers receive evidence as files a student exports; there is no aggregation view.
 - **Coverage is partial and stated as such.** 0478 Databases has no questions and is shown as coming soon. 0478 practice is Paper 2 reasoning and pseudocode only.
 - **Offline is "after load", not installable.** Everything is inline, so no further requests are made, but there is no service worker, so a reload with no network depends on the browser cache.
