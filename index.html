@@ -1594,7 +1594,7 @@ class CIEError extends Error {
    ====================================================================== */
 
 const KEYWORDS = new Set([
-  'DECLARE','CONSTANT','ARRAY','OF','INTEGER','REAL','BOOLEAN','CHAR','STRING',
+  'DECLARE','CONSTANT','ARRAY','OF','INTEGER','REAL','BOOLEAN','CHAR','STRING','DATE',
   'IF','THEN','ELSE','ENDIF','CASE','OTHERWISE','ENDCASE',
   'FOR','TO','STEP','NEXT','ENDFOR','WHILE','DO','ENDWHILE','REPEAT','UNTIL',
   'OUTPUT','INPUT','AND','OR','NOT','MOD','DIV','TRUE','FALSE',
@@ -1774,7 +1774,7 @@ function parseDeclare(line) {
     arr = { dims };
   }
   const t = at(c);
-  if (!t || t.t !== 'KW') throw new CIEError('State the data type (INTEGER / REAL / BOOLEAN / CHAR / STRING)', line.no);
+  if (!t || t.t !== 'KW') throw new CIEError('State the data type (INTEGER / REAL / BOOLEAN / CHAR / STRING / DATE)', line.no);
   const type = t.v; c.i++;
   expectEnd(c);
   return { type:'DECLARE', line:line.no, names, dtype:type, arr };
@@ -2039,6 +2039,9 @@ class Env {
     e.files = this.files;
     e.depth = this.depth + 1;
     e.root = this.root || this;
+    // A routine can read and write the program's own variables. Its parameters
+    // and anything it DECLAREs are local and shadow them.
+    e.parent = this;
     Object.defineProperty(e, 'ip', {
       get: () => (this.root || this).ip,
       set: v => { (this.root || this).ip = v; }
@@ -2063,11 +2066,16 @@ class Env {
     }
     this.order.push(name);
   }
+  // Look in this scope first, then outwards. A local of the same name shadows
+  // the global, which is what BYVALUE parameters rely on.
   slot(name, line) {
-    const s = this.vars.get(name);
-    if (!s) throw new CIEError(`Variable ${name} is not declared — CIE requires DECLARE before use`, line);
-    return s;
+    for (let e = this; e; e = e.parent) {
+      const s = e.vars.get(name);
+      if (s) return s;
+    }
+    throw new CIEError(`Variable ${name} is not declared — CIE requires DECLARE before use`, line);
   }
+  hasOwn(name) { return this.vars.has(name); }
   get(name, line) {
     const s = this.slot(name, line);
     if (s.isArray) throw new CIEError(`${name} is an array — write it as ${name}[index]`, line);
@@ -2338,7 +2346,11 @@ function assignTo(target, value, env, line) {
 /* ---------- Execution (generator: yields a snapshot per executed line) ---------- */
 function snapshot(env, line, out) {
   const vars = {};
-  for (const name of env.order) vars[name] = fmtSlot(env.vars.get(name));
+  // Outermost first, so a local of the same name overwrites the global it
+  // shadows and the table shows what the line actually sees.
+  const chain = [];
+  for (let e = env; e; e = e.parent) chain.unshift(e);
+  for (const e of chain) for (const name of e.order) vars[name] = fmtSlot(e.vars.get(name));
   return { line, vars, out: out || '' };
 }
 function* execBlock(stmts, env) {
@@ -2480,7 +2492,18 @@ function hoistRoutines(ast, env) {
 }
 
 /* ---------- Public entry points ---------- */
-const MAX_STEPS = 3000;
+/*
+  Execution limits.
+
+  The old cap of 3000 steps existed only because everything ran on the main
+  thread, so a runaway loop would freeze the page. It also rejected perfectly
+  ordinary work: a bubble sort over 40 items needs more than 3000 steps. With
+  execution moved into a worker the page cannot freeze, so the budget is set
+  by time rather than by a number small enough to be safe on the main thread.
+*/
+const MAX_STEPS = 2000000;        // a ceiling, not the real guard
+const STEP_LIMIT_GRADING = 200000; // per hidden case: generous, still bounded
+const TIME_LIMIT_MS = 5000;        // the guard that actually matters
 const MAX_OUTPUT = 500;        // a runaway OUTPUT must stop before the browser does
 function parseInputValues(text) {
   return String(text || '').split('\n').map(s => s.trim()).filter(s => s !== '').map(s => {
@@ -2491,26 +2514,47 @@ function parseInputValues(text) {
     return s.replace(/^"(.*)"$/, '$1');
   });
 }
-function runProgram(codeText, inputText) {
+/*
+  Runs a program to completion and returns every step.
+
+  `opts` may carry { maxSteps, timeLimitMs, onStep, keepSteps }. Grading passes
+  a tighter step budget and keepSteps:false, because it runs a program once per
+  hidden case and only needs the output.
+*/
+function runProgram(codeText, inputText, opts) {
+  const o = opts || {};
+  const maxSteps = o.maxSteps || MAX_STEPS;
+  const timeLimit = o.timeLimitMs || TIME_LIMIT_MS;
+  const keep = o.keepSteps !== false;
+
   const lines = tokenize(codeText);
   if (!lines.length) throw new CIEError('No pseudocode has been written yet', 1);
   const ast = parseProgram(lines);
   const env = new Env(parseInputValues(inputText));
   // Routines are hoisted, so a program can call one defined further down.
   hoistRoutines(ast, env);
+
   const steps = [];
+  const started = Date.now();
+  let n = 0, last = null;
   try {
     for (const s of execBlock(ast, env)) {
-      steps.push(s);
-      if (steps.length > MAX_STEPS) {
-        throw new CIEError(`Execution passed ${MAX_STEPS} steps — most likely an infinite loop; check whether the loop condition can ever become FALSE`, s.line);
+      n++; last = s;
+      if (keep) steps.push(s);
+      if (o.onStep) o.onStep(s, n);
+      if (n > maxSteps) {
+        throw new CIEError(`Execution passed ${maxSteps} steps, which almost always means a loop that never ends. Check whether its condition can become FALSE.`, s.line);
+      }
+      // Checking the clock every step would cost more than it saves.
+      if ((n & 1023) === 0 && Date.now() - started > timeLimit) {
+        throw new CIEError(`This program ran for longer than ${Math.round(timeLimit / 1000)} seconds without finishing. Check for a loop that never ends.`, s.line);
       }
     }
   } catch (e) {
     if (e instanceof ReturnSignal) throw new CIEError('RETURN can only be used inside a FUNCTION', 1);
     throw e;
   }
-  return { steps, env };
+  return { steps, env, stepCount:n, lastLine: last ? last.line : 0, ms: Date.now() - started };
 }
 
 /* ======================================================================
@@ -3468,7 +3512,8 @@ const normaliseOutputs = list => list.map(v => String(v).trim()).join('');
 // Runs `code` against one case. Never throws: every failure is classified.
 function runCase(code, inputs) {
   try {
-    const { env } = runProgram(code, caseInputText(inputs));
+    const { env } = runProgram(code, caseInputText(inputs),
+      { maxSteps: STEP_LIMIT_GRADING, timeLimitMs: 2000, keepSteps: false });
     return { ok:true, output: env.output.map(fmt) };
   } catch (e) {
     return { ok:false, error: e.message, line: e.line };
@@ -5552,7 +5597,7 @@ const HL_CLASS = {
   kw:'t-kw', type:'t-type', num:'t-num', str:'t-str', chr:'t-str',
   com:'t-com', op:'t-op', ident:'t-id', ws:'', bad:'t-bad'
 };
-const HL_TYPES = new Set(['INTEGER', 'REAL', 'BOOLEAN', 'CHAR', 'STRING', 'ARRAY', 'OF']);
+const HL_TYPES = new Set(['INTEGER', 'REAL', 'BOOLEAN', 'CHAR', 'STRING', 'DATE', 'ARRAY', 'OF']);
 
 function highlightTokens(src) {
   const out = [];
@@ -6203,7 +6248,11 @@ const TESTS = [
   ['infinite loops hit the step limit', () => {
     assertThrows(() => runProgram(
       'DECLARE x : INTEGER\nx ← 1\nWHILE x = 1 DO\n  x ← 1\nENDWHILE', ''),
-      'infinite loop', 'an endless WHILE should be stopped by the step limit');
+      'loop that never ends', 'an endless WHILE must be stopped');
+    // A caller-supplied budget is honoured too, which is how grading stays bounded.
+    assertThrows(() => runProgram(
+      'DECLARE x : INTEGER\nx ← 1\nWHILE x = 1 DO\n  x ← 1\nENDWHILE', '', { maxSteps: 500 }),
+      'Execution passed 500 steps', 'a caller-supplied limit should be used');
   }],
   ['INPUT takes values in order', () => {
     const { env } = runProgram(
@@ -6874,7 +6923,7 @@ const TESTS = [
     // FOR loop costs two steps per write. Either way it stops.
     assertThrows(() => runProgram(
       'DECLARE i : INTEGER\nOPENFILE "f.txt" FOR WRITE\nFOR i ← 1 TO 5000\n    WRITEFILE "f.txt", "x"\nNEXT i', ''),
-      'Execution passed', 'a runaway write must terminate');
+      'at most', 'a runaway write hits the file limit, whichever guard comes first');
     // The file limit itself, checked directly on the environment.
     const env = new Env([]);
     env.openFile('f.txt', 'WRITE', 1);
@@ -7689,6 +7738,79 @@ const TESTS = [
     assertEq(r.ok, false, 'a question whose solution no longer works must be refused');
     assert(/does not work/i.test(r.error), 'and say so: ' + r.error);
   }],
+  /* ---- The Cambridge compatibility matrix, one assertion per construct ----
+     Nothing may be claimed as supported without a test on this list. ---- */
+  ['Matrix: data types', () => {
+    const { env } = runProgram(
+      'DECLARE a : INTEGER\nDECLARE b : REAL\nDECLARE c : STRING\nDECLARE d : CHAR\n' +
+      'DECLARE e : BOOLEAN\nDECLARE f : DATE\n' +
+      "a ← 7\nb ← 2.5\nc ← \"hi\"\nd ← 'z'\ne ← TRUE\nf ← \"2026-09-14\"\n" +
+      'OUTPUT a\nOUTPUT b\nOUTPUT c\nOUTPUT d\nOUTPUT e\nOUTPUT f', '');
+    assertEq(env.output.map(fmt).join('|'), '7|2.5|hi|z|TRUE|2026-09-14', 'every declared type should round-trip');
+  }],
+  ['Matrix: CONSTANT cannot be reassigned', () => {
+    assertEq(runProgram('CONSTANT PI = 3.14\nOUTPUT PI', '').env.output.join(''), '3.14', 'a constant holds its value');
+    assertThrows(() => runProgram('CONSTANT PI = 3.14\nPI ← 3', ''), 'CONSTANT', 'and refuses assignment');
+  }],
+  ['Matrix: selection, including CASE with OTHERWISE', () => {
+    const ifElse = 'DECLARE m : INTEGER\nINPUT m\nIF m >= 50 THEN\n    OUTPUT "pass"\nELSE\n    OUTPUT "fail"\nENDIF';
+    assertEq(runProgram(ifElse, '50').env.output.join(''), 'pass', 'IF takes the true branch at the boundary');
+    assertEq(runProgram(ifElse, '49').env.output.join(''), 'fail', 'and the false branch below it');
+    const c = 'DECLARE g : INTEGER\nINPUT g\nCASE OF g\n1 : OUTPUT "one"\n2 : OUTPUT "two"\nOTHERWISE OUTPUT "other"\nENDCASE';
+    assertEq(runProgram(c, '2').env.output.join(''), 'two', 'CASE matches');
+    assertEq(runProgram(c, '9').env.output.join(''), 'other', 'and falls to OTHERWISE');
+  }],
+  ['Matrix: all three loops, including STEP and zero iterations', () => {
+    assertEq(runProgram('DECLARE i : INTEGER\nFOR i ← 1 TO 3\n    OUTPUT i\nNEXT i', '').env.output.join(','), '1,2,3', 'FOR');
+    assertEq(runProgram('DECLARE i : INTEGER\nFOR i ← 9 TO 1 STEP -4\n    OUTPUT i\nNEXT i', '').env.output.join(','), '9,5,1', 'FOR with STEP');
+    assertEq(runProgram('DECLARE i : INTEGER\nFOR i ← 5 TO 1\n    OUTPUT i\nNEXT i', '').env.output.length, 0, 'FOR runs zero times when it cannot start');
+    assertEq(runProgram('DECLARE n : INTEGER\nn ← 0\nWHILE n > 0 DO\n    OUTPUT n\nENDWHILE\nOUTPUT "done"', '').env.output.join(''), 'done', 'WHILE tests first');
+    assertEq(runProgram('DECLARE n : INTEGER\nn ← 0\nREPEAT\n    OUTPUT "once"\nUNTIL n = 0', '').env.output.join(''), 'once', 'REPEAT runs at least once');
+  }],
+  ['Matrix: arrays, one and two dimensional, with CIE bounds', () => {
+    assertEq(runProgram('DECLARE a : ARRAY[1:3] OF INTEGER\na[1] ← 4\na[3] ← 6\nOUTPUT a[1] + a[3]', '').env.output.join(''), '10', '1-D');
+    assertEq(runProgram('DECLARE g : ARRAY[1:2, 1:3] OF INTEGER\ng[2,3] ← 8\nOUTPUT g[2,3]', '').env.output.join(''), '8', '2-D');
+    assertEq(runProgram('DECLARE a : ARRAY[0:2] OF INTEGER\na[0] ← 5\nOUTPUT a[0]', '').env.output.join(''), '5', 'a declared lower bound of 0 is allowed');
+    assertThrows(() => runProgram('DECLARE a : ARRAY[1:3] OF INTEGER\na[0] ← 1', ''), 'start at 1', 'but index 0 of a 1-based array is not');
+    assertThrows(() => runProgram('DECLARE a : ARRAY[1:3] OF INTEGER\na[4] ← 1', ''), 'out of bounds', 'nor past the end');
+  }],
+  ['Matrix: procedures, functions, BYVALUE and BYREF', () => {
+    assertEq(runProgram('PROCEDURE P(n : INTEGER)\n    n ← n + 1\nENDPROCEDURE\nDECLARE x : INTEGER\nx ← 1\nCALL P(x)\nOUTPUT x', '')
+      .env.output.join(''), '1', 'BYVALUE leaves the caller alone');
+    assertEq(runProgram('PROCEDURE P(BYREF n : INTEGER)\n    n ← n + 1\nENDPROCEDURE\nDECLARE x : INTEGER\nx ← 1\nCALL P(x)\nOUTPUT x', '')
+      .env.output.join(''), '2', 'BYREF writes back');
+    assertEq(runProgram('FUNCTION D(n : INTEGER) RETURNS INTEGER\n    RETURN n * 2\nENDFUNCTION\nOUTPUT D(4) + 1', '')
+      .env.output.join(''), '9', 'a function is usable in an expression');
+  }],
+  ['Matrix: scope — a routine sees globals, and its locals shadow them', () => {
+    assertEq(runProgram('DECLARE g : INTEGER\ng ← 5\nPROCEDURE P()\n    OUTPUT g\nENDPROCEDURE\nCALL P()', '')
+      .env.output.join(''), '5', 'a routine can read a global');
+    assertEq(runProgram('DECLARE g : INTEGER\ng ← 5\nPROCEDURE P()\n    g ← 9\nENDPROCEDURE\nCALL P()\nOUTPUT g', '')
+      .env.output.join(''), '9', 'and write one');
+    assertEq(runProgram('DECLARE n : INTEGER\nn ← 1\nPROCEDURE P(n : INTEGER)\n    n ← 99\nENDPROCEDURE\nCALL P(5)\nOUTPUT n', '')
+      .env.output.join(''), '1', 'a parameter of the same name shadows the global');
+    assertEq(runProgram('DECLARE n : INTEGER\nn ← 1\nFUNCTION F() RETURNS INTEGER\n    DECLARE n : INTEGER\n    n ← 7\n    RETURN n\nENDFUNCTION\nOUTPUT F()\nOUTPUT n', '')
+      .env.output.join(','), '7,1', 'a local DECLARE shadows too, and the global survives');
+  }],
+  ['Matrix: built-in string and numeric functions', () => {
+    const { env } = runProgram(
+      'OUTPUT LENGTH("Cambridge")\nOUTPUT MID("Cambridge", 1, 4)\nOUTPUT LEFT("Cambridge", 3)\n' +
+      'OUTPUT RIGHT("Cambridge", 3)\nOUTPUT UCASE("ab")\nOUTPUT LCASE("AB")\n' +
+      'OUTPUT INT(3.7)\nOUTPUT ROUND(3.456, 2)\nOUTPUT 7 DIV 2\nOUTPUT 7 MOD 2\nOUTPUT "a" & "b"', '');
+    assertEq(env.output.map(fmt).join('|'), '9|Camb|Cam|dge|AB|ab|3|3.46|3|1|ab', 'every built-in should behave');
+  }],
+  ['Matrix: file handling in the sandbox', () => {
+    const { env } = runProgram(
+      'DECLARE l : STRING\nDECLARE n : INTEGER\n' +
+      'OPENFILE "m.txt" FOR WRITE\nWRITEFILE "m.txt", "one"\nWRITEFILE "m.txt", "two"\nCLOSEFILE "m.txt"\n' +
+      'OPENFILE "m.txt" FOR APPEND\nWRITEFILE "m.txt", "three"\nCLOSEFILE "m.txt"\n' +
+      'n ← 0\nOPENFILE "m.txt" FOR READ\nWHILE NOT EOF("m.txt") DO\n    READFILE "m.txt", l\n    n ← n + 1\nENDWHILE\nCLOSEFILE "m.txt"\nOUTPUT n\nOUTPUT l', '');
+    assertEq(env.output.map(fmt).join('|'), '3|three', 'write, append, read back and EOF');
+  }],
+  ['Matrix: INPUT consumes values in order and runs out honestly', () => {
+    assertEq(runProgram('DECLARE a : INTEGER\nDECLARE b : INTEGER\nINPUT a\nINPUT b\nOUTPUT a - b', '9\n4').env.output.join(''), '5', 'in order');
+    assertThrows(() => runProgram('DECLARE a : INTEGER\nINPUT a', ''), 'no value available', 'and says so when exhausted');
+  }],
   ['Trace table: round trip through every non-array example', () => {
     for (const ex of EXAMPLES) {
       if (/ARRAY/.test(ex.code)) continue;
@@ -7723,7 +7845,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   createStore, EVIDENCE, STORE_VERSION, memoryBackend, topicProgressOf,
   profileId, describeProfile, migrateStore, rebuildDerived,
   VIEWS_NEEDING_COURSE, ALL_VIEWS,
-  contrastRatio, Env, MAX_FILE_LINES, MAX_DEPTH, hoistRoutines,
+  contrastRatio, Env, MAX_FILE_LINES, MAX_DEPTH, MAX_STEPS, TIME_LIMIT_MS, hoistRoutines,
   highlight, highlightTokens, checkSource, indentFor, dedentFor, DEDENT_WORDS, AUTO_CLOSE,
   buildSharedQuestion, exportQuestion, importQuestion, SHARE_SCHEMA }; } catch (e) {}
 </script>
