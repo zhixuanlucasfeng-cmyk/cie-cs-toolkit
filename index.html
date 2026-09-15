@@ -631,8 +631,10 @@
     position:absolute; z-index:5; min-width:220px; max-width:min(420px, 80%);
     max-height:212px; overflow-y:auto;
     background:var(--surface-raised); color:var(--text-primary);
-    border:1px solid var(--border-strong); border-radius:var(--radius);
-    box-shadow:0 8px 24px rgba(0,0,0,.4);
+    border-radius:var(--radius);
+    /* A defined edge, not an edge plus a halo: the list sits one step above
+       the code, so the shadow is short and dark rather than wide and soft. */
+    box-shadow:0 0 0 1px var(--border-strong), 0 3px 8px rgba(0,0,0,.55);
   }
   .ide-ac-item {
     display:flex; align-items:baseline; gap:var(--s3); width:100%;
