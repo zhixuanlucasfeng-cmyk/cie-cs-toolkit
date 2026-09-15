@@ -999,6 +999,10 @@
     paint-order:stroke; stroke:var(--surface); stroke-width:3px;
   }
   svg.circuit .sig.on { fill:var(--accent); font-weight:700; }
+  /* A branching wire needs a dot, or a junction is indistinguishable from
+     one wire passing over another. */
+  svg.circuit .junction { fill:var(--text-muted); stroke:none; }
+  svg.circuit .junction.on { fill:var(--accent); }
   svg.circuit .gate.on { stroke:var(--accent); }
 
   .tt-row-pick tbody tr { cursor:pointer; }
@@ -6816,8 +6820,432 @@ function guideColumns(line) {
   return cols;
 }
 
+
+/* ======================================================================
+   Module N: laying out a logic circuit
+
+   The first version placed each gate at the mean of its inputs and routed
+   every wire straight from source to destination. That draws a lie: an
+   edge spanning two columns runs along the same horizontal line as
+   whatever else happens to sit at that height, and two different signals
+   sharing a segment mean, in a circuit, that they are shorted together.
+
+   This follows the layered method (Sugiyama, Tagawa and Toda 1981) as used
+   by ELK and by netlistsvg for exactly this job:
+
+     1. layer      — a gate sits one column right of its deepest input
+     2. dummies    — an edge crossing more than one column is split, so
+                     every edge joins neighbouring columns only. The dummy
+                     takes a real slot, which is what reserves the space a
+                     long wire needs
+     3. order      — repeated up and down sweeps, ordering each column by
+                     the median of its neighbours, keeping the ordering
+                     with the fewest crossings
+     4. place      — y comes from that order
+     5. route      — each edge gets its own vertical lane in the channel it
+                     crosses, so no two signals share a segment
+
+   It is here rather than beside the drawing code so the self-test can hold
+   it to account.
+   ====================================================================== */
+
+const CIRC = {
+  colW: 132, rowH: 56, gateW: 46, gateH: 36,
+  padX: 30, padY: 24, outLead: 34, laneGap: 11, sweeps: 4
+};
+
+/* Every distinct sub-expression becomes one node: a repeated term is one
+   gate with its output used twice, which is what a real circuit does. */
+function circuitNodes(root) {
+  const nodes = new Map();
+  (function walk(n) {
+    const k = bstr(n);
+    if (!nodes.has(k)) nodes.set(k, { key: k, node: n, op: n.op, kind: n.op === 'VAR' ? 'var' : 'gate' });
+    if (n.op === 'VAR') return;
+    if (n.op === 'NOT') walk(n.e); else { walk(n.l); walk(n.r); }
+  })(root);
+  return nodes;
+}
+
+function circuitInputs(n) {
+  if (n.op === 'VAR') return [];
+  return n.op === 'NOT' ? [n.e] : [n.l, n.r];
+}
+
+function layoutCircuit(root) {
+  const nodes = circuitNodes(root);
+
+  // ---- 1. layers ------------------------------------------------------
+  const layerOf = new Map();
+  (function assign(n) {
+    const k = bstr(n);
+    if (layerOf.has(k)) return layerOf.get(k);
+    const ins = circuitInputs(n);
+    const l = ins.length ? Math.max(...ins.map(assign)) + 1 : 0;
+    layerOf.set(k, l);
+    return l;
+  })(root);
+  for (const [k, v] of nodes) v.layer = layerOf.get(k);
+  const lastLayer = Math.max(...[...nodes.values()].map(v => v.layer));
+
+  // ---- 2. dummies, so every edge joins neighbouring columns -----------
+  // An edge is {from, to, layer} where layer is the column it leaves.
+  const edges = [];
+  const all = new Map([...nodes].map(([k, v]) => [k, v]));
+  let dummyN = 0;
+  for (const [k, v] of nodes) {
+    circuitInputs(v.node).forEach((child, port) => {
+      const ck = bstr(child);
+      let from = ck;
+      // Walk one column at a time, leaving a dummy in each column between.
+      for (let l = all.get(ck).layer + 1; l < v.layer; l++) {
+        const dk = `~d${dummyN++}`;
+        all.set(dk, { key: dk, kind: 'dummy', layer: l, of: ck });
+        edges.push({ from, to: dk, layer: l - 1, port: 0, net: ck });
+        from = dk;
+      }
+      edges.push({ from, to: k, layer: v.layer - 1, port, net: ck });
+    });
+  }
+
+  // ---- 3. order each column, fewest crossings wins --------------------
+  const columns = [];
+  for (let l = 0; l <= lastLayer; l++) {
+    columns[l] = [...all.values()].filter(v => v.layer === l).map(v => v.key);
+  }
+  // Inputs read down the left edge alphabetically; everything else follows.
+  columns[0].sort();
+
+  const inOf = new Map(), outOf = new Map();
+  for (const e of edges) {
+    if (!inOf.has(e.to)) inOf.set(e.to, []);
+    if (!outOf.has(e.from)) outOf.set(e.from, []);
+    inOf.get(e.to).push(e.from);
+    outOf.get(e.from).push(e.to);
+  }
+
+  const posIn = col => { const m = new Map(); col.forEach((k, i) => m.set(k, i)); return m; };
+
+  function crossingsBetween(upper, lower) {
+    const pu = posIn(upper);
+    const pairs = [];
+    lower.forEach((k, i) => (inOf.get(k) || []).forEach(u => {
+      if (pu.has(u)) pairs.push([pu.get(u), i]);
+    }));
+    let c = 0;
+    for (let i = 0; i < pairs.length; i++) {
+      for (let j = i + 1; j < pairs.length; j++) {
+        if ((pairs[i][0] - pairs[j][0]) * (pairs[i][1] - pairs[j][1]) < 0) c++;
+      }
+    }
+    return c;
+  }
+  const totalCrossings = cols =>
+    cols.slice(1).reduce((a, col, i) => a + crossingsBetween(cols[i], col), 0);
+
+  // The median of a node's neighbours in the column it is being compared
+  // against. A node with no neighbours there keeps where it is.
+  function sweep(cols, dir) {
+    const order = dir === 'down'
+      ? [...Array(cols.length - 1).keys()].map(i => i + 1)
+      : [...Array(cols.length - 1).keys()].map(i => cols.length - 2 - i);
+    for (const l of order) {
+      const ref = posIn(cols[dir === 'down' ? l - 1 : l + 1]);
+      const neigh = k => (dir === 'down' ? (inOf.get(k) || []) : (outOf.get(k) || []))
+        .map(x => ref.get(x)).filter(x => x !== undefined).sort((a, b) => a - b);
+      const was = posIn(cols[l]);
+      cols[l] = cols[l].slice().sort((a, b) => {
+        const na = neigh(a), nb = neigh(b);
+        const ma = na.length ? na[(na.length - 1) >> 1] : was.get(a);
+        const mb = nb.length ? nb[(nb.length - 1) >> 1] : was.get(b);
+        return ma - mb || was.get(a) - was.get(b);
+      });
+    }
+    return cols;
+  }
+
+  let best = columns.map(c => c.slice());
+  let bestC = totalCrossings(best);
+  let work = columns.map(c => c.slice());
+  for (let i = 0; i < CIRC.sweeps && bestC > 0; i++) {
+    work = sweep(work.map(c => c.slice()), i % 2 ? 'up' : 'down');
+    work[0] = work[0].slice().sort();          // inputs stay alphabetical
+    const c = totalCrossings(work);
+    if (c < bestC) { bestC = c; best = work.map(x => x.slice()); }
+  }
+
+  // ---- 4. place -------------------------------------------------------
+  for (let l = 0; l < best.length; l++) {
+    best[l].forEach((k, i) => {
+      const v = all.get(k);
+      v.x = CIRC.padX + l * CIRC.colW;
+      v.y = CIRC.padY + i * CIRC.rowH;
+      v.order = i;
+    });
+  }
+
+  // A gate's output leaves its right edge; a NOT-style gate past its bubble.
+  function negated(op) { return op === 'NOT' || op === 'NAND' || op === 'NOR'; }
+  const outX = v => v.kind === 'var' ? v.x + 16
+    : v.kind === 'dummy' ? v.x
+    : v.x + CIRC.gateW + (negated(v.op) ? 10 : 0);
+  const outY = v => v.kind === 'dummy' ? v.y : v.y + CIRC.gateH / 2;
+  const inPoint = (v, port, of) => {
+    if (v.kind === 'dummy') return { x: v.x, y: v.y };
+    if (of === 1) return { x: v.x, y: v.y + CIRC.gateH / 2 };
+    return { x: v.x, y: v.y + (port === 0 ? 10 : CIRC.gateH - 10) };
+  };
+
+  // ---- 5. route: one vertical lane per edge, per channel ---------------
+  const byChannel = new Map();
+  for (const e of edges) {
+    if (!byChannel.has(e.layer)) byChannel.set(e.layer, []);
+    byChannel.get(e.layer).push(e);
+  }
+
+  /*
+    A wire runs along its source's height until it reaches its lane, turns,
+    then runs along its target's height. So when one wire leaves a port at
+    the same height another wire arrives at, the one leaving must turn
+    first — otherwise the two share a stretch of line, which in a circuit
+    reads as a join. That single rule decides the order of the lanes, and a
+    topological sort puts them in it.
+  */
+  function laneOrder(list, ends) {
+    const before = list.map(() => []);
+    const indeg = list.map(() => 0);
+    list.forEach((u, i) => list.forEach((v, j) => {
+      if (i === j) return;
+      if (Math.abs(ends[i].p1.y - ends[j].p2.y) < 0.5) { before[i].push(j); indeg[j]++; }
+    }));
+    // Ties are broken by where the wire lands, so neighbouring inputs get
+    // neighbouring lanes and the drawing stays orderly.
+    const ready = list.map((_, i) => i).filter(i => indeg[i] === 0)
+      .sort((a, b) => ends[a].p2.y - ends[b].p2.y);
+    const out = [];
+    while (ready.length) {
+      const i = ready.shift();
+      out.push(i);
+      for (const j of before[i]) if (--indeg[j] === 0) {
+        ready.push(j);
+        ready.sort((a, b) => ends[a].p2.y - ends[b].p2.y);
+      }
+    }
+    return out.length === list.length ? out : null;   // null means a cycle
+  }
+
+  const negatedOut = v => v.kind === 'gate' && negated(v.op);
+  function endsFor(list) {
+    return list.map(e => {
+      const fv = all.get(e.from), tv = all.get(e.to);
+      const fan = tv.kind === 'dummy' ? 0 : circuitInputs(tv.node).length;
+      return { p1: { x: outX(fv), y: outY(fv) }, p2: inPoint(tv, e.port, fan) };
+    });
+  }
+
+  /*
+    A cycle means two wires each leave a port at the height the other
+    arrives at, and no ordering of lanes can separate them. Sliding the
+    whole of the rest of the drawing down by half a row makes the two sets
+    of heights disjoint, so the question cannot arise.
+  */
+  let guard = 0;
+  for (let l = 0; l <= lastLayer; l++) {
+    const list = byChannel.get(l);
+    if (!list || !list.length) continue;
+    if (laneOrder(list, endsFor(list))) continue;
+    if (guard++ > lastLayer + 2) break;            // never loop for ever
+    for (const v of all.values()) if (v.layer > l) v.y += CIRC.rowH / 2;
+    l--;                                            // re-check this channel
+  }
+
+  const wires = [];
+  for (let l = 0; l <= lastLayer; l++) {
+    const list = byChannel.get(l);
+    if (!list || !list.length) continue;
+    const ends = endsFor(list);
+    const order = laneOrder(list, ends) || list.map((_, i) => i);
+    // Lanes run left to right in that order, inside the gap between the two
+    // columns, and never left of the column they leave.
+    const leftEdge = Math.max(...ends.map(e => e.p1.x)) + 10;
+    const rightEdge = Math.min(...ends.map(e => e.p2.x)) - 8;
+    const step = order.length > 1
+      ? Math.min(CIRC.laneGap, (rightEdge - leftEdge) / (order.length - 1)) : 0;
+    order.forEach((idx, slot) => {
+      const e = list[idx], en = ends[idx];
+      wires.push({
+        net: e.net, from: e.from, to: e.to, p1: en.p1, p2: en.p2,
+        laneX: order.length > 1 ? leftEdge + slot * step : (leftEdge + rightEdge) / 2,
+        straight: Math.abs(en.p1.y - en.p2.y) < 0.5
+      });
+    });
+  }
+
+  const rootKey = bstr(root);
+  const rv = all.get(rootKey);
+  const width = CIRC.padX + (lastLayer + 1) * CIRC.colW + 70;
+  const lowest = Math.max(...[...all.values()].map(v => v.y + (v.kind === 'gate' ? CIRC.gateH : 0)));
+  const height = Math.max(lowest + CIRC.padY, 110);
+
+  return {
+    nodes: [...all.values()], wires, width, height,
+    crossings: bestC, layers: best,
+    out: { x: outX(rv), y: outY(rv), lead: CIRC.outLead }
+  };
+}
+
+/* The points of a wire, as an orthogonal path. A wire whose ends are level
+   is one straight line; everything else turns exactly twice. */
+function wirePoints(w) {
+  if (w.straight) return [[w.p1.x, w.p1.y], [w.p2.x, w.p2.y]];
+  return [[w.p1.x, w.p1.y], [w.laneX, w.p1.y], [w.laneX, w.p2.y], [w.p2.x, w.p2.y]];
+}
+function wirePath(w) {
+  const pts = wirePoints(w);
+  return 'M' + pts.map(p => p[0] + ',' + p[1]).join(' L');
+}
+
 const TESTS = [
 
+
+  /* ---- Module N: laying out a circuit ---- */
+  ['Circuit: no two signals ever share a piece of wire', () => {
+    // This is the bug that started this: (A XOR NOT B) AND NOT A drew raw A
+    // and NOT A along the same horizontal line, which in a circuit means the
+    // two are shorted together. Sharing a segment is only allowed when it is
+    // one signal fanning out.
+    const segs = w => {
+      const p = wirePoints(w), out = [];
+      for (let i = 1; i < p.length; i++) out.push({ net: w.net, a: p[i - 1], b: p[i] });
+      return out;
+    };
+    const overlaps = (s1, s2) => {
+      const h1 = Math.abs(s1.a[1] - s1.b[1]) < 0.5, h2 = Math.abs(s2.a[1] - s2.b[1]) < 0.5;
+      const v1 = Math.abs(s1.a[0] - s1.b[0]) < 0.5, v2 = Math.abs(s2.a[0] - s2.b[0]) < 0.5;
+      const span = (p, q, i) => [Math.min(p[i], q[i]), Math.max(p[i], q[i])];
+      const over = (r1, r2) => Math.min(r1[1], r2[1]) - Math.max(r1[0], r2[0]) > 0.5;
+      if (h1 && h2 && Math.abs(s1.a[1] - s2.a[1]) < 0.5) {
+        return over(span(s1.a, s1.b, 0), span(s2.a, s2.b, 0));
+      }
+      if (v1 && v2 && Math.abs(s1.a[0] - s2.a[0]) < 0.5) {
+        return over(span(s1.a, s1.b, 1), span(s2.a, s2.b, 1));
+      }
+      return false;
+    };
+    const exprs = [
+      '(A XOR NOT B) AND NOT A',
+      '(A XOR B) AND NOT C',
+      'A AND B OR C AND D',
+      'NOT (A AND B) OR (C XOR D)',
+      '(A OR B) AND (A OR C) AND (B OR C)',
+      'A NAND (B NOR (C XOR D))'
+    ];
+    for (const src of exprs) {
+      const L = layoutCircuit(truthTable(src).root);
+      const all = [].concat(...L.wires.map(segs));
+      for (let i = 0; i < all.length; i++) {
+        for (let j = i + 1; j < all.length; j++) {
+          if (all[i].net === all[j].net) continue;   // one signal fanning out
+          assert(!overlaps(all[i], all[j]),
+            `${src}: "${all[i].net}" and "${all[j].net}" share a piece of wire ` +
+            `(${all[i].a}-${all[i].b} against ${all[j].a}-${all[j].b})`);
+        }
+      }
+    }
+  }],
+  ['Circuit: no two signals share a wire, over a few hundred expressions', () => {
+    // The six worked examples above are not evidence; this is. A fixed seed
+    // keeps it repeatable, so a failure names an expression you can paste in.
+    let seed = 20260915;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    const VARS = ['A', 'B', 'C', 'D'], BIN = ['AND', 'OR', 'XOR', 'NAND', 'NOR'];
+    const gen = d => {
+      if (d <= 0 || rnd() < 0.3) return VARS[Math.floor(rnd() * VARS.length)];
+      if (rnd() < 0.25) return 'NOT ' + gen(d - 1);
+      return '(' + gen(d - 1) + ' ' + BIN[Math.floor(rnd() * BIN.length)] + ' ' + gen(d - 1) + ')';
+    };
+    const segs = w => {
+      const p = wirePoints(w), out = [];
+      for (let i = 1; i < p.length; i++) out.push({ net: w.net, a: p[i - 1], b: p[i] });
+      return out;
+    };
+    const span = (p, q, i) => [Math.min(p[i], q[i]), Math.max(p[i], q[i])];
+    const over = (r1, r2) => Math.min(r1[1], r2[1]) - Math.max(r1[0], r2[0]) > 0.5;
+    const overlaps = (s1, s2) => {
+      if (Math.abs(s1.a[1] - s1.b[1]) < 0.5 && Math.abs(s2.a[1] - s2.b[1]) < 0.5 &&
+          Math.abs(s1.a[1] - s2.a[1]) < 0.5) return over(span(s1.a, s1.b, 0), span(s2.a, s2.b, 0));
+      if (Math.abs(s1.a[0] - s1.b[0]) < 0.5 && Math.abs(s2.a[0] - s2.b[0]) < 0.5 &&
+          Math.abs(s1.a[0] - s2.a[0]) < 0.5) return over(span(s1.a, s1.b, 1), span(s2.a, s2.b, 1));
+      return false;
+    };
+    let checked = 0;
+    for (let i = 0; i < 300; i++) {
+      const src = gen(3);
+      let t;
+      try { t = truthTable(src); } catch (e) { continue; }
+      const all = [].concat(...layoutCircuit(t.root).wires.map(segs));
+      checked++;
+      for (let a = 0; a < all.length; a++) {
+        for (let b = a + 1; b < all.length; b++) {
+          if (all[a].net === all[b].net) continue;
+          assert(!overlaps(all[a], all[b]), `${src} draws two signals on one wire`);
+        }
+      }
+    }
+    assert(checked > 200, 'the generator should have produced real expressions, got ' + checked);
+  }],
+  ['Circuit: an edge never skips a column without leaving a marker', () => {
+    // A wire crossing two columns with nothing reserving its space is what
+    // let it run through whatever happened to be at that height.
+    for (const src of ['(A XOR NOT B) AND NOT A', 'A AND B OR C AND D', 'NOT NOT NOT A']) {
+      const L = layoutCircuit(truthTable(src).root);
+      const at = new Map(L.nodes.map(n => [n.key, n.layer]));
+      for (const w of L.wires) {
+        assertEq(at.get(w.to) - at.get(w.from), 1,
+          `${src}: ${w.from} to ${w.to} spans ${at.get(w.to) - at.get(w.from)} columns`);
+      }
+    }
+  }],
+  ['Circuit: ordering the columns removes the crossings it can', () => {
+    // A tree with no shared terms can always be drawn without a crossing.
+    for (const src of ['(A AND B) OR (C AND D)', '(A XOR B) AND (C XOR D)', 'A AND B AND C']) {
+      assertEq(layoutCircuit(truthTable(src).root).crossings, 0,
+        src + ' should need no crossings');
+    }
+  }],
+  ['Circuit: a repeated term is one gate whose output is used twice', () => {
+    const L = layoutCircuit(truthTable('(A AND B) OR (A AND B)').root);
+    const ands = L.nodes.filter(n => n.kind === 'gate' && n.op === 'AND');
+    assertEq(ands.length, 1, 'the same sub-expression should not be built twice');
+  }],
+  ['Circuit: inputs stay in alphabetical order down the left edge', () => {
+    const L = layoutCircuit(truthTable('(C AND A) OR B').root);
+    const ins = L.nodes.filter(n => n.kind === 'var').sort((a, b) => a.y - b.y);
+    assertEq(ins.map(n => n.key).join(''), 'ABC', 'A, then B, then C, top to bottom');
+    assertEq(ins.every(n => n.layer === 0), true, 'and all of them in the first column');
+  }],
+  ['Circuit: a wire whose ends are level is one straight line', () => {
+    const L = layoutCircuit(truthTable('NOT A').root);
+    const w = L.wires.find(x => x.from === 'A');
+    assertEq(wirePoints(w).length, 2, 'no bend is needed, so none is drawn');
+    assert(/^M[\d.]+,[\d.]+ L[\d.]+,[\d.]+$/.test(wirePath(w)), 'and the path says so: ' + wirePath(w));
+  }],
+  ['Circuit: every gate and wire stays inside the drawing', () => {
+    for (const src of ['(A XOR NOT B) AND NOT A', 'A AND B OR C AND D OR E']) {
+      const L = layoutCircuit(truthTable(src).root);
+      for (const n of L.nodes) {
+        assert(n.x >= 0 && n.x <= L.width, `${src}: ${n.key} at x=${n.x} is outside 0..${L.width}`);
+        assert(n.y >= 0 && n.y <= L.height, `${src}: ${n.key} at y=${n.y} is outside 0..${L.height}`);
+      }
+      for (const w of L.wires) {
+        for (const [x, y] of wirePoints(w)) {
+          assert(x >= 0 && x <= L.width && y >= 0 && y <= L.height,
+            `${src}: a wire reaches ${x},${y}, outside ${L.width}x${L.height}`);
+        }
+      }
+      assert(L.out.x + L.out.lead <= L.width, src + ': the output lead runs off the edge');
+    }
+  }],
   /* ---- the circuit drawing ---- */
   ['Logic: the circuit is drawn, not filled in as solid black', () => {
     if (typeof document === 'undefined') return;
@@ -6840,27 +7268,34 @@ const TESTS = [
     assert(gate.style.fill && gate.style.fill !== 'none',
       'and a fill, so a wire behind it does not show through');
   }],
-  ['Logic: every gate sits level with the middle of what feeds it', () => {
+  ['Logic: the drawing is exactly the layout that was tested', () => {
     if (typeof document === 'undefined') return;
+    // Module N's layout is held to account by the tests above. This is the
+    // join: it checks the SVG on the page is drawn from that layout and not
+    // from a second, untested copy of the same idea.
     const gen = document.getElementById('btn-gen');
     const expr = document.getElementById('expr');
     if (!gen || !expr) return;
     const was = expr.value;
-    expr.value = '(A XOR B) AND NOT C';
-    gen.click();
-    const svg = document.querySelector('#circ-out svg');
-    assert(svg, 'a circuit should have been drawn');
-    const texts = [...svg.querySelectorAll('text')];
-    const centreOf = (t, isGate) => Number(t.getAttribute('y')) - (isGate ? 3.5 : 4);
-    const variable = name => centreOf(texts.find(t => t.textContent === name), false);
-    const gate = name => centreOf(texts.find(t => t.textContent === name), true);
-    // Stacking gates by index would put XOR level with A. Centring puts it
-    // half way between the two inputs it actually reads.
-    const want = (variable('A') + variable('B')) / 2;
-    assert(Math.abs(gate('XOR') - want) < 1.5,
-      `XOR should sit at ${want}, the middle of A and B, but sits at ${gate('XOR')}`);
-    assert(Math.abs(gate('XOR') - variable('A')) > 1.5,
-      'and must not simply share a row with the first input');
+    for (const src of ['(A XOR NOT B) AND NOT A', '(A XOR B) AND NOT C']) {
+      expr.value = src;
+      gen.click();
+      const svg = document.querySelector('#circ-out svg');
+      assert(svg, src + ': a circuit should have been drawn');
+      const L = layoutCircuit(truthTable(src).root);
+      assertEq(svg.getAttribute('viewBox'), `0 0 ${L.width} ${L.height}`,
+        src + ': the drawing should be the size the layout asked for');
+      const drawn = [...svg.querySelectorAll('path.wire')].map(p => p.getAttribute('d'));
+      for (const w of L.wires) {
+        assert(drawn.includes(wirePath(w)),
+          `${src}: the wire ${w.from} to ${w.to} is not drawn where the layout puts it`);
+      }
+      // Every gate in the layout is a shape on the page; dummies are not.
+      const gates = L.nodes.filter(n => n.kind === 'gate').length;
+      assertEq(svg.querySelectorAll('path.gate').length - 
+               [...svg.querySelectorAll('path.gate')].filter(p => p.classList.contains('xor-arc')).length,
+        gates, src + ': every gate should be drawn once');
+    }
     expr.value = was;
     gen.click();
   }],
@@ -8859,6 +9294,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   profileId, describeProfile, migrateStore, rebuildDerived,
   VIEWS_NEEDING_COURSE, ALL_VIEWS,
   completionsAt, matchBracketAt, guideColumns, declaredNames, snippetSlot, fileStem, FILE_EXT,
+  layoutCircuit, wirePoints, wirePath, CIRC,
   traceWindow, TRACE_ROW_LIMIT, FUNC_HINTS, KEYWORD_SNIPPETS,
   emptyFileSet, readFileSet, addFile, renameFile, closeFile, selectFile,
   updateActive, activeFile, uniqueFileName, fileName, FILESET_VERSION, MAX_FILES,
@@ -10272,124 +10708,57 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   });
 
   function renderCircuit(t) {
-    // Deduplicate nodes by expression string, so identical sub-expressions share one gate
-    const nodes = new Map();   // key -> {node, depth, x, y}
-    function depth(n) {
-      if (n.op === 'VAR') return 0;
-      return (n.op === 'NOT' ? depth(n.e) : Math.max(depth(n.l), depth(n.r))) + 1;
-    }
-    function walk(n) {
-      const key = bstrKey(n);
-      if (!nodes.has(key)) nodes.set(key, { node:n, depth:depth(n) });
-      if (n.op === 'VAR') return key;
-      if (n.op === 'NOT') walk(n.e); else { walk(n.l); walk(n.r); }
-      return key;
-    }
-    const bstrKey = n => (n.op === 'VAR' ? n.name : nodeStr(n));
-    function nodeStr(n) {
-      if (n.op === 'VAR') return n.name;
-      if (n.op === 'NOT') return `NOT(${nodeStr(n.e)})`;
-      return `(${nodeStr(n.l)} ${n.op} ${nodeStr(n.r)})`;
-    }
-    walk(t.root);
-
-    // Variables are pinned to column 0 and laid out alphabetically
-    const byDepth = new Map();
-    for (const [k, v] of nodes) {
-      const d = v.depth;
-      if (!byDepth.has(d)) byDepth.set(d, []);
-      byDepth.get(d).push(k);
-    }
-    (byDepth.get(0) || []).sort();
-    const maxD = Math.max(...[...byDepth.keys()]);
-
-    // Inputs are stacked alphabetically down the left edge.
-    (byDepth.get(0) || []).forEach((k, i) => {
-      const v = nodes.get(k);
-      v.x = 30;
-      v.y = 24 + i * ROWH;
-    });
-
-    /*
-      Every gate is placed level with the middle of what feeds it, not at the
-      next free slot in its column. Stacking by index puts a gate on the same
-      row as a variable it has nothing to do with, and the wires then cross in
-      a way that reads as a wiring mistake — which is how this drawing earned
-      the complaint that started this change.
-    */
-    const MIN_GAP = GH + 16;
-    for (let d = 1; d <= maxD; d++) {
-      const keys = byDepth.get(d) || [];
-      for (const k of keys) {
-        const v = nodes.get(k);
-        const n = v.node;
-        const ins = (n.op === 'NOT' ? [n.e] : [n.l, n.r]).map(c => nodes.get(bstrKey(c)));
-        const mid = ins.reduce((a, c) => a + c.y, 0) / ins.length;
-        v.x = 30 + d * COLW;
-        v.y = mid;
-      }
-      // Two gates that want the same height are pushed apart, keeping order.
-      keys.map(k => nodes.get(k)).sort((a, b) => a.y - b.y)
-        .forEach((v, i, arr) => {
-          if (i > 0 && v.y - arr[i - 1].y < MIN_GAP) v.y = arr[i - 1].y + MIN_GAP;
-        });
-    }
-
-    // Nothing may sit above the top margin once the centring has moved things.
-    let top = Infinity, bottom = -Infinity;
-    for (const [, v] of nodes) { top = Math.min(top, v.y); bottom = Math.max(bottom, v.y + GH); }
-    const shift = 24 - top;
-    if (shift !== 0) for (const [, v] of nodes) v.y += shift;
-
-    const W = 30 + (maxD + 1) * COLW + 70;
-    const H = Math.max(bottom + shift + 24, 110);
+    const L = layoutCircuit(t.root);
 
     // With a row chosen, every node has a value for it.
     const live = circRow !== null && t.rows[circRow];
     const asg = live ? circAssignment(t, circRow) : null;
-    const valOf = n => (live ? !!beval(n, asg) : null);
+    const byKey = new Map(L.nodes.filter(n => n.node).map(n => [n.key, n.node]));
+    const valOf = key => {
+      const n = byKey.get(key);
+      return live && n ? !!beval(n, asg) : false;
+    };
 
     let svg = '';
-    // Draw wires first, then gates, so wires never sit on top of a gate
-    for (const [, v] of nodes) {
-      const n = v.node;
-      if (n.op === 'VAR') continue;
-      const ins = n.op === 'NOT' ? [n.e] : [n.l, n.r];
-      ins.forEach((child, idx) => {
-        const cv = nodes.get(bstrKey(child));
-        const x1 = cv.node.op === 'VAR' ? cv.x + 16 : gateOutX(cv.x, cv.node.op);
-        const y1 = cv.y + GH / 2;
-        const x2 = v.x;
-        const y2 = v.y + (ins.length === 1 ? GH / 2 : (idx === 0 ? 10 : GH - 10));
-        // Each wire gets its own vertical lane. If two wires share an x for their
-        // vertical run and meet end to end, they read as one connected wire — which
-        // in a circuit diagram means those two inputs are shorted together.
-        const chan = Math.round((v.y - 24) / ROWH);
-        const mid = Math.max(x1 + 12, x2 - 10 - chan * 9 - idx * 4);
-        const on = live && valOf(cv.node);
-        svg += `<path class="wire${on ? ' on' : ''}" d="M${x1},${y1} H${mid} V${y2} H${x2}"/>`;
-        if (live) {
-          svg += `<text class="sig${on ? ' on' : ''}" x="${x1 + 6}" y="${y1 - 5}">${on ? 1 : 0}</text>`;
-        }
-      });
+    // Wires first, so a gate is never drawn under one.
+    for (const w of L.wires) {
+      const on = live && valOf(w.net);
+      svg += `<path class="wire${on ? ' on' : ''}" d="${wirePath(w)}"/>`;
     }
-    for (const [key, v] of nodes) {
-      const n = v.node;
-      if (n.op === 'VAR') {
-        const on = live && asg[n.name];
-        svg += `<text x="${v.x}" y="${v.y + GH / 2 + 4}">${n.name}</text>` +
-               `<circle class="gate${on ? ' on' : ''}" cx="${v.x + 16}" cy="${v.y + GH / 2}" r="3"/>`;
+    // A wire that branches gets a dot, or the junction reads as a crossing.
+    const fanOut = new Map();
+    for (const w of L.wires) fanOut.set(w.net, (fanOut.get(w.net) || 0) + 1);
+    const drawn = new Set();
+    for (const w of L.wires) {
+      if (fanOut.get(w.net) < 2 || drawn.has(w.net)) continue;
+      drawn.add(w.net);
+      const on = live && valOf(w.net);
+      svg += `<circle class="junction${on ? ' on' : ''}" cx="${w.p1.x}" cy="${w.p1.y}" r="3.2"/>`;
+    }
+
+    for (const n of L.nodes) {
+      if (n.kind === 'dummy') continue;             // a bend, not a component
+      if (n.kind === 'var') {
+        const on = live && asg[n.key];
+        svg += `<text x="${n.x}" y="${n.y + CIRC.gateH / 2 + 4}">${esc(n.key)}</text>` +
+               `<circle class="gate${on ? ' on' : ''}" cx="${n.x + 16}" cy="${n.y + CIRC.gateH / 2}" r="3"/>`;
       } else {
-        svg += gateShape(n.op, v.x, v.y, live ? valOf(n) : null);
+        svg += gateShape(n.op, n.x, n.y, live ? valOf(n.key) : null);
       }
     }
-    // output lead + label
-    const rv = nodes.get(bstrKey(t.root));
-    // The root may be a bare variable (an expression like just "A"); then its exit point is a dot, not a gate
-    const ox = rv.node.op === 'VAR' ? rv.x + 16 : gateOutX(rv.x, rv.node.op);
-    const qOn = live && valOf(rv.node);
-    svg += `<path class="wire${qOn ? ' on' : ''}" d="M${ox},${rv.y + GH / 2} H${ox + 34}"/>` +
-           `<text x="${ox + 40}" y="${rv.y + GH / 2 + 4}" style="fill:var(--accent);font-weight:700">Q` +
+
+    // Values on the wires, once a row has been chosen.
+    if (live) {
+      for (const w of L.wires) {
+        const on = valOf(w.net);
+        svg += `<text class="sig${on ? ' on' : ''}" x="${w.p1.x + 6}" y="${w.p1.y - 5}">${on ? 1 : 0}</text>`;
+      }
+    }
+
+    // Output lead and label.
+    const qOn = live && valOf(bstr(t.root));
+    svg += `<path class="wire${qOn ? ' on' : ''}" d="M${L.out.x},${L.out.y} L${L.out.x + L.out.lead},${L.out.y}"/>` +
+           `<text x="${L.out.x + L.out.lead + 6}" y="${L.out.y + 4}" style="fill:var(--accent);font-weight:700">Q` +
            (live ? ` = ${qOn ? 1 : 0}` : '') + `</text>`;
 
     const label = live
@@ -10397,8 +10766,8 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
         t.vars.map(v => v + '=' + (asg[v] ? 1 : 0)).join(', ')
       : `Circuit for ${esc($('expr').value)}`;
     $('circ-out').innerHTML =
-      `<svg class="circuit${live ? ' is-live' : ''}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" ` +
-      `role="img" aria-label="${label}">${svg}</svg>`;
+      `<svg class="circuit${live ? ' is-live' : ''}" viewBox="0 0 ${L.width} ${L.height}" ` +
+      `width="${L.width}" height="${L.height}" role="img" aria-label="${label}">${svg}</svg>`;
   }
 
   function generate() {
