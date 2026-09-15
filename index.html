@@ -981,7 +981,30 @@
   svg.flow text.lbl { fill:var(--warning); font:11px var(--font-mono); }
   svg.flow polyline { fill:none; stroke:var(--text-muted); stroke-width:1.5; }
   svg.flow marker path { fill:var(--text-muted); stroke:none; }
-  svg.circuit { max-width:100%; height:auto; }
+  /* The circuit is a drawing, so its parts have to be drawn: without these
+     every gate falls back to SVG's default solid black fill, and a wire
+     path gets filled as if it were a polygon. */
+  svg.circuit { max-width:100%; height:auto; display:block; margin:0 auto; }
+  svg.circuit .wire { fill:none; stroke:var(--text-muted); stroke-width:1.5; stroke-linejoin:round; }
+  svg.circuit .gate { fill:var(--surface); stroke:var(--text-primary); stroke-width:1.6; stroke-linejoin:round; }
+  svg.circuit text { fill:var(--text-primary); font:13px var(--font-mono); }
+  svg.circuit .gl { fill:var(--text-secondary); font-size:10.5px; letter-spacing:.02em; }
+
+  /* With a row of the truth table chosen, the drawing carries that row's
+     values: a wire is either carrying a 1 or it is not. */
+  svg.circuit.is-live .wire { stroke:var(--border-strong); }
+  svg.circuit .wire.on { stroke:var(--accent); stroke-width:2.4; }
+  svg.circuit .sig {
+    font:11px var(--font-mono); fill:var(--text-muted);
+    paint-order:stroke; stroke:var(--surface); stroke-width:3px;
+  }
+  svg.circuit .sig.on { fill:var(--accent); font-weight:700; }
+  svg.circuit .gate.on { stroke:var(--accent); }
+
+  .tt-row-pick tbody tr { cursor:pointer; }
+  .tt-row-pick tbody tr:hover { background:var(--accent-wash); }
+  .tt-row-pick tbody tr.is-live td { background:var(--accent-wash); font-weight:700; }
+  .circ-hint { margin:0 0 var(--s3); font-size:13.5px; color:var(--text-secondary); }
 </style>
 </head>
 <body>
@@ -1183,9 +1206,9 @@
     <!-- ================= Onboarding ================= -->
     <section class="view" id="view-onboarding" aria-labelledby="onboard-h">
       <div class="onboard">
-        <p class="eyebrow">Set up · about a minute</p>
-        <h1 id="onboard-h">Find where your reasoning breaks.</h1>
-        <p class="lede">Write pseudocode, run it against hidden test cases, inspect the trace, and learn which step needs work.</p>
+        <h1 id="onboard-h">Set up your course</h1>
+        <p class="lede">Four questions, about a minute. They decide which syllabus you are marked
+          against and which topics you are shown.</p>
 
         <ol class="setup-steps">
           <li class="setup-step is-open" id="step-course">
@@ -1539,7 +1562,10 @@
           </div>
           <div class="panel" style="margin:0">
             <div class="panel-head"><h2>Logic circuit</h2></div>
-            <div class="panel-body"><div class="scroll-x" id="circ-out" role="region" aria-label="Logic circuit"><p class="empty">Click "Generate" to see it.</p></div></div>
+            <div class="panel-body">
+              <p class="circ-hint" id="circ-hint">Click any row of the truth table to send those inputs through the circuit.</p>
+              <div class="scroll-x" id="circ-out" role="region" aria-label="Logic circuit"><p class="empty">Click "Generate" to see it.</p></div>
+            </div>
           </div>
         </div>
       </div>
@@ -6787,6 +6813,79 @@ function guideColumns(line) {
 }
 
 const TESTS = [
+
+  /* ---- the circuit drawing ---- */
+  ['Logic: the circuit is drawn, not filled in as solid black', () => {
+    if (typeof document === 'undefined') return;
+    // This is the exact regression that shipped: the SVG carried class="gate"
+    // and class="wire", the stylesheet carried neither, and every gate fell
+    // back to SVG's default solid black fill while each wire path was filled
+    // as though it were a polygon.
+    const rules = [];
+    for (const sheet of document.styleSheets) {
+      try { for (const r of sheet.cssRules) if (r.selectorText) rules.push(r); } catch (e) {}
+    }
+    const find = sel => rules.find(r => r.selectorText && r.selectorText.includes(sel));
+    const wire = find('svg.circuit .wire');
+    const gate = find('svg.circuit .gate');
+    assert(wire, 'wires need a rule, or they are filled shapes rather than lines');
+    assertEq(wire.style.fill, 'none', 'a wire is a line, so it must not be filled');
+    assert(wire.style.stroke, 'and it must have a stroke, or it is invisible');
+    assert(gate, 'gates need a rule, or they are solid black blobs');
+    assert(gate.style.stroke, 'a gate is an outline, so it needs a stroke');
+    assert(gate.style.fill && gate.style.fill !== 'none',
+      'and a fill, so a wire behind it does not show through');
+  }],
+  ['Logic: every gate sits level with the middle of what feeds it', () => {
+    if (typeof document === 'undefined') return;
+    const gen = document.getElementById('btn-gen');
+    const expr = document.getElementById('expr');
+    if (!gen || !expr) return;
+    const was = expr.value;
+    expr.value = '(A XOR B) AND NOT C';
+    gen.click();
+    const svg = document.querySelector('#circ-out svg');
+    assert(svg, 'a circuit should have been drawn');
+    const texts = [...svg.querySelectorAll('text')];
+    const centreOf = (t, isGate) => Number(t.getAttribute('y')) - (isGate ? 3.5 : 4);
+    const variable = name => centreOf(texts.find(t => t.textContent === name), false);
+    const gate = name => centreOf(texts.find(t => t.textContent === name), true);
+    // Stacking gates by index would put XOR level with A. Centring puts it
+    // half way between the two inputs it actually reads.
+    const want = (variable('A') + variable('B')) / 2;
+    assert(Math.abs(gate('XOR') - want) < 1.5,
+      `XOR should sit at ${want}, the middle of A and B, but sits at ${gate('XOR')}`);
+    assert(Math.abs(gate('XOR') - variable('A')) > 1.5,
+      'and must not simply share a row with the first input');
+    expr.value = was;
+    gen.click();
+  }],
+  ['Logic: a chosen row lights the wires that carry a 1', () => {
+    if (typeof document === 'undefined') return;
+    const gen = document.getElementById('btn-gen');
+    const expr = document.getElementById('expr');
+    if (!gen || !expr) return;
+    const was = expr.value;
+    expr.value = '(A XOR B) AND NOT C';
+    gen.click();
+    const rows = [...document.querySelectorAll('#tt-out tbody tr')];
+    assertEq(rows.length, 8, 'three variables give eight rows');
+    // Row index 2 is A=0, B=1, C=0 — the one row where Q is 1 with A off.
+    rows[2].click();
+    const svg = document.querySelector('#circ-out svg');
+    assert(svg.classList.contains('is-live'), 'the drawing should know it is showing a row');
+    assert(rows[2].classList.contains('is-live'), 'and the row should show that it is the one');
+    const q = [...svg.querySelectorAll('text')].find(t => /^Q/.test(t.textContent));
+    assertEq(q.textContent, 'Q = 1', 'the output should agree with the table: ' + q.textContent);
+    assert(svg.querySelectorAll('.wire.on').length > 0, 'some wire must be carrying a 1');
+    assertEq(svg.querySelectorAll('.sig').length, 5, 'every input wire is labelled with its value');
+    // Clicking the same row again returns the plain diagram.
+    rows[2].click();
+    assert(!document.querySelector('#circ-out svg').classList.contains('is-live'),
+      'clicking the live row again should turn the values off');
+    expr.value = was;
+    gen.click();
+  }],
   /* ---- a run that can be put down and picked up ---- */
   ['Run control: slices reach the same answer as running it all at once', () => {
     const code = 'DECLARE i : INTEGER\nDECLARE t : INTEGER\nt ← 0\nFOR i ← 1 TO 50\n  t ← t + i\nNEXT i\nOUTPUT t';
@@ -9024,8 +9123,8 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
       return `<button class="choice" data-qual="${esc(q)}" aria-pressed="${draft.qualification === q}">` +
         `<span class="code">${esc(sy.code)}</span>` +
         `<span class="name">${esc(sy.title)}</span>` +
-        `<span class="who">${esc(who)}</span>` +
-        `<span class="who" style="color:var(--text-muted)">${cov.writtenQuestions} written questions · ${cov.topicsReady} of ${cov.topicsTotal} topics ready</span>` +
+        `<span class="who">${esc(who)} · ${cov.writtenQuestions} written questions · ` +
+          `${cov.topicsReady} of ${cov.topicsTotal} topics ready</span>` +
         '</button>';
     }).join('');
   }
@@ -10092,11 +10191,11 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   $('expr').value = SAMPLE_EXPR;
 
   function renderTruthTable(t) {
-    let html = '<table><thead><tr>' + t.cols.map((c, i) =>
+    let html = '<table class="tt-row-pick"><thead><tr>' + t.cols.map((c, i) =>
       `<th${i === t.cols.length - 1 ? ' style="color:var(--accent)"' : ''}>${esc(c)}</th>`).join('') +
       '</tr></thead><tbody>';
-    t.rows.forEach(r => {
-      html += '<tr>' + r.map((v, i) =>
+    t.rows.forEach((r, ri) => {
+      html += `<tr data-row="${ri}" tabindex="0">` + r.map((v, i) =>
         `<td${i === r.length - 1 ? ' style="color:var(--accent)"' : ''}>${v ? 1 : 0}</td>`).join('') + '</tr>';
     });
     $('tt-out').innerHTML = html + '</tbody></table>';
@@ -10104,7 +10203,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
 
   /* ---- Circuit: hand-drawn SVG gate symbols (textbook shapes, not Mermaid boxes) ---- */
   const GW = 46, GH = 36, COLW = 132, ROWH = 62;
-  function gateShape(op, x, y) {
+  function gateShape(op, x, y, on) {
     const neg = (op === 'NAND' || op === 'NOR' || op === 'NOT');
     const base = op === 'NAND' ? 'AND' : op === 'NOR' ? 'OR' : op;
     let d = '', extra = '';
@@ -10112,17 +10211,60 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
       d = `M${x},${y} H${x + GW / 2} A${GH / 2},${GH / 2} 0 0 1 ${x + GW / 2},${y + GH} H${x} Z`;
     } else if (base === 'OR' || base === 'XOR') {
       d = `M${x},${y} Q${x + 18},${y + GH / 2} ${x},${y + GH} Q${x + GW * 0.7},${y + GH} ${x + GW},${y + GH / 2} Q${x + GW * 0.7},${y} ${x},${y} Z`;
-      if (base === 'XOR') extra = `<path class="gate" fill="none" d="M${x - 7},${y} Q${x + 11},${y + GH / 2} ${x - 7},${y + GH}"/>`;
+      if (base === 'XOR') extra = `<path class="gate xor-arc" fill="none" d="M${x - 7},${y} Q${x + 11},${y + GH / 2} ${x - 7},${y + GH}"/>`;
     } else if (base === 'NOT') {
       d = `M${x},${y + 3} L${x + GW - 10},${y + GH / 2} L${x},${y + GH - 3} Z`;
     }
-    const bubble = neg ? `<circle class="gate" cx="${x + GW + 5}" cy="${y + GH / 2}" r="4.5"/>` : '';
+    const lit = on ? ' on' : '';
+    const bubble = neg ? `<circle class="gate${lit}" cx="${x + GW + 5}" cy="${y + GH / 2}" r="4.5"/>` : '';
     // OR / XOR taper to a point on the right, so the label shifts left to stay inside the body
-    const lx = x + (base === 'AND' ? GW / 2 - 2 : GW / 2 - 7);
+    // OR / XOR taper to a point on the right and curve inwards on the left,
+    // so the label sits a little right of centre to stay inside the body.
+    const lx = x + (base === 'AND' ? GW / 2 - 2 : GW / 2 + 1);
     const label = `<text class="gl" x="${lx}" y="${y + GH / 2 + 3.5}" text-anchor="middle">${op}</text>`;
-    return `${extra}<path class="gate" d="${d}"/>${bubble}${base === 'NOT' ? '' : label}`;
+    return `${extra}<path class="gate${lit}" d="${d}"/>${bubble}${base === 'NOT' ? '' : label}`;
   }
   function gateOutX(x, op) { return x + GW + ((op === 'NAND' || op === 'NOR' || op === 'NOT') ? 10 : 0); }
+
+  /*
+    Which row of the table the circuit is currently showing, or null for the
+    plain diagram. A logic circuit is abstract until you watch one set of
+    inputs travel through it, which is the whole point of this pairing.
+  */
+  let circRow = null;
+  let circTable = null;
+
+  function circAssignment(t, ri) {
+    const asg = {};
+    t.vars.forEach((v, k) => { asg[v] = !!t.rows[ri][k]; });
+    return asg;
+  }
+
+  function showCircuitRow(ri) {
+    if (!circTable) return;
+    circRow = (ri === circRow) ? null : ri;      // clicking the live row turns it off
+    renderCircuit(circTable);
+    [...$('tt-out').querySelectorAll('tbody tr')].forEach((tr, i) =>
+      tr.classList.toggle('is-live', i === circRow));
+    const hint = $('circ-hint');
+    if (hint) {
+      hint.textContent = circRow === null
+        ? 'Click any row of the truth table to send those inputs through the circuit.'
+        : 'Showing row ' + (circRow + 1) + ': ' +
+          circTable.vars.map(v => v + '=' + (circAssignment(circTable, circRow)[v] ? 1 : 0)).join(', ') +
+          '. Click it again for the plain diagram.';
+    }
+  }
+
+  $('tt-out').addEventListener('click', ev => {
+    const tr = ev.target.closest('tr[data-row]');
+    if (tr) showCircuitRow(Number(tr.getAttribute('data-row')));
+  });
+  $('tt-out').addEventListener('keydown', ev => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') return;
+    const tr = ev.target.closest('tr[data-row]');
+    if (tr) { ev.preventDefault(); showCircuitRow(Number(tr.getAttribute('data-row'))); }
+  });
 
   function renderCircuit(t) {
     // Deduplicate nodes by expression string, so identical sub-expressions share one gate
@@ -10155,17 +10297,52 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     }
     (byDepth.get(0) || []).sort();
     const maxD = Math.max(...[...byDepth.keys()]);
-    let maxRows = 0;
-    for (const [d, keys] of byDepth) {
-      maxRows = Math.max(maxRows, keys.length);
-      keys.forEach((k, i) => {
+
+    // Inputs are stacked alphabetically down the left edge.
+    (byDepth.get(0) || []).forEach((k, i) => {
+      const v = nodes.get(k);
+      v.x = 30;
+      v.y = 24 + i * ROWH;
+    });
+
+    /*
+      Every gate is placed level with the middle of what feeds it, not at the
+      next free slot in its column. Stacking by index puts a gate on the same
+      row as a variable it has nothing to do with, and the wires then cross in
+      a way that reads as a wiring mistake — which is how this drawing earned
+      the complaint that started this change.
+    */
+    const MIN_GAP = GH + 16;
+    for (let d = 1; d <= maxD; d++) {
+      const keys = byDepth.get(d) || [];
+      for (const k of keys) {
         const v = nodes.get(k);
+        const n = v.node;
+        const ins = (n.op === 'NOT' ? [n.e] : [n.l, n.r]).map(c => nodes.get(bstrKey(c)));
+        const mid = ins.reduce((a, c) => a + c.y, 0) / ins.length;
         v.x = 30 + d * COLW;
-        v.y = 24 + i * ROWH;
-      });
+        v.y = mid;
+      }
+      // Two gates that want the same height are pushed apart, keeping order.
+      keys.map(k => nodes.get(k)).sort((a, b) => a.y - b.y)
+        .forEach((v, i, arr) => {
+          if (i > 0 && v.y - arr[i - 1].y < MIN_GAP) v.y = arr[i - 1].y + MIN_GAP;
+        });
     }
+
+    // Nothing may sit above the top margin once the centring has moved things.
+    let top = Infinity, bottom = -Infinity;
+    for (const [, v] of nodes) { top = Math.min(top, v.y); bottom = Math.max(bottom, v.y + GH); }
+    const shift = 24 - top;
+    if (shift !== 0) for (const [, v] of nodes) v.y += shift;
+
     const W = 30 + (maxD + 1) * COLW + 70;
-    const H = Math.max(24 + maxRows * ROWH + 20, 110);
+    const H = Math.max(bottom + shift + 24, 110);
+
+    // With a row chosen, every node has a value for it.
+    const live = circRow !== null && t.rows[circRow];
+    const asg = live ? circAssignment(t, circRow) : null;
+    const valOf = n => (live ? !!beval(n, asg) : null);
 
     let svg = '';
     // Draw wires first, then gates, so wires never sit on top of a gate
@@ -10184,38 +10361,54 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
         // in a circuit diagram means those two inputs are shorted together.
         const chan = Math.round((v.y - 24) / ROWH);
         const mid = Math.max(x1 + 12, x2 - 10 - chan * 9 - idx * 4);
-        svg += `<path class="wire" d="M${x1},${y1} H${mid} V${y2} H${x2}"/>`;
+        const on = live && valOf(cv.node);
+        svg += `<path class="wire${on ? ' on' : ''}" d="M${x1},${y1} H${mid} V${y2} H${x2}"/>`;
+        if (live) {
+          svg += `<text class="sig${on ? ' on' : ''}" x="${x1 + 6}" y="${y1 - 5}">${on ? 1 : 0}</text>`;
+        }
       });
     }
     for (const [key, v] of nodes) {
       const n = v.node;
       if (n.op === 'VAR') {
+        const on = live && asg[n.name];
         svg += `<text x="${v.x}" y="${v.y + GH / 2 + 4}">${n.name}</text>` +
-               `<circle class="gate" cx="${v.x + 16}" cy="${v.y + GH / 2}" r="3"/>`;
+               `<circle class="gate${on ? ' on' : ''}" cx="${v.x + 16}" cy="${v.y + GH / 2}" r="3"/>`;
       } else {
-        svg += gateShape(n.op, v.x, v.y);
+        svg += gateShape(n.op, v.x, v.y, live ? valOf(n) : null);
       }
     }
     // output lead + label
     const rv = nodes.get(bstrKey(t.root));
     // The root may be a bare variable (an expression like just "A"); then its exit point is a dot, not a gate
     const ox = rv.node.op === 'VAR' ? rv.x + 16 : gateOutX(rv.x, rv.node.op);
-    svg += `<path class="wire" d="M${ox},${rv.y + GH / 2} H${ox + 34}"/>` +
-           `<text x="${ox + 40}" y="${rv.y + GH / 2 + 4}" style="fill:var(--accent)">Q</text>`;
+    const qOn = live && valOf(rv.node);
+    svg += `<path class="wire${qOn ? ' on' : ''}" d="M${ox},${rv.y + GH / 2} H${ox + 34}"/>` +
+           `<text x="${ox + 40}" y="${rv.y + GH / 2 + 4}" style="fill:var(--accent);font-weight:700">Q` +
+           (live ? ` = ${qOn ? 1 : 0}` : '') + `</text>`;
 
+    const label = live
+      ? `Circuit for ${esc($('expr').value)} with ` +
+        t.vars.map(v => v + '=' + (asg[v] ? 1 : 0)).join(', ')
+      : `Circuit for ${esc($('expr').value)}`;
     $('circ-out').innerHTML =
-      `<svg class="circuit" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Logic gate circuit diagram">${svg}</svg>`;
+      `<svg class="circuit${live ? ' is-live' : ''}" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" ` +
+      `role="img" aria-label="${label}">${svg}</svg>`;
   }
 
   function generate() {
     const st = $('logic-status');
     try {
       const t = truthTable($('expr').value);
+      circTable = t; circRow = null;
       renderTruthTable(t);
       renderCircuit(t);
+      const hint = $('circ-hint');
+      if (hint) hint.textContent = 'Click any row of the truth table to send those inputs through the circuit.';
       st.textContent = `${t.vars.length} variables, ${t.rows.length} rows, ${t.steps.length} operation steps.`;
       st.className = 'status ok';
     } catch (e) {
+      circTable = null; circRow = null;
       $('tt-out').innerHTML = '<div class="empty">—</div>';
       $('circ-out').innerHTML = '<div class="empty">—</div>';
       st.textContent = e.message;
