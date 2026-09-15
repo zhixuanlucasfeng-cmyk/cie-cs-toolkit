@@ -6453,7 +6453,11 @@ function assertThrows(fn, needle, msg) {
    ====================================================================== */
 
 const FILESET_VERSION = 1;
-const FILE_EXT = '.cps';
+const FILE_EXT = '.csm';
+// Files were called .cps in an earlier build. Stripping the old extension too
+// means a student's saved work is renamed on load rather than ending up as
+// "main.cps.csm".
+const OLD_FILE_EXTS = ['.cps'];
 const MAX_FILES = 12;
 
 /*
@@ -6463,7 +6467,7 @@ const MAX_FILES = 12;
 */
 function fileStem(name) {
   return String(name == null ? '' : name)
-    .replace(/\.cps$/i, '')
+    .replace(new RegExp('(' + [FILE_EXT, ...OLD_FILE_EXTS].map(e => '\\' + e).join('|') + ')$', 'i'), '')
     .replace(/[^A-Za-z0-9 _-]+/g, '')
     .trim().slice(0, 32);
 }
@@ -6473,7 +6477,7 @@ function fileName(name) {
 }
 
 /*
-  Two tabs called main.cps would be indistinguishable, so a clash gets a
+  Two tabs called main.csm would be indistinguishable, so a clash gets a
   number. The number goes on the stem, not after the extension.
 */
 function uniqueFileName(taken, want) {
@@ -7081,22 +7085,23 @@ const TESTS = [
   ['Files: a fresh set has one file, active, carrying the starter program', () => {
     const set = emptyFileSet('OUTPUT 1');
     assertEq(set.files.length, 1, 'one file to begin with');
-    assertEq(set.files[0].name, 'main.cps', 'named main.cps');
+    assertEq(set.files[0].name, 'main.csm', 'named main.csm');
     assertEq(activeFile(set).code, 'OUTPUT 1', 'holding the starter program');
     assertEq(set.activeId, set.files[0].id, 'and it is the active one');
   }],
-  ['Files: a name is sanitised and always ends in .cps', () => {
-    assertEq(fileName('Bubble Sort'), 'Bubble Sort.cps', 'spaces are allowed');
-    assertEq(fileName('sort.cps'), 'sort.cps', 'the extension is not doubled');
-    assertEq(fileName('../../etc/passwd'), 'etcpasswd.cps', 'path characters are stripped');
-    assertEq(fileName(''), 'untitled.cps', 'an empty name still names something');
-    assertEq(fileName('   '), 'untitled.cps', 'and so does a blank one');
+  ['Files: a name is sanitised and always ends in .csm', () => {
+    assertEq(fileName('Bubble Sort'), 'Bubble Sort.csm', 'spaces are allowed');
+    assertEq(fileName('sort.csm'), 'sort.csm', 'the extension is not doubled');
+    assertEq(fileName('../../etc/passwd'), 'etcpasswd.csm', 'path characters are stripped');
+    assertEq(fileName(''), 'untitled.csm', 'an empty name still names something');
+    assertEq(fileName('   '), 'untitled.csm', 'and so does a blank one');
+    assertEq(fileName('old work.cps'), 'old work.csm', 'a file from the .cps build is renamed, not doubled');
   }],
   ['Files: two tabs cannot share a name', () => {
-    assertEq(uniqueFileName(['main.cps'], 'main'), 'main-2.cps', 'the clash is numbered');
-    assertEq(uniqueFileName(['main.cps', 'main-2.cps'], 'main'), 'main-3.cps', 'and keeps counting');
-    assertEq(uniqueFileName(['MAIN.CPS'], 'main'), 'main-2.cps', 'case does not make it a different file');
-    assertEq(uniqueFileName([], 'main'), 'main.cps', 'no clash, no number');
+    assertEq(uniqueFileName(['main.csm'], 'main'), 'main-2.csm', 'the clash is numbered');
+    assertEq(uniqueFileName(['main.csm', 'main-2.csm'], 'main'), 'main-3.csm', 'and keeps counting');
+    assertEq(uniqueFileName(['MAIN.CSM'], 'main'), 'main-2.csm', 'case does not make it a different file');
+    assertEq(uniqueFileName([], 'main'), 'main.csm', 'no clash, no number');
   }],
   ['Files: adding, selecting and renaming leave the others alone', () => {
     let set = emptyFileSet('A');
@@ -7108,8 +7113,8 @@ const TESTS = [
     assertEq(set.activeId, added.file.id, 'the new file becomes active');
     assertEq(set.files[0].code, 'A', 'the first file keeps its program');
     set = renameFile(set, added.file.id, 'linear search');
-    assertEq(set.files[1].name, 'linear search.cps', 'renamed');
-    assertEq(set.files[0].name, 'main.cps', 'and the other is untouched');
+    assertEq(set.files[1].name, 'linear search.csm', 'renamed');
+    assertEq(set.files[0].name, 'main.csm', 'and the other is untouched');
     set = selectFile(set, first);
     assertEq(set.activeId, first, 'selecting switches the active file');
     assertEq(activeFile(set).code, 'A', 'and brings its program back');
@@ -7118,7 +7123,7 @@ const TESTS = [
     let set = emptyFileSet('A');
     set = addFile(set, 'other', 'B').set;
     set = renameFile(set, set.files[1].id, 'main');
-    assertEq(set.files[1].name, 'main-2.cps', 'the second file does not become the first');
+    assertEq(set.files[1].name, 'main-2.csm', 'the second file does not become the first');
     assertEq(set.files[0].code, 'A', 'and the first still holds its own program');
   }],
   ['Files: editing the active file does not touch the rest', () => {
@@ -7159,7 +7164,7 @@ const TESTS = [
     const set = readFileSet(old, 'STARTER');
     assertEq(set.files.length, 1, 'the old program becomes one file');
     assertEq(set.files[0].code, 'OUTPUT "old work"', 'with the work intact');
-    assertEq(set.files[0].name, 'my-program.cps', 'and its name given the extension');
+    assertEq(set.files[0].name, 'my-program.csm', 'and its name given the extension');
     assertEq(set.files[0].inputs, '4\n5', 'inputs survive');
     assertEq(set.files[0].breaks.join(), '2', 'breakpoints survive');
   }],
@@ -7176,7 +7181,7 @@ const TESTS = [
       { name: 'd', code: 'D', breaks: ['x', 2] } // junk in breaks
     ], activeId: 'gone' }, 'S');
     assertEq(set.files.length, 4, 'every file the student had is kept');
-    assertEq(set.files[1].name, 'a-2.cps', 'the duplicate name is separated');
+    assertEq(set.files[1].name, 'a-2.csm', 'the duplicate name is separated');
     assertEq(set.files[2].code, '', 'a missing program becomes an empty one');
     assertEq(set.files[3].breaks.join(), '2', 'junk breakpoints are dropped, real ones kept');
     assertEq(set.activeId, set.files[0].id, 'a missing active file falls back to the first');
@@ -8853,7 +8858,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   createStore, EVIDENCE, STORE_VERSION, memoryBackend, topicProgressOf,
   profileId, describeProfile, migrateStore, rebuildDerived,
   VIEWS_NEEDING_COURSE, ALL_VIEWS,
-  completionsAt, matchBracketAt, guideColumns, declaredNames, snippetSlot,
+  completionsAt, matchBracketAt, guideColumns, declaredNames, snippetSlot, fileStem, FILE_EXT,
   traceWindow, TRACE_ROW_LIMIT, FUNC_HINTS, KEYWORD_SNIPPETS,
   emptyFileSet, readFileSet, addFile, renameFile, closeFile, selectFile,
   updateActive, activeFile, uniqueFileName, fileName, FILESET_VERSION, MAX_FILES,
@@ -10751,7 +10756,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   function ideShow(file) {
     ideSrc.value = file.code;
     $('ide-inputs').value = file.inputs || '';
-    $('ide-name').value = file.name.replace(/\.cps$/i, '');
+    $('ide-name').value = fileStem(file.name);
     ideBreaks = new Set(file.breaks || []);
     ideReset(); idePaint(); ideCheck(); ideGutter();
   }
@@ -11321,7 +11326,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   // On blur the field shows the name that was actually taken, which may be
   // numbered if it clashed with another tab.
   $('ide-name').addEventListener('blur', () => {
-    $('ide-name').value = activeFile(ideFiles).name.replace(/\.cps$/i, '');
+    $('ide-name').value = fileStem(activeFile(ideFiles).name);
   });
   $('ide-inputs').addEventListener('input', ideSave);
   $('ide-study').addEventListener('click', () => go(store.getProfile() ? 'dashboard' : 'onboarding'));
