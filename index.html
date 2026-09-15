@@ -670,6 +670,10 @@
     display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap;
   }
   .ide-status.err { color:var(--danger); }
+  .trace-gap td {
+    text-align:center; color:var(--text-muted); font-style:italic;
+    background:var(--surface-raised); padding:var(--s2) var(--s3);
+  }
   .ide-status.ok  { color:var(--success); }
 
   .prob {
@@ -1037,6 +1041,7 @@
           </div>
           <div class="ide-actions">
             <button class="btn primary" id="ide-run" title="Run to the end (Ctrl+Enter)">Run</button>
+            <button class="btn danger" id="ide-stop" title="Abandon this run (Escape)" hidden>Stop</button>
             <button class="btn" id="ide-step" title="One line at a time (F10)">Step</button>
             <button class="btn" id="ide-continue" title="Run to the next breakpoint (F8)">Continue</button>
             <button class="btn ghost" id="ide-reset" title="Back to the start">Reset</button>
@@ -2669,7 +2674,18 @@ function parseInputValues(text) {
   a tighter step budget and keepSteps:false, because it runs a program once per
   hidden case and only needs the output.
 */
-function runProgram(codeText, inputText, opts) {
+/*
+  A run you can put down and pick up again.
+
+  The interpreter is a generator, so execution can be handed back to the
+  caller between steps. That is what makes a Stop button possible: a
+  program that never ends is no longer a frozen tab, it is a run that has
+  not finished yet, and can be abandoned.
+
+  Time is counted only while the run is actually working. A slice that
+  waits for the browser to paint is not the student's program being slow.
+*/
+function createRun(codeText, inputText, opts) {
   const o = opts || {};
   const maxSteps = o.maxSteps || MAX_STEPS;
   const timeLimit = o.timeLimitMs || TIME_LIMIT_MS;
@@ -2682,27 +2698,80 @@ function runProgram(codeText, inputText, opts) {
   // Routines are hoisted, so a program can call one defined further down.
   hoistRoutines(ast, env);
 
+  const it = execBlock(ast, env)[Symbol.iterator]();
   const steps = [];
-  const started = Date.now();
-  let n = 0, last = null;
-  try {
-    for (const s of execBlock(ast, env)) {
-      n++; last = s;
-      if (keep) steps.push(s);
-      if (o.onStep) o.onStep(s, n);
-      if (n > maxSteps) {
-        throw new CIEError(`Execution passed ${maxSteps} steps, which almost always means a loop that never ends. Check whether its condition can become FALSE.`, s.line);
-      }
-      // Checking the clock every step would cost more than it saves.
-      if ((n & 1023) === 0 && Date.now() - started > timeLimit) {
-        throw new CIEError(`This program ran for longer than ${Math.round(timeLimit / 1000)} seconds without finishing. Check for a loop that never ends.`, s.line);
-      }
-    }
-  } catch (e) {
-    if (e instanceof ReturnSignal) throw new CIEError('RETURN can only be used inside a FUNCTION', 1);
-    throw e;
+  let n = 0, last = null, elapsed = 0;
+  let finished = false, stopped = false, error = null;
+
+  function overtime(sliceStart) {
+    return elapsed + (Date.now() - sliceStart) > timeLimit;
   }
-  return { steps, env, stepCount:n, lastLine: last ? last.line : 0, ms: Date.now() - started };
+
+  return {
+    get done()    { return finished; },
+    get stopped() { return stopped; },
+    get steps()   { return steps; },
+    get env()     { return env; },
+    get stepCount() { return n; },
+    /* Abandon the run. What it produced so far is kept, because a student
+       who stops a runaway loop still wants to see where it went. */
+    stop() { stopped = true; finished = true; },
+    result() {
+      return { steps, env, stepCount: n, lastLine: last ? last.line : 0,
+               ms: elapsed, error, stopped };
+    },
+    /*
+      Run at most `budget` steps, then hand control back. Returns true while
+      there is more to do, so a caller can drive it from a timer, a frame,
+      or a plain while loop.
+    */
+    advance(budget) {
+      if (finished) return false;
+      const sliceStart = Date.now();
+      const limit = budget > 0 ? budget : 1;
+      try {
+        for (let i = 0; i < limit; i++) {
+          const r = it.next();
+          if (r.done) { finished = true; break; }
+          const s = r.value;
+          n++; last = s;
+          if (keep) steps.push(s);
+          if (o.onStep) o.onStep(s, n);
+          if (n > maxSteps) {
+            throw new CIEError(`Execution passed ${maxSteps} steps, which almost always means a loop that never ends. Check whether its condition can become FALSE.`, s.line);
+          }
+          // Checking the clock every step would cost more than it saves.
+          if ((n & 1023) === 0 && overtime(sliceStart)) {
+            throw new CIEError(`This program ran for longer than ${Math.round(timeLimit / 1000)} seconds without finishing. Check for a loop that never ends.`, s.line);
+          }
+        }
+        // A slice shorter than the clock check above must still be timed, or
+        // a small budget would let a runaway program run for ever.
+        if (!finished && overtime(sliceStart)) {
+          throw new CIEError(`This program ran for longer than ${Math.round(timeLimit / 1000)} seconds without finishing. Check for a loop that never ends.`, last ? last.line : 1);
+        }
+      } catch (e) {
+        error = (e instanceof ReturnSignal)
+          ? new CIEError('RETURN can only be used inside a FUNCTION', 1) : e;
+        finished = true;
+      }
+      elapsed += Date.now() - sliceStart;
+      return !finished;
+    }
+  };
+}
+
+/*
+  The whole program, in one go. Everything that is not the editor wants
+  this: it either returns a finished run or throws the error that stopped
+  it.
+*/
+function runProgram(codeText, inputText, opts) {
+  const run = createRun(codeText, inputText, opts);
+  while (run.advance(1e9)) { /* one slice is enough when nobody is waiting */ }
+  const r = run.result();
+  if (r.error) throw r.error;
+  return r;
 }
 
 /* ======================================================================
@@ -6685,6 +6754,28 @@ function snippetSlot(firstLine) {
   return gap >= 0 ? gap + 1 : line.length;
 }
 
+/*
+  A trace of half a million steps is not a table, it is a hang. What a
+  student needs from a runaway loop is the beginning, where it went wrong,
+  and the end, where it ended up — so the middle is named and omitted
+  rather than drawn.
+*/
+const TRACE_ROW_LIMIT = 400;
+
+function traceWindow(steps, limit) {
+  const all = steps || [];
+  const max = limit > 0 ? limit : TRACE_ROW_LIMIT;
+  if (all.length <= max) return { head: all, tail: [], hidden: 0, total: all.length };
+  const head = Math.ceil(max / 2);
+  const tail = max - head;
+  return {
+    head: all.slice(0, head),
+    tail: tail ? all.slice(all.length - tail) : [],
+    hidden: all.length - max,
+    total: all.length
+  };
+}
+
 const GUIDE_WIDTH = 4;
 
 function guideColumns(line) {
@@ -6696,6 +6787,90 @@ function guideColumns(line) {
 }
 
 const TESTS = [
+  /* ---- a run that can be put down and picked up ---- */
+  ['Run control: slices reach the same answer as running it all at once', () => {
+    const code = 'DECLARE i : INTEGER\nDECLARE t : INTEGER\nt ← 0\nFOR i ← 1 TO 50\n  t ← t + i\nNEXT i\nOUTPUT t';
+    const whole = runProgram(code, '');
+    const run = createRun(code, '');
+    let slices = 0;
+    while (run.advance(7)) { slices++; if (slices > 1000) throw new Error('never finished'); }
+    const r = run.result();
+    assert(slices > 5, 'a budget of 7 steps should take several slices, took ' + slices);
+    assertEq(r.error, null, 'no error');
+    assertEq(r.env.output.join(), whole.env.output.join(), 'same output');
+    assertEq(r.stepCount, whole.stepCount, 'same number of steps');
+  }],
+  ['Run control: stopping keeps what the program already produced', () => {
+    const code = 'DECLARE i : INTEGER\nFOR i ← 1 TO 1000\n  OUTPUT i\nNEXT i';
+    const run = createRun(code, '');
+    run.advance(12);
+    const partial = run.stepCount;
+    assert(partial > 0, 'it should have got somewhere');
+    run.stop();
+    assertEq(run.advance(100), false, 'a stopped run does not carry on');
+    const r = run.result();
+    assert(r.stopped, 'the result should say it was stopped');
+    assertEq(r.stepCount, partial, 'and hold exactly what it had reached');
+    assert(r.env.output.length > 0, 'including the output so far');
+    assertEq(r.error, null, 'stopping is not an error');
+  }],
+  ['Run control: a runaway loop still ends, however small the slices', () => {
+    const code = 'DECLARE x : INTEGER\nx ← 0\nWHILE x < 10 DO\n  x ← 0\nENDWHILE';
+    const run = createRun(code, '', { timeLimitMs: 120 });
+    let guard = 0;
+    while (run.advance(3)) { if (++guard > 500000) throw new Error('the time limit never fired'); }
+    const r = run.result();
+    assert(r.error, 'it should have been stopped by the clock');
+    assert(/longer than/.test(r.error.message), 'and say so: ' + r.error.message);
+  }],
+  ['Run control: the step ceiling still fires', () => {
+    const code = 'DECLARE x : INTEGER\nx ← 0\nWHILE x < 10 DO\n  x ← 0\nENDWHILE';
+    const run = createRun(code, '', { maxSteps: 200 });
+    while (run.advance(16)) { /* drive it */ }
+    const r = run.result();
+    assert(r.error && /200 steps/.test(r.error.message), 'the ceiling should be named: ' + (r.error && r.error.message));
+  }],
+  ['Run control: an error is handed back, not thrown out of advance', () => {
+    const run = createRun('DECLARE a : INTEGER\nINPUT a', '');
+    let threw = null;
+    try { while (run.advance(50)) { /* drive it */ } } catch (e) { threw = e; }
+    assertEq(threw, null, 'advance should not throw at the caller');
+    assert(run.result().error, 'the error comes back in the result');
+    assert(/no value available/.test(run.result().error.message), 'and is the real one');
+    // runProgram, which is what everything else uses, still throws.
+    assertThrows(() => runProgram('DECLARE a : INTEGER\nINPUT a', ''), 'no value available',
+      'the one-shot API keeps throwing');
+  }],
+  ['Run control: time spent waiting between slices is not the program’s fault', () => {
+    // Two steps, a long gap between them: the clock must not count the gap.
+    const run = createRun('OUTPUT 1\nOUTPUT 2', '', { timeLimitMs: 30 });
+    run.advance(1);
+    const spin = Date.now(); while (Date.now() - spin < 60) { /* the caller was busy */ }
+    while (run.advance(1)) { /* finish it */ }
+    const r = run.result();
+    assertEq(r.error, null, 'a 60ms gap should not fail a 30ms budget');
+    assertEq(r.env.output.join(), '1,2', 'and the program still ran');
+  }],
+
+  ['Run control: a trace too long to read is drawn at its ends', () => {
+    const steps = Array.from({ length: 5000 }, (_, i) => ({ line: i + 1, vars: {}, out: '' }));
+    const w = traceWindow(steps, 400);
+    assertEq(w.head.length + w.tail.length, 400, 'exactly the budget is drawn');
+    assertEq(w.hidden, 4600, 'and the rest is counted, not lost');
+    assertEq(w.head[0].line, 1, 'the beginning is kept');
+    assertEq(w.tail[w.tail.length - 1].line, 5000, 'and so is the end');
+    assertEq(w.total, 5000, 'the real length is still reported');
+  }],
+  ['Run control: a trace that fits is drawn whole, with no gap', () => {
+    const steps = Array.from({ length: 40 }, (_, i) => ({ line: i + 1, vars: {}, out: '' }));
+    const w = traceWindow(steps, 400);
+    assertEq(w.head.length, 40, 'every step is drawn');
+    assertEq(w.tail.length, 0, 'there is no tail to split off');
+    assertEq(w.hidden, 0, 'and nothing is hidden');
+    const edge = traceWindow(steps, 40);
+    assertEq(edge.hidden, 0, 'exactly at the limit is still whole');
+    assertEq(traceWindow([], 400).total, 0, 'no steps at all is not an error');
+  }],
   /* ---- Module M: what the editor knows while you are typing ---- */
   ['Editing: completion offers the keyword you started', () => {
     const c = completionsAt('OU', 2);
@@ -8568,7 +8743,7 @@ function runSelfTest() {
 }
 
 // Let Node require this logic too (in the browser module is undefined, so the catch runs)
-try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTable, runSelfTest, TESTS,
+try { if (typeof module !== 'undefined') module.exports = { runProgram, createRun, truthTable, runSelfTest, TESTS,
   structuredEnglishToPseudo, traceTableToPseudo, checkPseudoAgainstTable,
   flowchartSVG, flowchartToPseudo,
   makeQuestion, markTrace, markOutput, markTruth, markPseudocode, PQ_KINDS,
@@ -8579,7 +8754,8 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   createStore, EVIDENCE, STORE_VERSION, memoryBackend, topicProgressOf,
   profileId, describeProfile, migrateStore, rebuildDerived,
   VIEWS_NEEDING_COURSE, ALL_VIEWS,
-  completionsAt, matchBracketAt, guideColumns, declaredNames, snippetSlot, FUNC_HINTS, KEYWORD_SNIPPETS,
+  completionsAt, matchBracketAt, guideColumns, declaredNames, snippetSlot,
+  traceWindow, TRACE_ROW_LIMIT, FUNC_HINTS, KEYWORD_SNIPPETS,
   emptyFileSet, readFileSet, addFile, renameFile, closeFile, selectFile,
   updateActive, activeFile, uniqueFileName, fileName, FILESET_VERSION, MAX_FILES,
   contrastRatio, Env, MAX_FILE_LINES, MAX_DEPTH, MAX_STEPS, TIME_LIMIT_MS, hoistRoutines,
@@ -8641,17 +8817,30 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   function traceHTML(shown, markLast) {
     if (!shown.length) return '<p class="empty">No steps to show.</p>';
     const names = Object.keys(shown[shown.length - 1].vars);
+    const win = traceWindow(shown);
+    const cols = names.length + 2;
     let html = '<table><thead><tr><th class="n">Line</th>' +
       names.map(n => `<th>${esc(n)}</th>`).join('') + '<th>OUTPUT</th></tr></thead><tbody>';
-    shown.forEach((s, i) => {
-      const prev = i > 0 ? shown[i - 1].vars : {};
-      html += `<tr${markLast && i === shown.length - 1 ? ' class="cur"' : ''}><td class="n">${s.line}</td>` +
-        names.map(n => {
-          const v = s.vars[n] === undefined ? '' : s.vars[n];
-          const changed = prev[n] !== undefined && prev[n] !== v;
-          return `<td class="${changed ? 'chg' : ''}">${esc(v)}</td>`;
-        }).join('') +
-        `<td class="out">${esc(s.out)}</td></tr>`;
+
+    const row = (s, prev, isLast) =>
+      `<tr${markLast && isLast ? ' class="cur"' : ''}><td class="n">${s.line}</td>` +
+      names.map(n => {
+        const v = s.vars[n] === undefined ? '' : s.vars[n];
+        const changed = prev[n] !== undefined && prev[n] !== v;
+        return `<td class="${changed ? 'chg' : ''}">${esc(v)}</td>`;
+      }).join('') +
+      `<td class="out">${esc(s.out)}</td></tr>`;
+
+    win.head.forEach((s, i) => {
+      html += row(s, i > 0 ? win.head[i - 1].vars : {}, !win.tail.length && i === win.head.length - 1);
+    });
+    if (win.hidden) {
+      html += `<tr class="trace-gap"><td colspan="${cols}">` +
+        `${win.hidden.toLocaleString()} steps in the middle are not drawn — ` +
+        `a trace this long is read at its ends.</td></tr>`;
+    }
+    win.tail.forEach((s, i) => {
+      html += row(s, i > 0 ? win.tail[i - 1].vars : {}, i === win.tail.length - 1);
     });
     return html + '</tbody></table>';
   }
@@ -10511,19 +10700,38 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   }
 
   /* ---- running ---- */
+  let ideRun = null;              // the run in progress, if there is one
+
+  function ideFail(e) {
+    ideSteps = []; ideEnv = null; ideAt = -1;
+    const where = e.line ? `Line ${e.line}: ` : '';
+    ideStatus(where + e.message, 'err');
+    if (e.line) ideGoToLine(e.line);
+    ideShowPanels();
+  }
+
+  /* Step and Continue want the whole run in hand, so they still wait for it.
+     The 5-second ceiling is what keeps that honest. */
   function ideCompile() {
     try {
       const run = runProgram(ideSrc.value, $('ide-inputs').value);
       ideSteps = run.steps; ideEnv = run.env; ideAt = -1;
       return true;
     } catch (e) {
-      ideSteps = []; ideEnv = null; ideAt = -1;
-      const where = e.line ? `Line ${e.line}: ` : '';
-      ideStatus(where + e.message, 'err');
-      if (e.line) ideGoToLine(e.line);
-      ideShowPanels();
+      ideFail(e);
       return false;
     }
+  }
+
+  function ideBusy(on) {
+    $('ide-run').hidden = on;
+    $('ide-stop').hidden = !on;
+    ['ide-step', 'ide-continue', 'ide-reset'].forEach(id => { $(id).disabled = on; });
+  }
+
+  function ideStopRun() {
+    if (!ideRun) return;
+    ideRun.stop();
   }
   function ideShowPanels() {
     $('ide-output').textContent = ideEnv ? (ideEnv.output.map(fmt).join('\n') || '(no output)') : '';
@@ -10537,12 +10745,60 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
       : '<p class="empty">Run or step to see the variables.</p>';
     ideGutter();
   }
+  /*
+    Run gives the page back between slices. A program that never ends is no
+    longer a frozen tab — it is a run with a Stop button next to it.
+  */
+  /* A slice is measured in time, not in steps: how long a step takes depends
+     entirely on the program, so a fixed step count makes Stop feel instant on
+     one program and sluggish on another. The budget is retuned after every
+     slice to land near a frame's worth of work. */
+  const IDE_SLICE_MS = 8;
+  let ideBudget = 4000;
+
+  /* Slices are scheduled on a timer, which yields to everything else the
+     page has to do. Chrome slows this to once a second in a background tab —
+     which is the right answer, not a problem: a tab nobody is looking at
+     should not burn a battery, and the run counts only the time it spends
+     working, so waiting cannot make it time out. */
+  function ideSoon(fn) { setTimeout(fn, 0); }
+
   function ideRunAll() {
-    if (!ideCompile()) return;
-    ideAt = ideSteps.length - 1;
-    ideShowPanels();
-    ideStatus(`Finished — ${ideSteps.length} steps, ${ideEnv.output.length} line${ideEnv.output.length === 1 ? '' : 's'} of output.`, 'ok');
+    if (ideRun) return;                       // one run at a time
+    try { ideRun = createRun(ideSrc.value, $('ide-inputs').value); }
+    catch (e) { ideFail(e); return; }
+
+    ideSteps = []; ideEnv = null; ideAt = -1;
+    ideBusy(true);
+    ideStatus('Running…');
     ideTab('output');
+
+    const tick = () => {
+      if (!ideRun) return;
+      const t0 = performance.now();
+      const more = ideRun.advance(ideBudget);
+      const took = performance.now() - t0;
+      if (took > 0.5) {
+        ideBudget = Math.max(200, Math.min(200000, Math.round(ideBudget * (IDE_SLICE_MS / took))));
+      }
+      if (more) {
+        ideStatus(`Running… ${ideRun.stepCount.toLocaleString()} steps so far. Stop if this is a loop that never ends.`);
+        ideSoon(tick);
+        return;
+      }
+      const r = ideRun.result();
+      ideRun = null;
+      ideBusy(false);
+      ideSteps = r.steps; ideEnv = r.env; ideAt = r.steps.length - 1;
+      if (r.error) { ideFail(r.error); return; }
+      ideShowPanels();
+      if (r.stopped) {
+        ideStatus(`Stopped after ${r.stepCount.toLocaleString()} steps. What it produced up to that point is below.`, 'err');
+      } else {
+        ideStatus(`Finished — ${r.stepCount.toLocaleString()} steps, ${r.env.output.length} line${r.env.output.length === 1 ? '' : 's'} of output.`, 'ok');
+      }
+    };
+    ideSoon(tick);
   }
   function ideStepOnce() {
     if (!ideSteps.length && !ideCompile()) return;
@@ -10840,6 +11096,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   wireTablist($('view-ide').querySelector('.inspector-tabs'), DTABS, ideTab);
 
   $('ide-run').addEventListener('click', ideRunAll);
+  $('ide-stop').addEventListener('click', ideStopRun);
   $('ide-step').addEventListener('click', ideStepOnce);
   $('ide-continue').addEventListener('click', ideContinue);
   $('ide-reset').addEventListener('click', ideReset);
@@ -10892,6 +11149,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
 
   document.addEventListener('keydown', ev => {
     if (currentView !== 'ide') return;
+    if (ev.key === 'Escape' && ideRun) { ev.preventDefault(); ideStopRun(); return; }
     if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') { ev.preventDefault(); ideRunAll(); }
     else if (ev.key === 'F10') { ev.preventDefault(); ideStepOnce(); }
     else if (ev.key === 'F8') { ev.preventDefault(); ideContinue(); }
