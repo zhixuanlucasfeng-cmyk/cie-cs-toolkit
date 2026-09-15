@@ -510,7 +510,7 @@
   .ide { display:flex; flex-direction:column; height:calc(100vh - var(--appbar-h) - var(--s12)); min-height:460px; }
   .ide-bar {
     display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap;
-    border:1px solid var(--border); border-bottom:0;
+    border:1px solid var(--border); border-bottom:1px solid var(--border);
     border-radius:var(--radius-lg) var(--radius-lg) 0 0;
     background:var(--surface); padding:var(--s2) var(--s3);
   }
@@ -527,7 +527,42 @@
   .ide-actions { display:flex; gap:var(--s2); flex-wrap:wrap; }
   .ide-right { margin-left:auto; }
 
-  .ide-body { display:flex; flex:1; min-height:0; border:1px solid var(--border); border-radius:0 0 var(--radius-lg) var(--radius-lg); overflow:hidden; }
+  /* The tab strip is the seam between the paper chrome and the dark editor:
+     the file in front joins the dark body, the rest stay on paper. */
+  .ide-tabs {
+    display:flex; align-items:stretch; gap:0; overflow-x:auto; overflow-y:hidden;
+    border-inline:1px solid var(--border); background:var(--surface-raised);
+    scrollbar-width:none;
+  }
+  .ide-tabs::-webkit-scrollbar { height:0; }
+  .ide-tab {
+    display:flex; align-items:center; flex-shrink:0;
+    border-right:1px solid var(--border); min-height:36px;
+    color:var(--text-muted);
+  }
+  .ide-tab:hover { background:var(--surface); color:var(--text-primary); }
+  /* The file in front is a notch cut into the editor's own ground. */
+  .ide-tab.is-on, .ide-tab.is-on:hover { background:#15181d; color:#eef1f4; }
+  .ide-tab-pick {
+    background:none; border:0; color:inherit; cursor:pointer;
+    padding:var(--s2) var(--s2) var(--s2) var(--s3); min-height:36px;
+    font:12.5px var(--font-mono); white-space:nowrap;
+  }
+  .ide-tab-x {
+    display:grid; place-items:center; width:20px; height:20px; flex-shrink:0;
+    margin-right:var(--s2); border:0; background:none; border-radius:var(--radius);
+    color:inherit; opacity:.5; font-size:15px; line-height:1; cursor:pointer;
+  }
+  .ide-tab-x:hover { opacity:1; background:var(--danger-wash); color:var(--danger); }
+  .ide-tab.is-on .ide-tab-x:hover { background:rgba(239,125,125,.22); color:#ef7d7d; }
+  .ide-newfile {
+    flex-shrink:0; background:none; border:0; border-right:1px solid var(--border);
+    padding:0 var(--s3); min-height:36px; cursor:pointer;
+    color:var(--text-muted); font-size:17px; line-height:1;
+  }
+  .ide-newfile:hover { background:var(--surface); color:var(--accent); }
+
+  .ide-body { display:flex; flex:1; min-height:0; border:1px solid var(--border); border-top:0; border-radius:0 0 var(--radius-lg) var(--radius-lg); overflow:hidden; }
   .ide-editor-wrap { flex:1; min-width:0; display:flex; flex-direction:column; background:var(--bg); }
   .ide-side {
     width:var(--inspector-w); flex-shrink:0; border-left:1px solid var(--border);
@@ -953,8 +988,8 @@
       <div class="ide">
         <div class="ide-bar">
           <div class="ide-file">
-            <label class="sr-only" for="ide-name">Program name</label>
-            <input id="ide-name" class="ide-name" value="untitled" maxlength="40" spellcheck="false">
+            <label class="sr-only" for="ide-name">Name of the file being edited</label>
+            <input id="ide-name" class="ide-name" value="main" maxlength="32" spellcheck="false">
             <span class="ide-saved" id="ide-saved">saved</span>
           </div>
           <div class="ide-actions">
@@ -970,9 +1005,11 @@
           </div>
         </div>
 
+        <div class="ide-tabs" id="ide-tabs" role="tablist" aria-label="Open files"></div>
+
         <div class="ide-body on-dark">
           <div class="ide-editor-wrap">
-            <div class="ide-editor" id="ide-editor">
+            <div class="ide-editor" id="ide-editor" role="tabpanel">
               <div class="ide-gutter" id="ide-gutter" aria-hidden="true"></div>
               <div class="ide-code">
                 <pre class="ide-paint" id="ide-paint" aria-hidden="true"></pre>
@@ -6264,7 +6301,282 @@ function assertThrows(fn, needle, msg) {
   assert(String(e.message).includes(needle), `${msg}: wrong error message\n  expected to contain: ${needle}\n  actual: ${e.message}`);
 }
 
+
+/* ======================================================================
+   Module L: the editor's open files
+
+   The IDE used to hold exactly one program, which meant starting a second
+   one destroyed the first. Files are now a small list with an active
+   member, kept as pure data so the self-test can hold the awkward cases to
+   account: closing the last tab, two files asking for the same name, and
+   opening a record written by the single-file build.
+   ====================================================================== */
+
+const FILESET_VERSION = 1;
+const FILE_EXT = '.cps';
+const MAX_FILES = 12;
+
+/*
+  A file name a student can read back later. Cambridge names appear in
+  exports and in the tab strip, so the rules are deliberately dull: a stem
+  of safe characters, one extension, never empty.
+*/
+function fileStem(name) {
+  return String(name == null ? '' : name)
+    .replace(/\.cps$/i, '')
+    .replace(/[^A-Za-z0-9 _-]+/g, '')
+    .trim().slice(0, 32);
+}
+function fileName(name) {
+  const stem = fileStem(name);
+  return (stem || 'untitled') + FILE_EXT;
+}
+
+/*
+  Two tabs called main.cps would be indistinguishable, so a clash gets a
+  number. The number goes on the stem, not after the extension.
+*/
+function uniqueFileName(taken, want) {
+  const used = new Set((taken || []).map(n => String(n).toLowerCase()));
+  const full = fileName(want);
+  if (!used.has(full.toLowerCase())) return full;
+  const stem = fileStem(full);
+  for (let n = 2; n < 1000; n++) {
+    const candidate = stem + '-' + n + FILE_EXT;
+    if (!used.has(candidate.toLowerCase())) return candidate;
+  }
+  return stem + '-' + Date.now() + FILE_EXT;
+}
+
+function newFileId() {
+  return 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+function makeFile(name, code, taken) {
+  return {
+    id: newFileId(),
+    name: uniqueFileName(taken || [], name),
+    code: typeof code === 'string' ? code : '',
+    inputs: '',
+    breaks: []
+  };
+}
+
+function emptyFileSet(starter) {
+  const f = makeFile('main', typeof starter === 'string' ? starter : '', []);
+  return { version: FILESET_VERSION, files: [f], activeId: f.id };
+}
+
+function activeFile(set) {
+  if (!set || !set.files || !set.files.length) return null;
+  return set.files.find(f => f.id === set.activeId) || set.files[0];
+}
+
+/*
+  Reads whatever is in storage. A record from the single-file build is one
+  program with no list around it; it becomes the first tab rather than
+  being thrown away, because it is a student's actual work.
+*/
+function readFileSet(raw, starter) {
+  let data = raw;
+  if (typeof raw === 'string') {
+    try { data = JSON.parse(raw); } catch (e) { data = null; }
+  }
+  if (!data || typeof data !== 'object') return emptyFileSet(starter);
+
+  if (Array.isArray(data.files) && data.files.length) {
+    const taken = [];
+    const files = data.files.slice(0, MAX_FILES).map(f => {
+      const name = uniqueFileName(taken, (f && f.name) || 'untitled');
+      taken.push(name);
+      return {
+        id: (f && f.id) || newFileId(),
+        name,
+        code: (f && typeof f.code === 'string') ? f.code : '',
+        inputs: (f && typeof f.inputs === 'string') ? f.inputs : '',
+        breaks: (f && Array.isArray(f.breaks)) ? f.breaks.filter(n => Number.isInteger(n)) : []
+      };
+    });
+    const activeId = files.some(f => f.id === data.activeId) ? data.activeId : files[0].id;
+    return { version: FILESET_VERSION, files, activeId };
+  }
+
+  // The single-file record: {code, name, inputs, breaks}
+  if (typeof data.code === 'string') {
+    const f = makeFile(data.name || 'main', data.code, []);
+    f.inputs = typeof data.inputs === 'string' ? data.inputs : '';
+    f.breaks = Array.isArray(data.breaks) ? data.breaks.filter(n => Number.isInteger(n)) : [];
+    return { version: FILESET_VERSION, files: [f], activeId: f.id };
+  }
+  return emptyFileSet(starter);
+}
+
+function addFile(set, name, code) {
+  if (set.files.length >= MAX_FILES) {
+    return { ok: false, error: `That is ${MAX_FILES} files open, which is as many as the editor keeps. Close one first.`, set };
+  }
+  const f = makeFile(name || 'untitled', code, set.files.map(x => x.name));
+  const next = { version: FILESET_VERSION, files: set.files.concat([f]), activeId: f.id };
+  return { ok: true, set: next, file: f };
+}
+
+function renameFile(set, id, name) {
+  const taken = set.files.filter(f => f.id !== id).map(f => f.name);
+  const files = set.files.map(f => f.id === id ? Object.assign({}, f, { name: uniqueFileName(taken, name) }) : f);
+  return { version: FILESET_VERSION, files, activeId: set.activeId };
+}
+
+/*
+  Closing the last tab leaves an empty editor rather than nothing at all —
+  an editor with no file in it has no state a student can act on.
+*/
+function closeFile(set, id, starter) {
+  const files = set.files.filter(f => f.id !== id);
+  if (!files.length) return emptyFileSet(starter);
+  let activeId = set.activeId;
+  if (activeId === id) {
+    const was = set.files.findIndex(f => f.id === id);
+    activeId = (files[was] || files[files.length - 1]).id;
+  }
+  return { version: FILESET_VERSION, files, activeId };
+}
+
+function selectFile(set, id) {
+  if (!set.files.some(f => f.id === id)) return set;
+  return { version: FILESET_VERSION, files: set.files, activeId: id };
+}
+
+/* Writes back into the active file without disturbing the others. */
+function updateActive(set, patch) {
+  const cur = activeFile(set);
+  if (!cur) return set;
+  const files = set.files.map(f => f.id === cur.id ? Object.assign({}, f, patch) : f);
+  return { version: FILESET_VERSION, files, activeId: set.activeId };
+}
+
 const TESTS = [
+  /* ---- Module L: the editor's open files ---- */
+  ['Files: a fresh set has one file, active, carrying the starter program', () => {
+    const set = emptyFileSet('OUTPUT 1');
+    assertEq(set.files.length, 1, 'one file to begin with');
+    assertEq(set.files[0].name, 'main.cps', 'named main.cps');
+    assertEq(activeFile(set).code, 'OUTPUT 1', 'holding the starter program');
+    assertEq(set.activeId, set.files[0].id, 'and it is the active one');
+  }],
+  ['Files: a name is sanitised and always ends in .cps', () => {
+    assertEq(fileName('Bubble Sort'), 'Bubble Sort.cps', 'spaces are allowed');
+    assertEq(fileName('sort.cps'), 'sort.cps', 'the extension is not doubled');
+    assertEq(fileName('../../etc/passwd'), 'etcpasswd.cps', 'path characters are stripped');
+    assertEq(fileName(''), 'untitled.cps', 'an empty name still names something');
+    assertEq(fileName('   '), 'untitled.cps', 'and so does a blank one');
+  }],
+  ['Files: two tabs cannot share a name', () => {
+    assertEq(uniqueFileName(['main.cps'], 'main'), 'main-2.cps', 'the clash is numbered');
+    assertEq(uniqueFileName(['main.cps', 'main-2.cps'], 'main'), 'main-3.cps', 'and keeps counting');
+    assertEq(uniqueFileName(['MAIN.CPS'], 'main'), 'main-2.cps', 'case does not make it a different file');
+    assertEq(uniqueFileName([], 'main'), 'main.cps', 'no clash, no number');
+  }],
+  ['Files: adding, selecting and renaming leave the others alone', () => {
+    let set = emptyFileSet('A');
+    const first = set.files[0].id;
+    const added = addFile(set, 'search', 'B');
+    assert(added.ok, 'a second file should open');
+    set = added.set;
+    assertEq(set.files.length, 2, 'two files now');
+    assertEq(set.activeId, added.file.id, 'the new file becomes active');
+    assertEq(set.files[0].code, 'A', 'the first file keeps its program');
+    set = renameFile(set, added.file.id, 'linear search');
+    assertEq(set.files[1].name, 'linear search.cps', 'renamed');
+    assertEq(set.files[0].name, 'main.cps', 'and the other is untouched');
+    set = selectFile(set, first);
+    assertEq(set.activeId, first, 'selecting switches the active file');
+    assertEq(activeFile(set).code, 'A', 'and brings its program back');
+  }],
+  ['Files: renaming onto a taken name is numbered, not silently merged', () => {
+    let set = emptyFileSet('A');
+    set = addFile(set, 'other', 'B').set;
+    set = renameFile(set, set.files[1].id, 'main');
+    assertEq(set.files[1].name, 'main-2.cps', 'the second file does not become the first');
+    assertEq(set.files[0].code, 'A', 'and the first still holds its own program');
+  }],
+  ['Files: editing the active file does not touch the rest', () => {
+    let set = emptyFileSet('A');
+    set = addFile(set, 'two', 'B').set;
+    set = updateActive(set, { code: 'CHANGED', breaks: [3] });
+    assertEq(set.files[1].code, 'CHANGED', 'the active file took the edit');
+    assertEq(set.files[1].breaks.join(), '3', 'including its breakpoints');
+    assertEq(set.files[0].code, 'A', 'the inactive file is unchanged');
+    assertEq(set.files[0].breaks.length, 0, 'and keeps its own breakpoints');
+  }],
+  ['Files: closing the last tab leaves an empty editor, never nothing', () => {
+    let set = emptyFileSet('A');
+    set = closeFile(set, set.files[0].id, 'STARTER');
+    assertEq(set.files.length, 1, 'there is always a file to type into');
+    assertEq(set.files[0].code, 'STARTER', 'and it starts from the starter program');
+  }],
+  ['Files: closing the active tab activates its neighbour', () => {
+    let set = emptyFileSet('A');
+    set = addFile(set, 'b', 'B').set;
+    set = addFile(set, 'c', 'C').set;      // c is active, and is last
+    const b = set.files[1].id;
+    set = selectFile(set, b);
+    set = closeFile(set, b, '');
+    assertEq(set.files.length, 2, 'one closed');
+    assertEq(activeFile(set).code, 'C', 'the tab that took its place is active');
+    assert(set.files.every(f => f.id !== b), 'and the closed one is gone');
+  }],
+  ['Files: closing an inactive tab does not move the cursor', () => {
+    let set = emptyFileSet('A');
+    set = addFile(set, 'b', 'B').set;      // b active
+    const active = set.activeId;
+    set = closeFile(set, set.files[0].id, '');
+    assertEq(set.activeId, active, 'the file being edited stays the file being edited');
+  }],
+  ['Files: a record from the single-file build opens as the first tab', () => {
+    const old = JSON.stringify({ code: 'OUTPUT "old work"', name: 'my-program', inputs: '4\n5', breaks: [2] });
+    const set = readFileSet(old, 'STARTER');
+    assertEq(set.files.length, 1, 'the old program becomes one file');
+    assertEq(set.files[0].code, 'OUTPUT "old work"', 'with the work intact');
+    assertEq(set.files[0].name, 'my-program.cps', 'and its name given the extension');
+    assertEq(set.files[0].inputs, '4\n5', 'inputs survive');
+    assertEq(set.files[0].breaks.join(), '2', 'breakpoints survive');
+  }],
+  ['Files: unreadable or empty storage starts fresh rather than throwing', () => {
+    assertEq(readFileSet('not json at all', 'S').files[0].code, 'S', 'garbage starts fresh');
+    assertEq(readFileSet(null, 'S').files[0].code, 'S', 'so does nothing at all');
+    assertEq(readFileSet('{"files":[]}', 'S').files[0].code, 'S', 'so does an empty list');
+  }],
+  ['Files: a damaged saved list is repaired rather than dropped', () => {
+    const set = readFileSet({ files: [
+      { name: 'a', code: 'A' },
+      { name: 'a', code: 'B' },                 // duplicate name
+      { name: 'c' },                            // no code
+      { name: 'd', code: 'D', breaks: ['x', 2] } // junk in breaks
+    ], activeId: 'gone' }, 'S');
+    assertEq(set.files.length, 4, 'every file the student had is kept');
+    assertEq(set.files[1].name, 'a-2.cps', 'the duplicate name is separated');
+    assertEq(set.files[2].code, '', 'a missing program becomes an empty one');
+    assertEq(set.files[3].breaks.join(), '2', 'junk breakpoints are dropped, real ones kept');
+    assertEq(set.activeId, set.files[0].id, 'a missing active file falls back to the first');
+  }],
+  ['Files: the editor refuses to open more tabs than it keeps', () => {
+    let set = emptyFileSet('A');
+    for (let i = 1; i < MAX_FILES; i++) set = addFile(set, 'f' + i, '').set;
+    assertEq(set.files.length, MAX_FILES, 'filled to the limit');
+    const over = addFile(set, 'one-too-many', '');
+    assert(!over.ok, 'the next one is refused');
+    assert(/Close one first/.test(over.error), 'and the refusal says what to do: ' + over.error);
+    assertEq(over.set.files.length, MAX_FILES, 'nothing was added');
+  }],
+  ['Files: a saved set survives a round trip through storage', () => {
+    let set = emptyFileSet('A');
+    set = addFile(set, 'second', 'B').set;
+    set = updateActive(set, { inputs: '7' });
+    const back = readFileSet(JSON.stringify(set), 'S');
+    assertEq(back.files.length, 2, 'both files came back');
+    assertEq(activeFile(back).code, 'B', 'the active one is still the active one');
+    assertEq(activeFile(back).inputs, '7', 'with its inputs');
+  }],
   ['Sample program: FOR + MOD + IF', () => {
     const { steps, env } = runProgram(SAMPLE_CODE, '');
     assertEq(env.output.join(','), '2,4,15', 'wrong output sequence');
@@ -6831,10 +7143,16 @@ const TESTS = [
     if (typeof document === 'undefined') return;
     for (const list of document.querySelectorAll('[role="tablist"]')) {
       const tabs = [...list.querySelectorAll('[role="tab"]')];
-      assert(tabs.length >= 2, 'a tablist should hold tabs');
+      // One tab is legitimate — a file strip starts with a single file open.
+      assert(tabs.length >= 1, 'a tablist should hold at least one tab');
       const selected = tabs.filter(t => t.getAttribute('aria-selected') === 'true');
       assertEq(selected.length, 1, 'exactly one tab should start selected');
       tabs.forEach(t => assert(t.getAttribute('aria-controls'), `${t.id} should name the panel it controls`));
+      // Roving tabindex, which is what this test is named for: Tab reaches the
+      // strip once, and the arrow keys move within it.
+      const reachable = tabs.filter(t => t.tabIndex === 0);
+      assertEq(reachable.length, 1, 'exactly one tab should be reachable by Tab');
+      assertEq(reachable[0], selected[0], 'and it should be the selected one');
     }
   }],
   ['Discoverability: title, description, icon and canonical are present', () => {
@@ -7913,6 +8231,8 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   createStore, EVIDENCE, STORE_VERSION, memoryBackend, topicProgressOf,
   profileId, describeProfile, migrateStore, rebuildDerived,
   VIEWS_NEEDING_COURSE, ALL_VIEWS,
+  emptyFileSet, readFileSet, addFile, renameFile, closeFile, selectFile,
+  updateActive, activeFile, uniqueFileName, fileName, FILESET_VERSION, MAX_FILES,
   contrastRatio, Env, MAX_FILE_LINES, MAX_DEPTH, MAX_STEPS, TIME_LIMIT_MS, hoistRoutines,
   highlight, highlightTokens, checkSource, indentFor, dedentFor, DEDENT_WORDS, AUTO_CLOSE,
   buildSharedQuestion, exportQuestion, importQuestion, SHARE_SCHEMA }; } catch (e) {}
@@ -9665,7 +9985,13 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   /* ============================================================
      Pseudocode IDE
      ============================================================ */
-  const IDE_KEY = 'dryrun.ide';
+  /* Files belong to whoever is using this browser, so a class sharing one
+     machine does not share one program. The first learner keeps the original
+     key, so anyone who used the single-file build finds their work in place. */
+  const ideKey = () => {
+    const who = (store.currentLearner() || {}).id;
+    return (!who || who === 'default') ? 'dryrun.ide' : 'dryrun.ide.' + who;
+  };
   const IDE_START =
     'DECLARE total : INTEGER\n' +
     'DECLARE i : INTEGER\n' +
@@ -9681,30 +10007,99 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   let ideSteps = [], ideAt = -1, ideEnv = null, ideProblems = [];
   let ideSaveTimer = null, idePaintTimer = null;
 
-  function ideLoad() {
-    let saved = null;
-    try { saved = JSON.parse(localStorage.getItem(IDE_KEY) || 'null'); } catch (e) {}
-    ideSrc.value = (saved && typeof saved.code === 'string') ? saved.code : IDE_START;
-    $('ide-name').value = (saved && saved.name) || 'untitled';
-    $('ide-inputs').value = (saved && saved.inputs) || '';
-    ideBreaks = new Set((saved && saved.breaks) || []);
+  let ideFiles = null;                 // the open files, Module L's shape
+
+  /* Pull the editor's live state into the active file, then show it. */
+  function ideCapture() {
+    ideFiles = updateActive(ideFiles, {
+      code: ideSrc.value, inputs: $('ide-inputs').value, breaks: [...ideBreaks]
+    });
   }
+  /* Put a file into the editor. The run state belongs to the old file, so it
+     is thrown away rather than shown against the new one. */
+  function ideShow(file) {
+    ideSrc.value = file.code;
+    $('ide-inputs').value = file.inputs || '';
+    $('ide-name').value = file.name.replace(/\.cps$/i, '');
+    ideBreaks = new Set(file.breaks || []);
+    ideReset(); idePaint(); ideCheck(); ideGutter();
+  }
+
+  function ideTabs() {
+    const strip = $('ide-tabs');
+    strip.innerHTML = ideFiles.files.map(f => {
+      const on = f.id === ideFiles.activeId;
+      return `<span class="ide-tab${on ? ' is-on' : ''}">` +
+        `<button class="ide-tab-pick" role="tab" data-id="${esc(f.id)}" ` +
+          `aria-selected="${on}" aria-controls="ide-editor" tabindex="${on ? 0 : -1}">` +
+          `${esc(f.name)}</button>` +
+        `<button class="ide-tab-x" data-close="${esc(f.id)}" tabindex="-1" ` +
+          `aria-label="Close ${esc(f.name)}" title="Close ${esc(f.name)}">×</button>` +
+        `</span>`;
+    }).join('') +
+      `<button class="ide-newfile" id="ide-newfile" title="New file" aria-label="New file">+</button>`;
+  }
+
+  function ideLoad() {
+    let raw = null;
+    try { raw = localStorage.getItem(ideKey()); } catch (e) {}
+    ideFiles = readFileSet(raw, IDE_START);
+    ideShow(activeFile(ideFiles));
+    ideTabs();
+  }
+
   function ideSave() {
     clearTimeout(ideSaveTimer);
     $('ide-saved').textContent = 'saving…';
     $('ide-saved').classList.add('is-dirty');
     ideSaveTimer = setTimeout(() => {
+      ideCapture();
       try {
-        localStorage.setItem(IDE_KEY, JSON.stringify({
-          code: ideSrc.value, name: $('ide-name').value,
-          inputs: $('ide-inputs').value, breaks: [...ideBreaks], at: Date.now()
-        }));
+        localStorage.setItem(ideKey(), JSON.stringify(
+          Object.assign({}, ideFiles, { at: Date.now() })));
         $('ide-saved').textContent = 'saved';
         $('ide-saved').classList.remove('is-dirty');
       } catch (e) {
         $('ide-saved').textContent = 'could not save';
       }
     }, 400);
+  }
+
+  /* Switching files saves the one being left first, so nothing typed in the
+     last 400ms is lost to the debounce. */
+  function ideSwitchTo(id) {
+    if (id === ideFiles.activeId) return;
+    clearTimeout(ideSaveTimer);
+    ideCapture();
+    ideFiles = selectFile(ideFiles, id);
+    ideShow(activeFile(ideFiles));
+    ideTabs();
+    ideSave();
+  }
+
+  function ideNewFile(name, code) {
+    clearTimeout(ideSaveTimer);
+    ideCapture();
+    const r = addFile(ideFiles, name || 'untitled', typeof code === 'string' ? code : '');
+    if (!r.ok) { toast(r.error); return null; }
+    ideFiles = r.set;
+    ideShow(r.file);
+    ideTabs();
+    ideSave();
+    return r.file;
+  }
+
+  function ideCloseFile(id) {
+    const f = ideFiles.files.find(x => x.id === id);
+    if (!f) return;
+    // Only ask when there is something to lose.
+    if (f.code.trim() && !confirm(`Close ${f.name}? Its program is not kept anywhere else.`)) return;
+    clearTimeout(ideSaveTimer);
+    if (id !== ideFiles.activeId) ideCapture();
+    ideFiles = closeFile(ideFiles, id, IDE_START);
+    ideShow(activeFile(ideFiles));
+    ideTabs();
+    ideSave();
   }
 
   /* ---- painting: the coloured copy behind the textarea ---- */
@@ -9932,7 +10327,36 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   $('ide-step').addEventListener('click', ideStepOnce);
   $('ide-continue').addEventListener('click', ideContinue);
   $('ide-reset').addEventListener('click', ideReset);
-  $('ide-name').addEventListener('input', ideSave);
+  $('ide-tabs').addEventListener('click', ev => {
+    const close = ev.target.closest('[data-close]');
+    if (close) { ev.stopPropagation(); ideCloseFile(close.getAttribute('data-close')); return; }
+    if (ev.target.closest('#ide-newfile')) { ideNewFile('untitled', ''); return; }
+    const pick = ev.target.closest('.ide-tab-pick');
+    if (pick) ideSwitchTo(pick.getAttribute('data-id'));
+  });
+  // Left and right move between files, the way tabs behave everywhere else.
+  $('ide-tabs').addEventListener('keydown', ev => {
+    if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
+    const at = ideFiles.files.findIndex(f => f.id === ideFiles.activeId);
+    const to = ideFiles.files[at + (ev.key === 'ArrowRight' ? 1 : -1)];
+    if (!to) return;
+    ev.preventDefault();
+    ideSwitchTo(to.id);
+    const el = $('ide-tabs').querySelector('.ide-tab[aria-selected="true"]');
+    if (el) el.focus();
+  });
+
+  // The name field renames whichever file is in front.
+  $('ide-name').addEventListener('input', () => {
+    ideFiles = renameFile(ideFiles, ideFiles.activeId, $('ide-name').value);
+    ideTabs();
+    ideSave();
+  });
+  // On blur the field shows the name that was actually taken, which may be
+  // numbered if it clashed with another tab.
+  $('ide-name').addEventListener('blur', () => {
+    $('ide-name').value = activeFile(ideFiles).name.replace(/\.cps$/i, '');
+  });
   $('ide-inputs').addEventListener('input', ideSave);
   $('ide-study').addEventListener('click', () => go(store.getProfile() ? 'dashboard' : 'onboarding'));
   $('ide-send').addEventListener('click', () => {
@@ -9943,9 +10367,10 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
     const pick = prompt('Load an example:\n\n' + names + '\n\nType a number:');
     const i = Number(pick) - 1;
     if (!(i >= 0 && i < EXAMPLES.length)) return;
-    ideSrc.value = EXAMPLES[i].code;
+    // An example opens beside your work rather than on top of it.
+    const f = ideNewFile(EXAMPLES[i].name, EXAMPLES[i].code);
+    if (!f) return;
     $('ide-inputs').value = EXAMPLES[i].inputs || '';
-    $('ide-name').value = EXAMPLES[i].name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30);
     ideReset(); idePaint(); ideCheck(); ideSave();
   });
 
