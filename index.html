@@ -670,6 +670,39 @@
     display:flex; align-items:center; gap:var(--s3); flex-wrap:wrap;
   }
   .ide-status.err { color:var(--danger); }
+
+  /* The program asking a question. It sits where the output appears, because
+     that is where a person is already looking when a program stops. */
+  .ask {
+    border:1px solid var(--warning); border-radius:var(--radius);
+    background:var(--warning-wash); padding:var(--s3); margin-bottom:var(--s4);
+  }
+  .ask-head {
+    display:flex; align-items:center; gap:var(--s2);
+    font-weight:600; font-size:13.5px; color:var(--text-primary); margin-bottom:var(--s2);
+  }
+  /* A pause bar, not a blinking light: the heading already says it is
+     waiting, so the mark only has to be recognisable at a glance. */
+  .ask-dot {
+    width:9px; height:11px; flex-shrink:0;
+    border-left:3px solid var(--warning); border-right:3px solid var(--warning);
+  }
+  .ask-what { margin-bottom:var(--s2); }
+  .ask-what code { font:12.5px var(--font-mono); color:var(--text-secondary); }
+  .ask-row { display:flex; gap:var(--s2); }
+  .ask-row .control { flex:1; min-width:0; }
+  .ask-err { margin:var(--s2) 0 0; font-size:12.5px; color:var(--danger); }
+  .ask[aria-busy="true"] { opacity:.6; }
+  .ask-mode {
+    display:flex; gap:var(--s2); align-items:flex-start;
+    margin-top:var(--s2); font-size:12.5px; color:var(--text-secondary); cursor:pointer;
+  }
+  .ask-mode input { margin-top:2px; flex-shrink:0; }
+
+  /* Runtime notes in the Problems list: what the program is doing now, as
+     opposed to what the editor can see wrong without running it. */
+  .prob.is-waiting b { color:var(--warning); }
+  .prob.is-runtime b { color:var(--danger); }
   .trace-gap td {
     text-align:center; color:var(--text-muted); font-style:italic;
     background:var(--surface-raised); padding:var(--s2) var(--s3);
@@ -1108,8 +1141,23 @@
             </div>
             <div class="ide-side-body">
               <div class="inspector-panel is-active" id="dpanel-output" role="tabpanel" aria-labelledby="dtab-output" tabindex="0">
+                <form class="ask" id="ide-ask" hidden>
+                  <div class="ask-head"><span class="ask-dot" aria-hidden="true"></span> Program waiting for input</div>
+                  <div class="ask-what"><code id="ide-ask-what">INPUT</code></div>
+                  <div class="ask-row">
+                    <label class="sr-only" for="ide-ask-value">Value to send to the program</label>
+                    <input id="ide-ask-value" class="control" autocomplete="off" spellcheck="false">
+                    <button class="btn primary" type="submit" id="ide-ask-send">Enter</button>
+                  </div>
+                  <p class="ask-err" id="ide-ask-err" role="alert" hidden></p>
+                </form>
                 <label class="field-label" for="ide-inputs">Values for INPUT, one per line</label>
                 <textarea id="ide-inputs" class="control" rows="2" spellcheck="false"></textarea>
+                <label class="ask-mode">
+                  <input type="checkbox" id="ide-interactive" checked>
+                  <span>Ask me when this list runs out. Uncheck to test with these values alone,
+                    the way marking does — then running out is an error.</span>
+                </label>
                 <pre class="outcode" id="ide-output" style="margin-top:12px"></pre>
               </div>
               <div class="inspector-panel" id="dpanel-vars" role="tabpanel" aria-labelledby="dtab-vars" tabindex="0">
@@ -2350,6 +2398,7 @@ class Env {
     const f = this.openHandle(rawName, 'READ', line);
     return f.pos >= f.lines.length;
   }
+  hasInput() { return this.ip < this.inputs.length; }
   nextInput(line) {
     if (this.ip >= this.inputs.length) {
       throw new CIEError(`INPUT number ${this.ip + 1} has no value available — add another line in the "Values for INPUT" box on the left`, line);
@@ -2521,6 +2570,69 @@ function callFunction(def, args, env, line) {
   throw new CIEError(`${def.name} finished without a RETURN`, line);
 }
 
+/*
+  What an INPUT is about to fill in: the type it was declared as, and a name
+  a student would recognise. The subscripts are worked out once here and
+  handed on, because "INPUT Numbers[Index]" has to name the cell it is
+  actually waiting for — Numbers[3], not Numbers[Index].
+*/
+function inputTarget(target, env, line) {
+  const slot = env.slot(target.name, line);
+  if (!target.idxs) {
+    if (slot.isArray) {
+      throw new CIEError(`${target.name} is an array — write it as ${target.name}[index]`, line);
+    }
+    return { dtype: slot.dtype, label: target.name, idxs: null };
+  }
+  const idxs = target.idxs.map(e => evalExpr(e, env));
+  return { dtype: slot.dtype, label: `${target.name}[${idxs.join(', ')}]`, idxs };
+}
+
+/*
+  A value read by INPUT arrives as text, and CIE pseudocode is typed, so it
+  has to become the declared type or be refused. Batch values have already
+  been through parseInputValues and may arrive as numbers or booleans, which
+  is why each case accepts its own type as well as text.
+*/
+function coerceInput(raw, dtype, line, label) {
+  const t = String(dtype || '').toUpperCase();
+  const v = typeof raw === 'string' ? raw.trim() : raw;
+  const shown = JSON.stringify(String(raw));
+  const refuse = want => {
+    throw new CIEError(`Invalid ${t} input for ${label}. Expected ${want}, but received ${shown}.`, line);
+  };
+  switch (t) {
+    case 'INTEGER':
+      if (typeof v === 'number') {
+        if (!Number.isInteger(v)) refuse('a whole number');
+        return v;
+      }
+      if (!/^[+-]?\d+$/.test(String(v))) refuse('a whole number');
+      return parseInt(String(v), 10);
+    case 'REAL':
+      if (typeof v === 'number') return v;
+      if (!/^[+-]?\d+(\.\d+)?$/.test(String(v))) refuse('a number');
+      return parseFloat(String(v));
+    case 'BOOLEAN': {
+      if (typeof v === 'boolean') return v;
+      const u = String(v).toUpperCase();
+      if (u === 'TRUE') return true;
+      if (u === 'FALSE') return false;
+      refuse('TRUE or FALSE');
+      break;
+    }
+    case 'CHAR': {
+      const c = String(v);
+      if ([...c].length !== 1) refuse('a single character');
+      return c;
+    }
+    case 'STRING':
+      return String(v);
+    default:
+      return v;                 // CONSTANT, DATE, or a type with no rule yet
+  }
+}
+
 function assignTo(target, value, env, line) {
   if (!target.idxs) env.set(target.name, value, line);
   else env.setCell(target.name, target.idxs.map(e => evalExpr(e, env)), value, line);
@@ -2565,8 +2677,31 @@ function* execStmt(s, env) {
       return;
     }
     case 'INPUT': {
-      const v = env.nextInput(s.line);
-      assignTo(s.target, v, env, s.line);
+      const want = inputTarget(s.target, env, s.line);
+      let v;
+      if (env.hasInput()) {
+        // Batch: the next predefined value, checked against the declared type.
+        v = coerceInput(env.nextInput(s.line), want.dtype, s.line, want.label);
+      } else {
+        /*
+          Nothing predefined is left. Rather than deciding here whether that
+          is an error, hand the question back to whoever is driving the run:
+          a caller that can ask a person sends the answer in through next(),
+          and one that cannot turns this into the exhausted error. The
+          generator's own position is the program counter, so resuming
+          continues from exactly here with every variable intact.
+        */
+        v = yield {
+          type: 'INPUT_REQUEST',
+          line: s.line,
+          target: s.target,              // the AST node, so a caller can inspect it
+          dtype: want.dtype,             // the declared type the value must become
+          label: want.label,             // "Age", or "Numbers[3]" with the index worked out
+          index: env.ip + 1              // which INPUT this is, for the exhausted message
+        };
+      }
+      if (want.idxs) env.setCell(s.target.name, want.idxs, v, s.line);
+      else env.set(s.target.name, v, s.line);
       yield snapshot(env, s.line);
       return;
     }
@@ -2732,6 +2867,9 @@ function createRun(codeText, inputText, opts) {
   const steps = [];
   let n = 0, last = null, elapsed = 0;
   let finished = false, stopped = false, error = null;
+  // What the program is waiting for, and the value to hand back when it has
+  // one. A run with no way to ask a person never enters this state.
+  let waiting = null, pending;
 
   function overtime(sliceStart) {
     return elapsed + (Date.now() - sliceStart) > timeLimit;
@@ -2743,12 +2881,38 @@ function createRun(codeText, inputText, opts) {
     get steps()   { return steps; },
     get env()     { return env; },
     get stepCount() { return n; },
+    /* What the program is waiting for, or null. Waiting is not an error. */
+    get waiting() { return waiting; },
+    /* RUNNING · WAITING_FOR_INPUT · FINISHED · ERROR — the state a caller
+       shows to a person, derived rather than tracked separately so it can
+       never disagree with the run itself. */
+    get state() {
+      if (error) return 'ERROR';
+      if (waiting) return 'WAITING_FOR_INPUT';
+      if (finished) return 'FINISHED';
+      return 'RUNNING';
+    },
+    /*
+      Answer the question the program asked. The text becomes the declared
+      type or is refused, and a refusal leaves the run exactly where it was
+      so the person can try again — nothing has been assigned and no step
+      has been taken.
+    */
+    provideInput(text) {
+      if (!waiting) return { ok: false, error: 'Nothing is waiting for a value.' };
+      let v;
+      try { v = coerceInput(text, waiting.dtype, waiting.line, waiting.label); }
+      catch (e) { return { ok: false, error: e.message, line: e.line || waiting.line }; }
+      pending = v;
+      waiting = null;
+      return { ok: true, value: v };
+    },
     /* Abandon the run. What it produced so far is kept, because a student
        who stops a runaway loop still wants to see where it went. */
     stop() { stopped = true; finished = true; },
     result() {
       return { steps, env, stepCount: n, lastLine: last ? last.line : 0,
-               ms: elapsed, error, stopped };
+               ms: elapsed, error, stopped, waiting };
     },
     /*
       Run at most `budget` steps, then hand control back. Returns true while
@@ -2757,13 +2921,26 @@ function createRun(codeText, inputText, opts) {
     */
     advance(budget) {
       if (finished) return false;
+      if (waiting) return false;                 // nothing to do until answered
       const sliceStart = Date.now();
       const limit = budget > 0 ? budget : 1;
       try {
         for (let i = 0; i < limit; i++) {
-          const r = it.next();
+          // Anything handed to provideInput goes in here, and becomes the
+          // result of the yield the INPUT statement is sitting on.
+          const r = it.next(pending);
+          pending = undefined;
           if (r.done) { finished = true; break; }
           const s = r.value;
+          // A request is a question, not a step: it is never counted, never
+          // recorded in the trace, and never shown as a line that ran.
+          if (s && s.type === 'INPUT_REQUEST') {
+            if (!o.interactive) {
+              throw new CIEError(`INPUT number ${s.index} has no value available — add another line in the "Values for INPUT" box on the left`, s.line);
+            }
+            waiting = s;
+            break;
+          }
           n++; last = s;
           if (keep) steps.push(s);
           if (o.onStep) o.onStep(s, n);
@@ -2786,7 +2963,7 @@ function createRun(codeText, inputText, opts) {
         finished = true;
       }
       elapsed += Date.now() - sliceStart;
-      return !finished;
+      return !finished && !waiting;
     }
   };
 }
@@ -2797,7 +2974,9 @@ function createRun(codeText, inputText, opts) {
   it.
 */
 function runProgram(codeText, inputText, opts) {
-  const run = createRun(codeText, inputText, opts);
+  // Never interactive: everything that is not the editor wants a program that
+  // either finishes or fails, not one that stops to ask a question.
+  const run = createRun(codeText, inputText, Object.assign({}, opts, { interactive: false }));
   while (run.advance(1e9)) { /* one slice is enough when nobody is waiting */ }
   const r = run.result();
   if (r.error) throw r.error;
@@ -7325,6 +7504,163 @@ const TESTS = [
     expr.value = was;
     gen.click();
   }],
+
+  /* ---- INPUT: batch and interactive ---- */
+  ['INPUT: a run with nobody to ask still reports an exhausted queue', () => {
+    assertThrows(() => runProgram('DECLARE a : INTEGER\nINPUT a', ''), 'no value available',
+      'batch mode must keep failing when it runs out');
+    assertThrows(() => runProgram('DECLARE a : INTEGER\nDECLARE b : INTEGER\nINPUT a\nINPUT b', '10'),
+      'INPUT number 2 has no value available', 'and must say which INPUT ran dry');
+  }],
+  ['INPUT: an interactive run waits instead of failing', () => {
+    const run = createRun('DECLARE Age : INTEGER\nINPUT Age\nOUTPUT Age', '', { interactive: true });
+    while (run.advance(200)) { /* run up to the question */ }
+    assertEq(run.state, 'WAITING_FOR_INPUT', 'waiting is a state, not an error');
+    assertEq(run.result().error, null, 'and it is not an error');
+    assertEq(run.waiting.label, 'Age', 'it names what it is waiting for');
+    assertEq(run.waiting.dtype, 'INTEGER', 'and the type that value has to be');
+    assertEq(run.waiting.type, 'INPUT_REQUEST', 'the request says what it is');
+    assert(run.waiting.target && run.waiting.target.name === 'Age', 'and carries the statement’s target');
+    assert(run.provideInput('16').ok, 'a whole number is accepted');
+    while (run.advance(200)) { /* finish */ }
+    assertEq(run.state, 'FINISHED', 'and the run finishes');
+    assertEq(run.result().env.output.join(), '16', 'having assigned and printed it');
+  }],
+  ['INPUT: a request is a question, not a step in the trace', () => {
+    const run = createRun('DECLARE a : INTEGER\nINPUT a', '', { interactive: true });
+    while (run.advance(200)) { /* up to the question */ }
+    const before = run.stepCount;
+    assertEq(run.steps.filter(s => s.type === 'INPUT_REQUEST').length, 0,
+      'a request must never reach the trace');
+    run.provideInput('5');
+    while (run.advance(200)) { /* finish */ }
+    assert(run.stepCount > before, 'the INPUT line itself is still one step');
+    assertEq(run.steps.filter(s => s.type === 'INPUT_REQUEST').length, 0, 'still none');
+  }],
+  ['INPUT: the array cell it is waiting for is named with its index worked out', () => {
+    const code = 'DECLARE Numbers : ARRAY[0:2] OF INTEGER\nDECLARE Index : INTEGER\n' +
+                 'FOR Index ← 0 TO 2\n  INPUT Numbers[Index]\nNEXT Index\n' +
+                 'FOR Index ← 0 TO 2\n  OUTPUT Numbers[Index]\nNEXT Index';
+    const run = createRun(code, '', { interactive: true });
+    const asked = [];
+    const answers = ['7', '3', '9'];
+    let guard = 0;
+    while (guard++ < 40) {
+      while (run.advance(500)) { /* work */ }
+      if (!run.waiting) break;
+      asked.push(run.waiting.label);
+      assert(run.provideInput(answers.shift()).ok, 'each value should be accepted');
+    }
+    assertEq(asked.join(' '), 'Numbers[0] Numbers[1] Numbers[2]',
+      'it must name the cell, not the expression: ' + asked.join(' '));
+    assertEq(run.result().env.output.join(), '7,3,9', 'and the array holds what was typed');
+  }],
+  ['INPUT: interactive and batch reach the same answer', () => {
+    const code = 'DECLARE Numbers : ARRAY[0:2] OF INTEGER\nDECLARE Index : INTEGER\n' +
+                 'FOR Index ← 0 TO 2\n  INPUT Numbers[Index]\nNEXT Index\n' +
+                 'FOR Index ← 0 TO 2\n  OUTPUT Numbers[Index]\nNEXT Index';
+    const batch = runProgram(code, '7\n3\n9').env.output.join();
+    const run = createRun(code, '', { interactive: true });
+    const answers = ['7', '3', '9'];
+    let guard = 0;
+    while (guard++ < 40) {
+      while (run.advance(500)) { /* work */ }
+      if (!run.waiting) break;
+      run.provideInput(answers.shift());
+    }
+    assertEq(run.result().env.output.join(), batch, 'the two modes must agree');
+  }],
+  ['INPUT: predefined values are used first, and only then is anyone asked', () => {
+    const run = createRun('DECLARE a : INTEGER\nDECLARE b : INTEGER\nINPUT a\nINPUT b\nOUTPUT a\nOUTPUT b',
+      '10', { interactive: true });
+    while (run.advance(200)) { /* work */ }
+    assertEq(run.waiting.label, 'b', 'the first INPUT took the predefined value');
+    run.provideInput('20');
+    while (run.advance(200)) { /* finish */ }
+    assertEq(run.result().env.output.join(), '10,20', 'and the second was typed');
+  }],
+  ['INPUT: answering does not rerun anything that already ran', () => {
+    const run = createRun('DECLARE A : INTEGER\nDECLARE B : INTEGER\nINPUT A\nINPUT B\nOUTPUT A\nOUTPUT B',
+      '', { interactive: true });
+    while (run.advance(200)) { /* work */ }
+    run.provideInput('10');
+    while (run.advance(200)) { /* work */ }
+    // A must still hold 10 while B is being asked for.
+    assertEq(run.env.get('A', 1), 10, 'A keeps the value it was given');
+    assertEq(run.waiting.label, 'B', 'and it is B being asked for now');
+    run.provideInput('20');
+    while (run.advance(200)) { /* finish */ }
+    assertEq(run.result().env.output.join(), '10,20', 'nothing ran twice');
+    assertEq(run.env.get('A', 1), 10, 'and A was never overwritten');
+  }],
+  ['INPUT: a refused value leaves the run exactly where it was', () => {
+    const run = createRun('DECLARE Age : INTEGER\nINPUT Age\nOUTPUT Age', '', { interactive: true });
+    while (run.advance(200)) { /* work */ }
+    const stepsBefore = run.stepCount;
+    const r = run.provideInput('hello');
+    assert(!r.ok, 'a word is not a whole number');
+    assert(/Expected a whole number/.test(r.error), 'and the refusal says why: ' + r.error);
+    assert(/Age/.test(r.error), 'naming what was being read');
+    assertEq(run.state, 'WAITING_FOR_INPUT', 'it is still waiting, not broken');
+    assertEq(run.stepCount, stepsBefore, 'and nothing was executed by the attempt');
+    assert(run.provideInput('16').ok, 'a second attempt is allowed');
+    while (run.advance(200)) { /* finish */ }
+    assertEq(run.result().env.output.join(), '16', 'and it carries on normally');
+  }],
+  ['INPUT: a typed value becomes the type it was declared as', () => {
+    const one = (decl, typed) => {
+      const run = createRun(`DECLARE v : ${decl}\nINPUT v\nOUTPUT v`, '', { interactive: true });
+      while (run.advance(200)) { /* work */ }
+      const r = run.provideInput(typed);
+      if (!r.ok) return { rejected: r.error };
+      while (run.advance(200)) { /* finish */ }
+      return { value: r.value, out: run.result().env.output.join() };
+    };
+    assertEq(one('INTEGER', '16').value, 16, 'INTEGER 16, not the text');
+    assertEq(typeof one('INTEGER', '16').value, 'number', 'and really a number');
+    assertEq(one('REAL', '16.5').value, 16.5, 'REAL keeps its fraction');
+    assertEq(one('STRING', 'Lucas').value, 'Lucas', 'STRING stays a string');
+    assertEq(one('STRING', '16').value, '16', 'even when it looks like a number');
+    assertEq(one('BOOLEAN', 'TRUE').value, true, 'BOOLEAN follows the existing TRUE/FALSE spelling');
+    assertEq(one('BOOLEAN', 'false').value, false, 'in either case');
+    assertEq(one('CHAR', 'x').value, 'x', 'CHAR takes one character');
+    assert(/single character/.test(one('CHAR', 'xy').rejected), 'and refuses two');
+    assert(/TRUE or FALSE/.test(one('BOOLEAN', 'maybe').rejected), 'BOOLEAN says what it wanted');
+    assert(/a number/.test(one('REAL', 'abc').rejected), 'REAL says what it wanted');
+  }],
+  ['INPUT: a predefined value is held to the declared type too', () => {
+    assertThrows(() => runProgram('DECLARE n : INTEGER\nINPUT n', '3.5'),
+      'Expected a whole number', 'a REAL in the box cannot fill an INTEGER');
+    assertEq(runProgram('DECLARE s : STRING\nINPUT s\nOUTPUT s', '16').env.output.join(), '16',
+      'and a number in the box fills a STRING as text');
+  }],
+  ['INPUT: ten values one at a time sort correctly', () => {
+    const code = [
+      'DECLARE Numbers : ARRAY[0:9] OF INTEGER',
+      'DECLARE Pass, Index, Temp : INTEGER',
+      'FOR Index ← 0 TO 9', '  INPUT Numbers[Index]', 'NEXT Index',
+      'FOR Pass ← 1 TO 9',
+      '  FOR Index ← 0 TO 9 - Pass',
+      '    IF Numbers[Index] > Numbers[Index + 1] THEN',
+      '      Temp ← Numbers[Index]',
+      '      Numbers[Index] ← Numbers[Index + 1]',
+      '      Numbers[Index + 1] ← Temp',
+      '    ENDIF',
+      '  NEXT Index',
+      'NEXT Pass',
+      'FOR Index ← 0 TO 9', '  OUTPUT Numbers[Index]', 'NEXT Index'
+    ].join('\n');
+    const answers = ['7', '3', '9', '1', '5', '2', '8', '6', '4', '0'];
+    const run = createRun(code, '', { interactive: true });
+    let guard = 0;
+    while (guard++ < 200) {
+      while (run.advance(5000)) { /* work */ }
+      if (!run.waiting) break;
+      assert(run.provideInput(answers.shift()).ok, 'every value should be accepted');
+    }
+    assertEq(answers.length, 0, 'all ten should have been asked for');
+    assertEq(run.result().env.output.join(), '0,1,2,3,4,5,6,7,8,9', 'and sorted');
+  }],
   /* ---- a run that can be put down and picked up ---- */
   ['Run control: slices reach the same answer as running it all at once', () => {
     const code = 'DECLARE i : INTEGER\nDECLARE t : INTEGER\nt ← 0\nFOR i ← 1 TO 50\n  t ← t + i\nNEXT i\nOUTPUT t';
@@ -11237,17 +11573,38 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   }
 
   /* ---- problems, recomputed as you type ---- */
+  /*
+    Two different things share this list: what the editor can see wrong
+    without running the program, and what the running program is doing now.
+    Waiting for a value is the second kind and is not an error, so it is
+    marked as a pause rather than counted as a fault.
+  */
   function ideCheck() {
     ideProblems = checkSource(ideSrc.value);
     const box = $('ide-problems');
-    box.innerHTML = ideProblems.length
-      ? ideProblems.map(p =>
-          `<button class="prob" data-goto="${p.line}"><b>${p.line}</b><span>${esc(p.message)}</span></button>`).join('')
-      : '<p class="empty">No problems found.</p>';
+    const rows = [];
+    if (ideRun && ideRun.waiting) {
+      const w = ideRun.waiting;
+      rows.push(`<button class="prob is-waiting" data-goto="${w.line}"><b>${w.line}</b>` +
+        `<span><b>Waiting for input</b> — the program is waiting for a value for ` +
+        `${esc(w.label)} (${esc(w.dtype || 'any type')}). This is not an error.</span></button>`);
+    }
+    if (ideRunError) {
+      const e = ideRunError;
+      const exhausted = /no value available/.test(e.message);
+      rows.push(`<button class="prob is-runtime"${e.line ? ` data-goto="${e.line}"` : ''}>` +
+        `<b>${e.line || '—'}</b><span><b>${exhausted ? 'Input exhausted' : 'Runtime error'}</b> — ` +
+        `${esc(e.message)}</span></button>`);
+    }
+    rows.push(...ideProblems.map(p =>
+      `<button class="prob" data-goto="${p.line}"><b>${p.line}</b><span>${esc(p.message)}</span></button>`));
+    box.innerHTML = rows.length ? rows.join('') : '<p class="empty">No problems found.</p>';
     box.querySelectorAll('[data-goto]').forEach(b => {
       b.onclick = () => ideGoToLine(Number(b.dataset.goto));
     });
-    $('dtab-problems').textContent = ideProblems.length ? `Problems (${ideProblems.length})` : 'Problems';
+    // The count is of faults, so a pause does not inflate it.
+    const faults = ideProblems.length + (ideRunError ? 1 : 0);
+    $('dtab-problems').textContent = faults ? `Problems (${faults})` : 'Problems';
     ideGutter();
   }
   function ideGoToLine(line) {
@@ -11267,27 +11624,86 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   }
 
   /* ---- running ---- */
-  let ideRun = null;              // the run in progress, if there is one
+  /*
+    One run belongs to the editor at a time, and Run, Step and Continue all
+    drive that same one. They used to work differently: Step and Continue
+    executed the whole program up front and then walked the recorded steps,
+    which cannot work once a program can stop to ask a question. They now
+    advance the live generator, so the program counter is the generator's
+    own position and nothing is ever replayed.
+  */
+  let ideRun = null;
+  let ideRunError = null;         // the runtime error, if one ended the run
 
   function ideFail(e) {
+    ideRun = null;
+    ideRunError = e;
     ideSteps = []; ideEnv = null; ideAt = -1;
     const where = e.line ? `Line ${e.line}: ` : '';
     ideStatus(where + e.message, 'err');
     if (e.line) ideGoToLine(e.line);
+    ideAsk(null);
     ideShowPanels();
+    ideCheck();
+    return false;
   }
 
-  /* Step and Continue want the whole run in hand, so they still wait for it.
-     The 5-second ceiling is what keeps that honest. */
-  function ideCompile() {
-    try {
-      const run = runProgram(ideSrc.value, $('ide-inputs').value);
-      ideSteps = run.steps; ideEnv = run.env; ideAt = -1;
-      return true;
-    } catch (e) {
-      ideFail(e);
+  /*
+    Start a run if there is not one already. Interactive: an INPUT with
+    nothing left in the box is a question, not a failure.
+  */
+  function ideStartRun() {
+    if (ideRun && ideRun.done) {
+      ideStatus('This run has finished. Reset to start it again.');
       return false;
     }
+    if (ideRun) return true;
+    try {
+      ideRun = createRun(ideSrc.value, $('ide-inputs').value,
+        { interactive: $('ide-interactive').checked });
+    } catch (e) {
+      return ideFail(e);
+    }
+    ideRunError = null;
+    ideSteps = ideRun.steps;      // the same array, which grows as it runs
+    ideEnv = ideRun.env;
+    ideAt = -1;
+    return true;
+  }
+
+  /* Whatever the run has produced so far reaches the screen. */
+  function ideSync() {
+    ideAt = ideSteps.length - 1;
+    ideShowPanels();
+    ideCheck();
+  }
+
+  /*
+    Called whenever the run stops for any reason. Exactly one of these is
+    true: it asked a question, it failed, it was stopped, or it finished.
+  */
+  function ideSettle(what) {
+    const r = ideRun ? ideRun.result() : null;
+    if (r && r.error) { ideBusy(false); return ideFail(r.error); }
+    ideSync();
+    if (ideRun && ideRun.waiting) {
+      ideBusy(false);
+      ideAsk(ideRun.waiting);
+      ideTab('output');
+      ideStatus(`Waiting for a value for ${ideRun.waiting.label} — line ${ideRun.waiting.line}.`);
+      return 'waiting';
+    }
+    ideAsk(null);
+    if (ideRun && ideRun.done) {
+      ideBusy(false);
+      const stopped = r && r.stopped;
+      ideStatus(stopped
+        ? `Stopped after ${r.stepCount.toLocaleString()} steps. What it produced up to that point is below.`
+        : `Finished — ${r.stepCount.toLocaleString()} steps, ${r.env.output.length} line${r.env.output.length === 1 ? '' : 's'} of output.`,
+        stopped ? 'err' : 'ok');
+      return 'finished';                 // the run is kept, so Reset is deliberate
+    }
+    return what || 'paused';
   }
 
   function ideBusy(on) {
@@ -11299,7 +11715,58 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   function ideStopRun() {
     if (!ideRun) return;
     ideRun.stop();
+    if (ideRun.waiting) { ideSettle(); }     // waiting runs are not on a timer
   }
+  // A finished or stopped run holds its result until Reset, so Step cannot
+  // wander back into a program the person believes has ended.
+
+  /* ---- the question the program is asking -------------------------- */
+  const askForm = $('ide-ask'), askValue = $('ide-ask-value'),
+        askWhat = $('ide-ask-what'), askErr = $('ide-ask-err'), askSend = $('ide-ask-send');
+
+  function ideAsk(req) {
+    if (!req) {
+      askForm.hidden = true;
+      askForm.removeAttribute('aria-busy');
+      askSend.disabled = false;
+      askErr.hidden = true;
+      return;
+    }
+    askWhat.textContent = `Line ${req.line}:  INPUT ${req.label}` +
+      (req.dtype ? `   (${req.dtype})` : '');
+    askErr.hidden = true;
+    askForm.hidden = false;
+    askForm.removeAttribute('aria-busy');
+    askSend.disabled = false;
+    askValue.value = '';
+    askValue.focus();
+  }
+
+  /*
+    One answer at a time: the form is locked the moment it is submitted and
+    only the next question unlocks it, so a double press cannot feed two
+    values to one INPUT.
+  */
+  askForm.addEventListener('submit', ev => {
+    ev.preventDefault();
+    if (!ideRun || !ideRun.waiting || askSend.disabled) return;
+    askSend.disabled = true;
+    askForm.setAttribute('aria-busy', 'true');
+    const r = ideRun.provideInput(askValue.value);
+    if (!r.ok) {
+      askErr.textContent = r.error;
+      askErr.hidden = false;
+      askForm.removeAttribute('aria-busy');
+      askSend.disabled = false;
+      askValue.select();
+      ideCheck();
+      return;
+    }
+    askErr.hidden = true;
+    // Carry on the way whoever asked the question was going.
+    if (ideResumeMode === 'step') { ideAdvanceOne(); }
+    else { ideDrive(ideResumeMode); }
+  });
   function ideShowPanels() {
     $('ide-output').textContent = ideEnv ? (ideEnv.output.map(fmt).join('\n') || '(no output)') : '';
     const upto = ideAt >= 0 ? ideSteps.slice(0, ideAt + 1) : ideSteps;
@@ -11330,69 +11797,93 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
      working, so waiting cannot make it time out. */
   function ideSoon(fn) { setTimeout(fn, 0); }
 
-  function ideRunAll() {
-    if (ideRun) return;                       // one run at a time
-    try { ideRun = createRun(ideSrc.value, $('ide-inputs').value); }
-    catch (e) { ideFail(e); return; }
+  /* How to carry on once a question has been answered: the same way the
+     person was going when the program stopped to ask. */
+  let ideResumeMode = 'run';
 
-    ideSteps = []; ideEnv = null; ideAt = -1;
+  /* One step, exactly. Step's whole promise is that it does not run on. */
+  function ideAdvanceOne() {
+    ideResumeMode = 'step';
+    if (!ideStartRun()) return;
+    const before = ideRun.stepCount;
+    ideRun.advance(1);
+    const settled = ideSettle('paused');
+    if (settled === 'waiting' || settled === 'finished') return;
+    if (ideRun.stepCount === before) { ideStatus('Already at the end. Reset to start again.'); return; }
+    ideStatus(`Step ${ideRun.stepCount} — line ${ideSteps[ideAt].line}`);
+    ideRevealCurrent();
+  }
+
+  /*
+    Run the program in slices, giving the page back between them, until it
+    finishes, fails, asks a question, is stopped, or — in continue mode —
+    reaches a breakpoint.
+  */
+  function ideDrive(mode) {
+    ideResumeMode = mode;
+    if (!ideStartRun()) return;
     ideBusy(true);
-    ideStatus('Running…');
+    ideStatus(mode === 'continue' ? 'Continuing…' : 'Running…');
     ideTab('output');
 
+    const startedAt = ideRun.stepCount;
+    const watching = mode === 'continue' && ideBreaks.size > 0;
     const tick = () => {
       if (!ideRun) return;
       const t0 = performance.now();
-      const more = ideRun.advance(ideBudget);
-      const took = performance.now() - t0;
-      if (took > 0.5) {
-        ideBudget = Math.max(200, Math.min(200000, Math.round(ideBudget * (IDE_SLICE_MS / took))));
+      let more;
+
+      if (watching) {
+        /*
+          A breakpoint has to stop execution, not be noticed afterwards.
+          Running a whole slice and then looking back would report a line the
+          program had already run past — so with breakpoints set the run goes
+          one step at a time, and the timer only decides how many of those
+          fit in a slice.
+        */
+        for (;;) {
+          more = ideRun.advance(1);
+          const i = ideSteps.length - 1;
+          if (i >= startedAt && i > ideAt && ideSteps[i] && ideBreaks.has(ideSteps[i].line)) {
+            ideAt = i;
+            ideBusy(false);
+            ideShowPanels(); ideCheck();
+            ideStatus(`Stopped at the breakpoint on line ${ideSteps[i].line} — step ${i + 1}.`, 'ok');
+            ideRevealCurrent();
+            return;
+          }
+          if (!more || performance.now() - t0 >= IDE_SLICE_MS) break;
+        }
+      } else {
+        more = ideRun.advance(ideBudget);
+        const took = performance.now() - t0;
+        if (took > 0.5) {
+          ideBudget = Math.max(200, Math.min(200000, Math.round(ideBudget * (IDE_SLICE_MS / took))));
+        }
       }
+
       if (more) {
-        ideStatus(`Running… ${ideRun.stepCount.toLocaleString()} steps so far. Stop if this is a loop that never ends.`);
+        ideStatus(`${mode === 'continue' ? 'Continuing' : 'Running'}… ${ideRun.stepCount.toLocaleString()} steps so far. Stop if this is a loop that never ends.`);
         ideSoon(tick);
         return;
       }
-      const r = ideRun.result();
-      ideRun = null;
-      ideBusy(false);
-      ideSteps = r.steps; ideEnv = r.env; ideAt = r.steps.length - 1;
-      if (r.error) { ideFail(r.error); return; }
-      ideShowPanels();
-      if (r.stopped) {
-        ideStatus(`Stopped after ${r.stepCount.toLocaleString()} steps. What it produced up to that point is below.`, 'err');
-      } else {
-        ideStatus(`Finished — ${r.stepCount.toLocaleString()} steps, ${r.env.output.length} line${r.env.output.length === 1 ? '' : 's'} of output.`, 'ok');
-      }
+      ideSettle();
     };
     ideSoon(tick);
   }
-  function ideStepOnce() {
-    if (!ideSteps.length && !ideCompile()) return;
-    if (ideAt >= ideSteps.length - 1) { ideStatus('Already at the end. Reset to start again.'); return; }
-    ideAt++;
-    ideShowPanels();
-    ideStatus(`Step ${ideAt + 1} of ${ideSteps.length} — line ${ideSteps[ideAt].line}`);
-    ideRevealCurrent();
-  }
-  // Run on until the next breakpoint, which is what breakpoints are for:
-  // skipping the twenty iterations you already understand.
+
+  function ideRunAll() { if (!ideRun || (!ideRun.waiting && !ideRun.done)) ideDrive('run'); else ideStartRun(); }
+  function ideStepOnce() { ideAdvanceOne(); }
   function ideContinue() {
-    if (!ideSteps.length && !ideCompile()) return;
-    if (!ideBreaks.size) { ideRunAll(); ideStatus('No breakpoints set, so it ran to the end. Click a line number to set one.'); return; }
-    let i = ideAt;
-    while (i < ideSteps.length - 1) {
-      i++;
-      if (ideBreaks.has(ideSteps[i].line)) {
-        ideAt = i; ideShowPanels();
-        ideStatus(`Stopped at the breakpoint on line ${ideSteps[i].line} — step ${i + 1} of ${ideSteps.length}.`, 'ok');
-        ideRevealCurrent();
-        return;
-      }
+    if (ideRun && ideRun.done) { ideStartRun(); return; }
+    if (!ideBreaks.size && !ideRun) {
+      ideDrive('run');
+      ideStatus('No breakpoints set, so it ran to the end. Click a line number to set one.');
+      return;
     }
-    ideAt = ideSteps.length - 1; ideShowPanels();
-    ideStatus('No more breakpoints were hit; it ran to the end.', 'ok');
+    ideDrive('continue');
   }
+
   function ideRevealCurrent() {
     const line = ideSteps[ideAt].line;
     const top = (line - 1) * 21;
@@ -11403,12 +11894,19 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     ideCursorBar();
   }
   function ideReset() {
+    // The run itself has to go, not just the panels: a kept run would make
+    // the next Step carry on inside the program you thought you had reset.
+    if (ideRun) ideRun.stop();
+    ideRun = null; ideRunError = null;
     ideSteps = []; ideAt = -1; ideEnv = null;
+    ideAsk(null);
+    ideBusy(false);
     $('ide-output').textContent = '';
     $('ide-trace').innerHTML = '<p class="empty">Run to build a trace table.</p>';
     $('ide-vars').innerHTML = '<p class="empty">Run or step to see the variables.</p>';
     ideStatus('Reset.');
     ideGutter();
+    ideCheck();
   }
 
   /* ---- typing: auto-indent and block pairing ---- */
@@ -11467,6 +11965,8 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
         document.execCommand('insertText', false, pulled + line.trim());
       }
     }
+    // A run belongs to the program that started it; editing makes it stale.
+    if (ideRun) { ideRun.stop(); ideRun = null; ideAsk(null); ideBusy(false); }
     idePaintSoon();
     ideOverlay();
     // Offer completions while a word is being typed, and only then.
@@ -11698,6 +12198,13 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     $('ide-name').value = fileStem(activeFile(ideFiles).name);
   });
   $('ide-inputs').addEventListener('input', ideSave);
+  $('ide-interactive').addEventListener('change', () => {
+    if (ideRun) { ideRun.stop(); ideRun = null; ideAsk(null); ideBusy(false); }
+    ideStatus($('ide-interactive').checked
+      ? 'INPUT will ask you for a value when the list runs out.'
+      : 'INPUT will use only the list above; running out is an error.');
+    ideSave();
+  });
   $('ide-study').addEventListener('click', () => go(store.getProfile() ? 'dashboard' : 'onboarding'));
   $('ide-send').addEventListener('click', () => {
     go('lab-pseudocode');
