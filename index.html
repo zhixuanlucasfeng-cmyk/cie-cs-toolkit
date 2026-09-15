@@ -611,6 +611,47 @@
     pointer-events:none; display:none;
   }
 
+  /* Guides and bracket marks share one layer that scrolls with the text.
+     They sit behind the painted code, so they never colour a character. */
+  .ide-overlay { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+  .ide-overlay > div { position:absolute; inset:0; will-change:transform; }
+  .ide-overlay i {
+    position:absolute; display:block;
+    border-left:1px solid var(--border); opacity:.65;
+  }
+  .ide-overlay b {
+    position:absolute; display:block; border-radius:2px;
+    background:var(--accent-wash); box-shadow:inset 0 0 0 1px var(--accent);
+  }
+  .ide-overlay b.is-lost { background:var(--danger-wash); box-shadow:inset 0 0 0 1px var(--danger); }
+
+  /* The suggestion list. A caret-following list is the one place in this
+     product where a floating layer is the right answer. */
+  .ide-ac {
+    position:absolute; z-index:5; min-width:220px; max-width:min(420px, 80%);
+    max-height:212px; overflow-y:auto;
+    background:var(--surface-raised); color:var(--text-primary);
+    border:1px solid var(--border-strong); border-radius:var(--radius);
+    box-shadow:0 8px 24px rgba(0,0,0,.4);
+  }
+  .ide-ac-item {
+    display:flex; align-items:baseline; gap:var(--s3); width:100%;
+    padding:var(--s2) var(--s3); background:none; border:0; cursor:pointer;
+    text-align:left; color:inherit; font:13px var(--font-mono);
+  }
+  .ide-ac-item .k { flex-shrink:0; }
+  .ide-ac-item .d {
+    margin-left:auto; padding-left:var(--s3); font-size:11.5px;
+    color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .ide-ac-item[aria-selected="true"] { background:var(--accent); color:var(--accent-ink); }
+  .ide-ac-item[aria-selected="true"] .d { color:var(--accent-ink); opacity:.8; }
+  .ide-ac-item:hover:not([aria-selected="true"]) { background:var(--surface-active); }
+  /* The kind is carried by colour, the same colours the code uses. */
+  .ide-ac-item .k.kw      { color:var(--accent); font-weight:600; }
+  .ide-ac-item .k.builtin { color:var(--accent-strong); }
+  .ide-ac-item[aria-selected="true"] .k { color:inherit; }
+
   /* token colours, all from tokens */
   .t-kw   { color:var(--accent); font-weight:600; }
   .t-type { color:var(--focus); }
@@ -1012,8 +1053,10 @@
             <div class="ide-editor" id="ide-editor" role="tabpanel">
               <div class="ide-gutter" id="ide-gutter" aria-hidden="true"></div>
               <div class="ide-code">
+                <div class="ide-overlay" aria-hidden="true"><div id="ide-overlay"></div></div>
                 <pre class="ide-paint" id="ide-paint" aria-hidden="true"></pre>
                 <div class="ide-cur" id="ide-cur" aria-hidden="true"></div>
+                <div class="ide-ac" id="ide-ac" role="listbox" aria-label="Suggestions" hidden></div>
                 <label class="sr-only" for="ide-src">Pseudocode editor. Click a line number to set a breakpoint.</label>
                 <textarea id="ide-src" spellcheck="false" wrap="off" autocapitalize="off"
                           autocomplete="off" autocorrect="off"></textarea>
@@ -6454,7 +6497,310 @@ function updateActive(set, patch) {
   return { version: FILESET_VERSION, files, activeId: set.activeId };
 }
 
+
+/* ======================================================================
+   Module M: what the editor knows while you are typing
+
+   Three more pure functions for the IDE, kept beside Module J for the
+   same reason: they run on half-written code every keystroke, so they
+   must never throw, and the self-test has to be able to reach them.
+
+     completionsAt()  — what could come next, and what to replace
+     matchBracketAt() — the partner of the bracket beside the caret
+     guideColumns()   — where to draw indentation rules
+   ====================================================================== */
+
+/* Signatures worth showing beside a completion. Argument counts come from
+   the CIE definitions, not from the implementation. */
+const FUNC_HINTS = {
+  LENGTH: 'LENGTH(s) → INTEGER',
+  UCASE:  'UCASE(s) → STRING',
+  LCASE:  'LCASE(s) → STRING',
+  LEFT:   'LEFT(s, n) → STRING',
+  RIGHT:  'RIGHT(s, n) → STRING',
+  MID:    'MID(s, start, len) → STRING   (start counts from 1)',
+  INT:    'INT(x) → INTEGER',
+  ROUND:  'ROUND(x, places) → REAL'
+};
+
+/* Snippets for the constructs students mistype most: the ender comes with
+   the opener, so a block is never left unclosed by accident. */
+const KEYWORD_SNIPPETS = {
+  IF:        'IF  THEN\n\nENDIF',
+  WHILE:     'WHILE  DO\n\nENDWHILE',
+  FOR:       'FOR i ← 1 TO \n\nNEXT i',
+  REPEAT:    'REPEAT\n\nUNTIL ',
+  CASE:      'CASE OF \n\nENDCASE',
+  PROCEDURE: 'PROCEDURE ()\n\nENDPROCEDURE',
+  FUNCTION:  'FUNCTION () RETURNS \n\nENDFUNCTION'
+};
+
+/*
+  Names the student has already brought into being. Read off the source
+  text rather than the AST, because the AST does not exist while a line is
+  half-typed — which is exactly when completion is asked for.
+*/
+function declaredNames(src) {
+  const out = new Map();
+  const text = String(src == null ? '' : src);
+  const add = (name, kind, detail) => {
+    if (name && !out.has(name)) out.set(name, { text: name, kind, detail });
+  };
+  const lines = text.split('\n');
+  for (const raw of lines) {
+    const line = raw.replace(/\/\/.*$/, '');
+    let m;
+    if ((m = line.match(/^\s*DECLARE\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.+)$/i))) {
+      add(m[1], 'variable', m[2].trim());
+    } else if ((m = line.match(/^\s*CONSTANT\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:=|←)\s*(.*)$/i))) {
+      add(m[1], 'constant', m[2].trim());
+    } else if ((m = line.match(/^\s*PROCEDURE\s+([A-Za-z_][A-Za-z0-9_]*)\s*(\([^)]*\))?/i))) {
+      add(m[1], 'procedure', 'PROCEDURE ' + m[1] + (m[2] || '()'));
+    } else if ((m = line.match(/^\s*FUNCTION\s+([A-Za-z_][A-Za-z0-9_]*)\s*(\([^)]*\))?\s*(RETURNS\s+\w+)?/i))) {
+      add(m[1], 'function', 'FUNCTION ' + m[1] + (m[2] || '()') + (m[3] ? ' ' + m[3].toUpperCase() : ''));
+    } else if ((m = line.match(/^\s*FOR\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:←|<-)/i))) {
+      add(m[1], 'variable', 'loop counter');
+    }
+  }
+  return out;
+}
+
+/*
+  What could follow the word being typed. Returns the range to replace so
+  the caller never has to work out where the word began, and an empty list
+  rather than null when there is nothing to offer.
+*/
+function completionsAt(src, caret) {
+  const text = String(src == null ? '' : src);
+  const at = Math.max(0, Math.min(caret == null ? 0 : caret, text.length));
+
+  // Inside a comment or a string, a completion list is noise.
+  const lineStart = text.lastIndexOf('\n', at - 1) + 1;
+  const before = text.slice(lineStart, at);
+  if (before.includes('//')) return { from: at, to: at, items: [] };
+  if ((before.match(/"/g) || []).length % 2 === 1) return { from: at, to: at, items: [] };
+
+  const word = (before.match(/[A-Za-z_][A-Za-z0-9_]*$/) || [''])[0];
+  const from = at - word.length;
+  if (word.length < 1) return { from: at, to: at, items: [] };
+
+  const upper = word.toUpperCase();
+  const items = [];
+
+  for (const kw of KEYWORDS) {
+    if (kw.startsWith(upper)) {
+      items.push({ text: kw, kind: 'keyword', detail: KEYWORD_SNIPPETS[kw] ? 'block' : '',
+                   snippet: KEYWORD_SNIPPETS[kw] || null });
+    }
+  }
+  for (const fn of Object.keys(FUNCS)) {
+    if (fn.startsWith(upper)) {
+      items.push({ text: fn, kind: 'builtin', detail: FUNC_HINTS[fn] || '', snippet: fn + '(' });
+    }
+  }
+  for (const [name, info] of declaredNames(text)) {
+    // The word being typed is not a suggestion for itself.
+    if (name.toUpperCase().startsWith(upper) && name !== word) {
+      items.push({ text: name, kind: info.kind, detail: info.detail, snippet: null });
+    }
+  }
+
+  // Exact prefix case first, then shortest, then alphabetical — so typing
+  // "OU" offers OUTPUT before OTHERWISE, and "i" offers a variable i before
+  // IF only when it really is closer.
+  const rank = { variable: 0, constant: 0, function: 1, procedure: 1, builtin: 2, keyword: 3 };
+  items.sort((a, b) =>
+    (a.text.startsWith(word) ? 0 : 1) - (b.text.startsWith(word) ? 0 : 1) ||
+    rank[a.kind] - rank[b.kind] ||
+    a.text.length - b.text.length ||
+    (a.text < b.text ? -1 : a.text > b.text ? 1 : 0));
+
+  return { from, to: at, items: items.slice(0, 8) };
+}
+
+/*
+  The partner of the bracket touching the caret. Brackets inside strings and
+  comments do not count, because highlighting them sends the eye to a
+  character that has nothing to do with the structure.
+*/
+const BRACKET_PAIRS = { '(': ')', '[': ']' };
+const BRACKET_CLOSERS = { ')': '(', ']': '[' };
+
+function bracketPositions(text) {
+  const live = [];
+  let inStr = false, quote = '';
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inStr) { if (c === quote || c === '\n') inStr = false; continue; }
+    if (c === '"' || c === "'") { inStr = true; quote = c; continue; }
+    if (c === '/' && text[i + 1] === '/') { while (i < text.length && text[i] !== '\n') i++; continue; }
+    if (BRACKET_PAIRS[c] || BRACKET_CLOSERS[c]) live.push(i);
+  }
+  return live;
+}
+
+function matchBracketAt(src, caret) {
+  const text = String(src == null ? '' : src);
+  const at = Math.max(0, Math.min(caret == null ? 0 : caret, text.length));
+  const live = new Set(bracketPositions(text));
+
+  // A bracket just after the caret, else one just before it.
+  let here = -1;
+  if (live.has(at)) here = at;
+  else if (live.has(at - 1)) here = at - 1;
+  if (here < 0) return null;
+
+  const c = text[here];
+  const forward = !!BRACKET_PAIRS[c];
+  const want = forward ? BRACKET_PAIRS[c] : BRACKET_CLOSERS[c];
+  let depth = 0;
+  for (let i = here; forward ? i < text.length : i >= 0; i += forward ? 1 : -1) {
+    if (!live.has(i)) continue;
+    const ch = text[i];
+    if (ch === c) depth++;
+    else if (ch === want) {
+      depth--;
+      if (depth === 0) return forward ? { open: here, close: i } : { open: i, close: here };
+    }
+  }
+  return null;   // unbalanced: nothing to point at
+}
+
+/*
+  Which columns get a vertical rule. A guide belongs where a block is open,
+  so it is drawn for every indent level the line sits inside — never on the
+  line's own leading edge, which already has the text against it.
+*/
+/*
+  Where the caret belongs after a block snippet is accepted. The condition
+  is what you have to type next — WHILE _ DO, IF _ THEN — so the gap left
+  for it is the slot. A snippet with no gap wants the caret at the end of
+  its opening line instead (FOR i ← 1 TO _).
+*/
+function snippetSlot(firstLine) {
+  const line = String(firstLine == null ? '' : firstLine);
+  const gap = line.indexOf('  ');
+  return gap >= 0 ? gap + 1 : line.length;
+}
+
+const GUIDE_WIDTH = 4;
+
+function guideColumns(line) {
+  const text = String(line == null ? '' : line);
+  const indent = (text.match(/^[ \t]*/) || [''])[0].replace(/\t/g, '    ').length;
+  const cols = [];
+  for (let c = GUIDE_WIDTH; c <= indent - 1; c += GUIDE_WIDTH) cols.push(c);
+  return cols;
+}
+
 const TESTS = [
+  /* ---- Module M: what the editor knows while you are typing ---- */
+  ['Editing: completion offers the keyword you started', () => {
+    const c = completionsAt('OU', 2);
+    assertEq(c.from, 0, 'the word to replace starts at the beginning');
+    assertEq(c.to, 2, 'and ends at the caret');
+    assertEq(c.items[0].text, 'OUTPUT', 'OUTPUT is what OU means');
+  }],
+  ['Editing: completion offers names the student declared', () => {
+    const src = 'DECLARE total : INTEGER\nDECLARE count : INTEGER\ntot';
+    const c = completionsAt(src, src.length);
+    assertEq(c.items[0].text, 'total', 'the declared variable comes first');
+    assertEq(c.items[0].kind, 'variable', 'and is named as one');
+    assertEq(c.items[0].detail, 'INTEGER', 'with the type it was declared as');
+  }],
+  ['Editing: a variable beats a keyword that merely starts the same way', () => {
+    // "in" really does collide here: INTEGER and INPUT both start with it.
+    const src = 'DECLARE Index : INTEGER\nin';
+    const items = completionsAt(src, src.length).items;
+    const names = items.map(i => i.text);
+    assert(names.includes('INTEGER') && names.includes('INPUT'),
+      'the colliding keywords should still be offered, got: ' + names.join(','));
+    assertEq(items[0].text, 'Index', 'but the name the student made comes first: ' + names.join(','));
+  }],
+  ['Editing: procedures and functions are offered with their signatures', () => {
+    const src = 'PROCEDURE Greet(Name : STRING)\nENDPROCEDURE\nFUNCTION Area(r : REAL) RETURNS REAL\nENDFUNCTION\nGr';
+    const c = completionsAt(src, src.length);
+    assertEq(c.items[0].text, 'Greet', 'the procedure is offered');
+    assert(/PROCEDURE Greet\(Name : STRING\)/.test(c.items[0].detail), 'with its signature: ' + c.items[0].detail);
+    const f = completionsAt(src.slice(0, src.length - 2) + 'Ar', src.length);
+    assert(/RETURNS REAL/.test(f.items[0].detail), 'a function says what it returns: ' + f.items[0].detail);
+  }],
+  ['Editing: a built-in is offered with the argument order CIE uses', () => {
+    const c = completionsAt('MI', 2);
+    assertEq(c.items[0].text, 'MID', 'MID is offered');
+    assert(/start counts from 1/.test(c.items[0].detail), 'and says where MID counts from: ' + c.items[0].detail);
+  }],
+  ['Editing: a block keyword brings its ending with it', () => {
+    const c = completionsAt('WH', 2);
+    assertEq(c.items[0].text, 'WHILE', 'WHILE is offered');
+    assert(/ENDWHILE/.test(c.items[0].snippet), 'and its snippet closes the block: ' + c.items[0].snippet);
+    assert(/NEXT i/.test(completionsAt('FO', 2).items[0].snippet), 'FOR brings NEXT');
+    assert(/UNTIL/.test(completionsAt('REP', 3).items[0].snippet), 'REPEAT brings UNTIL');
+  }],
+  ['Editing: completion stays quiet inside strings and comments', () => {
+    assertEq(completionsAt('OUTPUT "OU', 10).items.length, 0, 'not inside a string');
+    assertEq(completionsAt('// write OU', 11).items.length, 0, 'not inside a comment');
+    assertEq(completionsAt('OUTPUT "done" OU', 16).items.length, 1, 'but yes after the string closes');
+  }],
+  ['Editing: completion never offers the word already typed in full', () => {
+    const src = 'DECLARE total : INTEGER\ntotal';
+    const names = completionsAt(src, src.length).items.map(i => i.text);
+    assert(!names.includes('total'), 'suggesting "total" for "total" would be noise, got: ' + names.join(','));
+  }],
+  ['Editing: completion on nothing offers nothing, and never throws', () => {
+    assertEq(completionsAt('', 0).items.length, 0, 'an empty file');
+    assertEq(completionsAt('OUTPUT ', 7).items.length, 0, 'a caret after a space');
+    assertEq(completionsAt(null, 5).items.length, 0, 'no source at all');
+    assertEq(completionsAt('OU', 999).items.length, 1, 'a caret past the end is clamped');
+  }],
+  ['Editing: the bracket beside the caret finds its partner', () => {
+    const src = 'OUTPUT LENGTH("ab")';
+    assertEq(JSON.stringify(matchBracketAt(src, 13)), '{"open":13,"close":18}', 'from the opener');
+    assertEq(JSON.stringify(matchBracketAt(src, 19)), '{"open":13,"close":18}', 'and from just after the closer');
+    assertEq(matchBracketAt(src, 5), null, 'nowhere near a bracket');
+  }],
+  ['Editing: bracket matching counts nesting, not the nearest bracket', () => {
+    const src = 'x ← MID(LEFT(s, 3), 1, 2)';
+    const m = matchBracketAt(src, 7);
+    assertEq(src[m.open], '(', 'opens at MID');
+    assertEq(m.close, src.length - 1, 'and closes at the very end, not at LEFT’s bracket');
+  }],
+  ['Editing: brackets inside strings and comments are not structure', () => {
+    assertEq(matchBracketAt('OUTPUT "a ( b"', 10), null, 'a bracket in a string is text');
+    assertEq(matchBracketAt('x ← 1 // )', 9), null, 'and one in a comment is a note');
+    const src = 'OUTPUT (")")';
+    const m = matchBracketAt(src, 7);
+    assertEq(m.close, src.length - 1, 'a real bracket is not fooled by one inside a string');
+  }],
+  ['Editing: an unbalanced bracket points nowhere rather than guessing', () => {
+    assertEq(matchBracketAt('OUTPUT LENGTH("ab"', 13), null, 'never closed');
+    assertEq(matchBracketAt('x ← 1)', 6), null, 'never opened');
+  }],
+  ['Editing: array brackets match too, and do not pair with round ones', () => {
+    const src = 'OUTPUT Score[i]';
+    assertEq(JSON.stringify(matchBracketAt(src, 12)), '{"open":12,"close":14}', 'square brackets pair');
+    assertEq(matchBracketAt('x ← f(a]', 5), null, 'a round opener does not accept a square closer');
+  }],
+  ['Editing: an accepted block puts the caret where the condition goes', () => {
+    assertEq(snippetSlot('WHILE  DO'), 6, 'between WHILE and DO');
+    assertEq(snippetSlot('IF  THEN'), 3, 'between IF and THEN');
+    assertEq(snippetSlot('FOR i ← 1 TO '), 13, 'at the end, where the limit goes');
+    assertEq(snippetSlot('CASE OF '), 8, 'at the end, where the subject goes');
+    assertEq(snippetSlot(''), 0, 'and nothing is still a position');
+    // Every block snippet must actually land somewhere useful.
+    for (const [kw, snip] of Object.entries(KEYWORD_SNIPPETS)) {
+      const first = snip.split('\n')[0];
+      const at = snippetSlot(first);
+      assert(at >= 0 && at <= first.length, `${kw} slot ${at} is outside "${first}"`);
+    }
+  }],
+  ['Editing: indentation guides mark the levels a line sits inside', () => {
+    assertEq(guideColumns('x ← 1').join(), '', 'a line at the margin has no guide');
+    assertEq(guideColumns('    x ← 1').join(), '', 'one level in, the text is its own edge');
+    assertEq(guideColumns('        x ← 1').join(), '4', 'two levels in, one rule behind it');
+    assertEq(guideColumns('            x ← 1').join(), '4,8', 'three levels, two rules');
+    assertEq(guideColumns('\tx ← 1').join(), '', 'a tab counts as four columns');
+  }],
   /* ---- Module L: the editor's open files ---- */
   ['Files: a fresh set has one file, active, carrying the starter program', () => {
     const set = emptyFileSet('OUTPUT 1');
@@ -8231,6 +8577,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   createStore, EVIDENCE, STORE_VERSION, memoryBackend, topicProgressOf,
   profileId, describeProfile, migrateStore, rebuildDerived,
   VIEWS_NEEDING_COURSE, ALL_VIEWS,
+  completionsAt, matchBracketAt, guideColumns, declaredNames, snippetSlot, FUNC_HINTS, KEYWORD_SNIPPETS,
   emptyFileSet, readFileSet, addFile, renameFile, closeFile, selectFile,
   updateActive, activeFile, uniqueFileName, fileName, FILESET_VERSION, MAX_FILES,
   contrastRatio, Env, MAX_FILE_LINES, MAX_DEPTH, MAX_STEPS, TIME_LIMIT_MS, hoistRoutines,
@@ -10106,6 +10453,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   function idePaint() {
     // A trailing newline would otherwise collapse and lose the last line.
     paint.innerHTML = highlight(ideSrc.value) + '\n';
+    if (typeof ideOverlay === 'function') ideOverlay();
     paint.scrollTop = ideSrc.scrollTop;
     paint.scrollLeft = ideSrc.scrollLeft;
     ideGutter();
@@ -10242,6 +10590,16 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   ideSrc.addEventListener('keydown', ev => {
     const val = ideSrc.value, pos = ideSrc.selectionStart;
 
+    // While the list is open it owns the arrow keys, Enter, Tab and Escape.
+    if (!ideAcBox.hidden) {
+      if (ev.key === 'ArrowDown') { ev.preventDefault(); ideAcMove(1); return; }
+      if (ev.key === 'ArrowUp')   { ev.preventDefault(); ideAcMove(-1); return; }
+      if (ev.key === 'Enter' || ev.key === 'Tab') { ev.preventDefault(); ideAcAccept(); return; }
+      if (ev.key === 'Escape')    { ev.preventDefault(); ideAcHide(); return; }
+    }
+    // Ctrl+Space asks for the list even when it closed itself.
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === ' ') { ev.preventDefault(); ideAcShow(); return; }
+
     if (ev.key === 'Tab') {
       ev.preventDefault();
       document.execCommand('insertText', false, '    ');
@@ -10285,8 +10643,161 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
       }
     }
     idePaintSoon();
+    ideOverlay();
+    // Offer completions while a word is being typed, and only then.
+    if (ev.inputType === 'insertText' && /[A-Za-z_][A-Za-z0-9_]*$/.test(
+          ideSrc.value.slice(ideSrc.value.lastIndexOf('\n', ideSrc.selectionStart - 1) + 1, ideSrc.selectionStart))) {
+      ideAcShow();
+    } else {
+      ideAcHide();
+    }
     ideSave();
   });
+
+  // The caret moving is enough to change what the bracket marks point at.
+  ['keyup', 'click', 'select'].forEach(e =>
+    ideSrc.addEventListener(e, () => { if (ideAcBox.hidden) ideOverlay(); }));
+
+  /* ---- where a character sits, in pixels ----------------------------
+     The painted copy and the textarea already share every metric, so one
+     measurement of the font serves both. It is taken from the live element
+     rather than assumed, because a reader may not have IBM Plex Mono. */
+  const IDE_LINE_H = 21, IDE_PAD_T = 12, IDE_PAD_L = 16;
+  let ideCharW = 0;
+  function ideMeasure() {
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;left:-9999px';
+    probe.style.font = getComputedStyle(ideSrc).font;
+    probe.textContent = '0'.repeat(80);
+    document.body.appendChild(probe);
+    ideCharW = probe.getBoundingClientRect().width / 80;
+    probe.remove();
+  }
+  function ideCaretXY(index) {
+    if (!ideCharW) ideMeasure();
+    const before = ideSrc.value.slice(0, index);
+    const line = before.split('\n').length - 1;
+    const col = index - (before.lastIndexOf('\n') + 1);
+    return { x: IDE_PAD_L + col * ideCharW, y: IDE_PAD_T + line * IDE_LINE_H, line, col };
+  }
+
+  /* ---- indentation guides and the matching bracket ------------------
+     One layer, redrawn with the paint. Guides come from Module M so the
+     rule about which columns get one is tested, not improvised here. */
+  function ideOverlay() {
+    const layer = $('ide-overlay');
+    if (!ideCharW) ideMeasure();
+    const lines = ideSrc.value.split('\n');
+    let html = '';
+    for (let n = 0; n < lines.length; n++) {
+      for (const col of guideColumns(lines[n])) {
+        html += `<i style="left:${IDE_PAD_L + col * ideCharW}px;top:${IDE_PAD_T + n * IDE_LINE_H}px;height:${IDE_LINE_H}px"></i>`;
+      }
+    }
+    // The bracket beside the caret, and its partner.
+    const m = document.activeElement === ideSrc ? matchBracketAt(ideSrc.value, ideSrc.selectionStart) : null;
+    if (m) {
+      for (const i of [m.open, m.close]) {
+        const p = ideCaretXY(i);
+        html += `<b style="left:${p.x}px;top:${p.y}px;width:${ideCharW}px;height:${IDE_LINE_H}px"></b>`;
+      }
+    } else if (document.activeElement === ideSrc) {
+      // A bracket with no partner is worth saying so, rather than nothing.
+      const at = ideSrc.selectionStart;
+      const ch = ideSrc.value[at] || ideSrc.value[at - 1];
+      if (ch && '()[]'.includes(ch)) {
+        const idx = '()[]'.includes(ideSrc.value[at]) ? at : at - 1;
+        const p = ideCaretXY(idx);
+        html += `<b class="is-lost" style="left:${p.x}px;top:${p.y}px;width:${ideCharW}px;height:${IDE_LINE_H}px"></b>`;
+      }
+    }
+    layer.innerHTML = html;
+    layer.style.transform = `translate(${-ideSrc.scrollLeft}px, ${-ideSrc.scrollTop}px)`;
+  }
+
+  /* ---- the suggestion list ------------------------------------------ */
+  let ideAcItems = [], ideAcAt = 0, ideAcRange = null;
+  const ideAcBox = $('ide-ac');
+
+  function ideAcHide() {
+    if (ideAcBox.hidden) return;
+    ideAcBox.hidden = true;
+    ideAcItems = []; ideAcRange = null;
+    ideSrc.removeAttribute('aria-expanded');
+  }
+
+  function ideAcShow() {
+    const c = completionsAt(ideSrc.value, ideSrc.selectionStart);
+    if (!c.items.length) { ideAcHide(); return; }
+    ideAcItems = c.items; ideAcAt = 0; ideAcRange = { from: c.from, to: c.to };
+    ideAcBox.innerHTML = c.items.map((it, i) =>
+      `<button class="ide-ac-item" role="option" data-i="${i}" aria-selected="${i === 0}">` +
+        `<span class="k ${it.kind === 'keyword' ? 'kw' : it.kind === 'builtin' ? 'builtin' : ''}">${esc(it.text)}</span>` +
+        `<span class="d">${esc(it.detail || it.kind)}</span>` +
+      `</button>`).join('');
+    const p = ideCaretXY(c.from);
+    const box = ideSrc.parentElement;             // .ide-code
+    const maxX = Math.max(0, box.clientWidth - 240);
+    ideAcBox.style.left = Math.min(p.x - ideSrc.scrollLeft, maxX) + 'px';
+    ideAcBox.style.top = (p.y - ideSrc.scrollTop + IDE_LINE_H + 2) + 'px';
+    ideAcBox.hidden = false;
+    ideSrc.setAttribute('aria-expanded', 'true');
+  }
+
+  function ideAcMove(by) {
+    if (ideAcBox.hidden) return;
+    ideAcAt = (ideAcAt + by + ideAcItems.length) % ideAcItems.length;
+    [...ideAcBox.children].forEach((el, i) => el.setAttribute('aria-selected', String(i === ideAcAt)));
+    const on = ideAcBox.children[ideAcAt];
+    if (on) on.scrollIntoView({ block: 'nearest' });
+  }
+
+  /* Accepting a suggestion replaces the word that prompted it. A block
+     keyword brings its ending, indented to where the opener sits. */
+  function ideAcAccept() {
+    if (ideAcBox.hidden || !ideAcRange) return false;
+    const item = ideAcItems[ideAcAt];
+    const { from, to } = ideAcRange;
+    const lineStart = ideSrc.value.lastIndexOf('\n', from - 1) + 1;
+    const indent = (ideSrc.value.slice(lineStart, from).match(/^[ \t]*/) || [''])[0];
+    let text = item.text, caretBack = 0;
+
+    if (item.snippet && item.snippet.includes('\n')) {
+      const body = item.snippet.split('\n');
+      text = body[0] + '\n' + indent + '    ' + '\n' + indent + body[body.length - 1];
+      // The condition is what you have to type next, so that is where the
+      // caret goes — not into the empty body line below it.
+      caretBack = text.length - snippetSlot(body[0]);
+    } else if (item.snippet) {
+      text = item.snippet;          // e.g. "LENGTH("
+    }
+
+    ideSrc.setSelectionRange(from, to);
+    document.execCommand('insertText', false, text);
+    if (caretBack) {
+      const at = ideSrc.selectionStart - caretBack;
+      ideSrc.setSelectionRange(at, at);
+    } else if (item.snippet && item.snippet.endsWith('(')) {
+      // A built-in leaves you between its brackets.
+      document.execCommand('insertText', false, ')');
+      const at = ideSrc.selectionStart - 1;
+      ideSrc.setSelectionRange(at, at);
+    }
+    ideAcHide();
+    idePaintSoon();
+    ideOverlay();
+    ideSave();
+    return true;
+  }
+
+  ideAcBox.addEventListener('mousedown', ev => {
+    const el = ev.target.closest('.ide-ac-item');
+    if (!el) return;
+    ev.preventDefault();                 // keep the caret in the editor
+    ideAcAt = Number(el.getAttribute('data-i'));
+    ideAcAccept();
+  });
+  ideSrc.addEventListener('blur', ideAcHide);
 
   function idePaintSoon() {
     idePaint();
@@ -10296,6 +10807,9 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, truthTab
   ideSrc.addEventListener('scroll', () => {
     paint.scrollTop = ideSrc.scrollTop; paint.scrollLeft = ideSrc.scrollLeft;
     ideGut.scrollTop = ideSrc.scrollTop;
+    $('ide-overlay').style.transform =
+      `translate(${-ideSrc.scrollLeft}px, ${-ideSrc.scrollTop}px)`;
+    ideAcHide();
     ideCursorBar();
   });
 
