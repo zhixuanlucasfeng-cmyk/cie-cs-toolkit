@@ -1,0 +1,20 @@
+User-agent: *
+Allow: /
+
+# Explicitly allow the AI crawlers that drive discovery for student tools
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+Sitemap: https://dryruncs.com/sitemap.xml
