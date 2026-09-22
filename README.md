@@ -1,6 +1,8 @@
 # DryRun — Computer Science Reasoning Lab
 
-A reasoning workbench for Cambridge Computer Science (IGCSE 0478 and AS & A Level 9618). One self-contained HTML file: no framework, no build step, no dependencies, no network calls. It works offline and nothing you type leaves your browser.
+A reasoning workbench for Cambridge Computer Science (IGCSE 0478 and AS & A Level 9618). One self-contained HTML file: no framework, no build step, no dependencies. It works offline, and signed out it makes no network request after loading — nothing you type leaves your browser.
+
+Signing in is **optional and switched off by default**; it unlocks no feature and only copies your own progress between your own devices. See [docs/sync-setup.md](docs/sync-setup.md).
 
 **Live:** https://dryruncs.com　·　[run the self-test](https://dryruncs.com/?selftest=1)
 
@@ -43,6 +45,7 @@ A failing hidden case is described in words ("when given two equal numbers") wit
 | **Pseudocode Lab** | Trace simulator, Structured English → pseudocode, trace table → pseudocode, and flowchart → pseudocode + trace table + drawn chart. |
 | **Logic Lab** | Truth tables with a column per intermediate step, and the circuit drawn with textbook gate symbols. |
 | **Progress** | Evidence per topic, the review queue, every attempt, and a page explaining exactly how each state is worked out. |
+| **Sync** *(off by default)* | Optional email sign-in — a link, no password — that copies your progress between devices. Merged, not overwritten: attempts made on either device survive. Deleting the account removes the stored copy and the address; the copy in your browser stays. |
 | **Evidence** | Diagnostic scores, learning gain, retention, feedback, and an anonymised export. |
 
 ## One record per course

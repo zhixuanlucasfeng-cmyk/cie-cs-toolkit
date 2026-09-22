@@ -21,7 +21,20 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://dryruncs.com/og.png">
 <meta name="twitter:image:alt" content="A DryRun mark breakdown: a hard-coded answer scoring 1 out of 5, with the failing hidden test case named.">
-<meta name="theme-color" content="#0e1116">
+<meta name="theme-color" content="#faf9f6">
+<script data-boot>
+  /* Carries an attribute so the plain-tag match that pulls out the logic
+     script — used by the command-line self-test in the README — still finds
+     that one first. Runs before anything is drawn: a remembered night setting applied after
+     paint would flash a white page at someone reading in the dark. Paper is
+     the default — the system preference is not consulted, because the reader
+     asked for this with a button, not with an OS setting. */
+  try {
+    if (localStorage.getItem('dryrun.theme') === 'dark') {
+      document.documentElement.dataset.theme = 'dark';
+    }
+  } catch (e) {}
+</script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"LearningResource","name":"DryRun — Computer Science Reasoning Lab",
 "url":"https://dryruncs.com/",
@@ -40,10 +53,11 @@
      decided. Components reference these, never raw values.
      ============================================================ */
   :root {
-    /* Paper. A revision guide is read at a desk, in a classroom, under a
-       lamp, sometimes on a projector — so the page is printed stock, not a
-       terminal. The one place that stays dark is the code surface, where
-       the eye rests on a listing for a long time; see .on-dark below. */
+    color-scheme:light;
+    /* Paper, everywhere. A revision guide is read at a desk, in a classroom,
+       under a lamp, sometimes on a projector — so the page is printed stock,
+       not a terminal. The code surface is the same stock: one ground for the
+       whole product, so moving into the editor is not a change of room. */
     --bg:#faf9f6;
     --surface:#ffffff;
     --surface-raised:#f3f1ea;
@@ -71,6 +85,9 @@
     --success-wash:rgba(31,107,66,.07);
     --warning-wash:rgba(138,83,0,.07);
     --row-stripe:rgba(27,26,23,.025);
+    /* Selected code. Deeper than the page-wide wash: in the editor the text
+       itself is transparent, so the fill is the only thing marking the run. */
+    --select:rgba(20,86,107,.20);
 
     /* Type set the way a revision guide is set: a serif for anything read
        as prose, a sans for interface chrome, a mono for code and figures.
@@ -93,9 +110,12 @@
     --motion:150ms;
   }
 
-  /* The code surface keeps its dark ground. Scoped, so it is a deliberate
-     material for listings rather than the mood of the whole product. */
-  .on-dark {
+  /* Night. The same product after dark, not a second design: every token is
+     re-stated so nothing falls back to a paper value on a dark ground. Chosen
+     by the reader with the button in the app bar; paper stays the default,
+     because that is what this thing is. */
+  :root[data-theme="dark"] {
+    color-scheme:dark;
     --bg:#15181d;
     --surface:#1a1e24;
     --surface-raised:#222830;
@@ -117,7 +137,7 @@
     --success-wash:rgba(127,211,164,.13);
     --warning-wash:rgba(224,176,112,.13);
     --row-stripe:rgba(255,255,255,.03);
-    background:var(--bg); color:var(--text-primary);
+    --select:rgba(124,199,221,.28);
   }
 
   * { box-sizing:border-box; }
@@ -547,7 +567,7 @@
   }
   .ide-tab:hover { background:var(--surface); color:var(--text-primary); }
   /* The file in front is a notch cut into the editor's own ground. */
-  .ide-tab.is-on, .ide-tab.is-on:hover { background:#15181d; color:#eef1f4; }
+  .ide-tab.is-on, .ide-tab.is-on:hover { background:var(--bg); color:var(--text-primary); }
   .ide-tab-pick {
     background:none; border:0; color:inherit; cursor:pointer;
     padding:var(--s2) var(--s2) var(--s2) var(--s3); min-height:36px;
@@ -559,7 +579,6 @@
     color:inherit; opacity:.5; font-size:15px; line-height:1; cursor:pointer;
   }
   .ide-tab-x:hover { opacity:1; background:var(--danger-wash); color:var(--danger); }
-  .ide-tab.is-on .ide-tab-x:hover { background:rgba(239,125,125,.22); color:#ef7d7d; }
   .ide-newfile {
     flex-shrink:0; background:none; border:0; border-right:1px solid var(--border);
     padding:0 var(--s3); min-height:36px; cursor:pointer;
@@ -610,7 +629,7 @@
     background:transparent; color:transparent; caret-color:var(--accent-strong);
     outline:none; overflow:auto;
   }
-  .ide-code textarea::selection { background:rgba(99,216,189,.28); color:transparent; }
+  .ide-code textarea::selection { background:var(--select); color:transparent; }
   .ide-cur {
     position:absolute; left:0; right:0; height:21px; background:var(--accent-wash);
     pointer-events:none; display:none;
@@ -904,6 +923,12 @@
     .icon-btn { display:inline-flex; width:44px; height:44px; flex-shrink:0; }
     .brand-sub, .course-chip .label-long { display:none; }
     .appbar { gap:var(--s2); padding:0 var(--s3); }
+    /* The bar's width is budgeted down to 360px, so this control collapses to
+       a mark rather than taking a word's worth of it. Same trick as #btn-start.
+       The spoken name is set on the element, so it stays a sentence. */
+    #btn-theme { font-size:0; padding:0 var(--s3); }
+    #btn-theme::after { content:"\263E"; font-size:15px; }
+    :root[data-theme="dark"] #btn-theme::after { content:"\2600"; }
     .workspace { padding:var(--s4) var(--s3) 96px; }
 
     /* The bar must never push the page wider than the screen. Settings and
@@ -1068,6 +1093,7 @@
   </button>
   <div class="appbar-right">
     <span class="pill is-unscouted" id="evidence-pill">No evidence yet</span>
+    <button class="btn ghost" id="btn-theme" aria-label="Switch to night mode">Night</button>
     <button class="btn ghost" id="btn-settings">Settings</button>
     <button class="btn primary" id="btn-start">Start practice</button>
   </div>
@@ -1120,7 +1146,7 @@
 
         <div class="ide-tabs" id="ide-tabs" role="tablist" aria-label="Open files"></div>
 
-        <div class="ide-body on-dark">
+        <div class="ide-body">
           <div class="ide-editor-wrap">
             <div class="ide-editor" id="ide-editor" role="tabpanel">
               <div class="ide-gutter" id="ide-gutter" aria-hidden="true"></div>
@@ -1653,6 +1679,33 @@
           <p class="status" id="prog-export-status" role="status" aria-live="polite"></p>
         </div>
       </div>
+      <div class="panel" id="sync-panel" hidden>
+        <div class="panel-head"><h2>Sync across devices</h2></div>
+        <div class="panel-body">
+          <p class="status">Optional. Everything here works signed out. Signing in only copies your own
+            progress between your own devices — it is never needed to use anything.</p>
+          <div id="sync-signed-out">
+            <label class="field">
+              <span class="field-label">Email</span>
+              <input class="control" id="sync-email" type="email" autocomplete="email" placeholder="you@example.com">
+            </label>
+            <div class="btn-row">
+              <button class="btn primary" id="btn-sync-send">Email me a sign-in link</button>
+            </div>
+            <p class="status">No password. We email you a link; clicking it signs you in.</p>
+          </div>
+          <div id="sync-signed-in" hidden>
+            <p>Signed in as <b id="sync-who"></b>.</p>
+            <div class="btn-row">
+              <button class="btn primary" id="btn-sync-now">Sync now</button>
+              <button class="btn" id="btn-sync-out">Sign out</button>
+              <button class="btn" id="btn-sync-delete">Delete account and synced data</button>
+            </div>
+            <p class="status">Syncing merges both sides: attempts made on either device are kept, never overwritten.</p>
+          </div>
+          <p class="status" id="sync-status" role="status" aria-live="polite"></p>
+        </div>
+      </div>
       <div class="panel">
         <div class="panel-head"><h2>Learning gain</h2></div>
         <div class="panel-body" id="ev-gain"></div>
@@ -1767,10 +1820,15 @@
       <div class="panel">
         <div class="panel-head"><h2>Your data</h2></div>
         <div class="panel-body">
-          <p><b>Everything stays in this browser.</b> There is no account to create and nothing is
-            uploaded; the page carries no analytics and no third-party scripts. Once it has loaded it
-            makes no network requests at all.</p>
-          <p>Stored: the course you chose, every attempt and its marks, your topic evidence, your review queue, your saved editor program, and any feedback you write. All under <code>dryrun.store.v3</code> and a few keys beside it.</p>
+          <p><b>Everything stays in this browser.</b> Nothing is uploaded and the page carries no
+            analytics and no third-party scripts. <b>Signed out, once it has loaded it makes no network
+            requests at all</b> — and it is signed out unless you deliberately sign in.</p>
+          <p id="privacy-sync" hidden><b>Unless you sign in.</b> Signing in is optional and nothing asks you to.
+            If you do, your progress record is copied to the sync server so your other devices can read it, and your
+            email address is stored so the sign-in link can reach you. Nothing else is sent: no browsing, no keystrokes,
+            no third-party tracking. <b>Delete account and synced data</b> in Progress removes the stored copy and the
+            email address for good; the copy in this browser stays.</p>
+          <p>Stored: the course you chose, every attempt and its marks, your topic evidence, your review queue, your saved editor program, and any feedback you write. All under <code>dryrun.store.v3</code> and a few keys beside it, including whether you chose paper or night.</p>
           <p>The last few versions of your work are kept as automatic copies, and one is taken before anything risky. A damaged record is restored from the newest copy by itself.</p>
           <p><b>If you clear your browser data, switch device or use private browsing, your progress is gone unless you exported it.</b> Settings has Export, Import and Erase. Erasing everything removes the automatic copies too.</p>
           <p>Several people can share one browser: add each of them in Settings and they get separate records. Names are labels typed on the device, not accounts.</p>
@@ -1808,6 +1866,7 @@
 <div class="action-bar" id="action-bar" hidden></div>
 
 <footer class="legal">
+  <p class="feedback-line">Found a bug, or want a question added? <a href="https://github.com/zhixuanlucasfeng-cmyk/cie-cs-toolkit/issues/new" target="_blank" rel="noopener">Tell me here</a> — it is read by a person.</p>
   <p><b>Independent learning resource — not endorsed by Cambridge International Education.</b></p>
   <p>Cambridge International Education is not affiliated with this project and does not endorse it. "Cambridge", the syllabus codes and any related marks belong to their owners and are used here only to say which courses this resource is aimed at. Every question is original, written against publicly listed syllabus content; no past-paper material is reproduced.</p>
   <p>A revision aid for use outside the exam hall — not for use in a real examination.</p>
@@ -8490,10 +8549,8 @@ const TESTS = [
     assert(/q-a,0478\.8,code,1,5,5,42000/.test(csv[1]), 'and still hold the attempt');
   }],
   /* ---- Accessibility: contrast is checked against the real stylesheet ---- */
-  ['Accessibility: every text colour meets WCAG AA on its own surface', () => {
+  ['Accessibility: every text colour meets WCAG AA on its own surface, in both themes', () => {
     if (typeof document === 'undefined') return;   // Node: nothing to compute
-    const cs = getComputedStyle(document.documentElement);
-    const tok = n => cs.getPropertyValue(n).trim();
     const pairs = [
       ['--text-primary', '--bg'], ['--text-secondary', '--bg'], ['--text-muted', '--bg'],
       ['--text-primary', '--surface'], ['--text-secondary', '--surface'], ['--text-muted', '--surface'],
@@ -8503,13 +8560,25 @@ const TESTS = [
       ['--warning', '--surface'], ['--danger', '--surface'], ['--success', '--surface'],
       ['--focus', '--bg']
     ];
-    for (const [fg, bg] of pairs) {
-      const ratio = contrastRatio(tok(fg), tok(bg));
-      assert(ratio >= 4.5, `${fg} on ${bg} is ${ratio.toFixed(2)}:1, below the 4.5:1 needed for normal text`);
-    }
-    // The accent is also used as a button fill with dark ink on it.
-    assert(contrastRatio(tok('--accent-ink'), tok('--accent')) >= 4.5,
-      'button text on the accent fill must also pass');
+    // Night is a whole palette, not a tint, so it is checked as strictly as
+    // paper. The reader's own choice is put back afterwards.
+    const was = document.documentElement.dataset.theme;
+    const check = theme => {
+      if (theme === 'dark') document.documentElement.dataset.theme = 'dark';
+      else delete document.documentElement.dataset.theme;
+      const cs = getComputedStyle(document.documentElement);
+      const tok = n => cs.getPropertyValue(n).trim();
+      for (const [fg, bg] of pairs) {
+        const ratio = contrastRatio(tok(fg), tok(bg));
+        assert(ratio >= 4.5,
+          `${theme}: ${fg} on ${bg} is ${ratio.toFixed(2)}:1, below the 4.5:1 needed for normal text`);
+      }
+      // The accent is also used as a button fill with dark ink on it.
+      assert(contrastRatio(tok('--accent-ink'), tok('--accent')) >= 4.5,
+        `${theme}: button text on the accent fill must also pass`);
+    };
+    try { check('light'); check('dark'); }
+    finally { if (was) document.documentElement.dataset.theme = was; else delete document.documentElement.dataset.theme; }
   }],
   ['Accessibility: the contrast helper agrees with known values', () => {
     assertEq(Math.round(contrastRatio('#ffffff', '#000000')), 21, 'white on black is 21:1');
@@ -8532,6 +8601,16 @@ const TESTS = [
     assert(lab && lab.textContent.trim(), 'the pseudocode editor needs a real label');
     const qlab = document.querySelector('label[for="expr"]');
     assert(qlab && qlab.textContent.trim(), 'the boolean expression input needs a real label');
+  }],
+  ['Sync: it is offered and explained together, and gates nothing', () => {
+    if (typeof document === 'undefined') return;
+    const panel = document.getElementById('sync-panel');
+    const note  = document.getElementById('privacy-sync');
+    assert(panel && note, 'the sync panel and its privacy note should both exist');
+    // Offering an account without saying what leaves the browser is the
+    // failure that matters here, so the two are held to the same state.
+    assertEq(panel.hidden, note.hidden, 'sync must never be offered without saying what it sends');
+    assert(!document.querySelector('[data-requires-signin]'), 'signing in must stay optional: no feature may require it');
   }],
   ['Accessibility: landmarks, skip link and live regions exist', () => {
     if (typeof document === 'undefined') return;
@@ -10691,10 +10770,184 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     download('dryrun-progress.json', store.exportJSON(), 'application/json');
     say('prog-export-status', 'Exported as JSON.', 'ok');
   });
+  /* ---------- Paper or night ---------- */
+  const THEME_KEY = 'dryrun.theme';
+  const THEME_BG = { light:'#faf9f6', dark:'#15181d' };
+
+  function applyTheme(mode) {
+    const dark = mode === 'dark';
+    if (dark) document.documentElement.dataset.theme = 'dark';
+    else delete document.documentElement.dataset.theme;
+    // The browser's own chrome is part of the page on a phone.
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', THEME_BG[dark ? 'dark' : 'light']);
+    const btn = $('btn-theme');
+    if (btn) {
+      btn.textContent = dark ? 'Day' : 'Night';
+      btn.setAttribute('aria-label', dark ? 'Switch to day mode' : 'Switch to night mode');
+    }
+    try { dark ? localStorage.setItem(THEME_KEY, 'dark') : localStorage.removeItem(THEME_KEY); } catch (e) {}
+  }
+
+  // The boot script in the head has already set the attribute; this only
+  // catches the button up with it.
+  applyTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+  $('btn-theme').addEventListener('click', () => {
+    applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+  });
+
   $('btn-export-csv').addEventListener('click', () => {
     download('dryrun-attempts.csv', store.exportCSV(), 'text/csv');
     say('prog-export-status', 'Exported as CSV.', 'ok');
   });
+
+  /* ---------------------------------------------------------------
+     Optional cross-device sync.
+
+     Off until SYNC_CONFIG carries a project, and even then a signed-out
+     visit makes no network request: the sign-in library is fetched only
+     when someone asks for it. Merging is left to store.importJSON, which
+     keeps the attempts from both devices instead of letting the newer
+     one win — a sync that quietly dropped a revision session would be
+     worse than no sync.
+     --------------------------------------------------------------- */
+  const SYNC_CONFIG = { url:'', anonKey:'' };   // paste the Supabase project URL and anon key here to switch sync on
+  const SYNC_FLAG = 'dryrun.sync.on';           // set at sign-in, so signed-out visits never load the library
+  const SYNC_CDN = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+
+  // "Failed to fetch" tells a student nothing. Anything that is really a
+  // connection problem is named as one, and says their work is not at risk.
+  const syncWhy = e => /fetch|network|load failed/i.test(e.message || '')
+    ? 'Could not reach the sync service. Check your connection — nothing is lost, your work is saved on this device.'
+    : (e.message || 'Something went wrong.');
+
+  const Sync = (() => {
+    const configured = () => !!(SYNC_CONFIG.url && SYNC_CONFIG.anonKey);
+    let client = null;
+
+    function flag(on) {
+      try { on ? localStorage.setItem(SYNC_FLAG, '1') : localStorage.removeItem(SYNC_FLAG); } catch (e) {}
+    }
+    function flagged() {
+      try { return localStorage.getItem(SYNC_FLAG) === '1'; } catch (e) { return false; }
+    }
+
+    async function load() {
+      if (client) return client;
+      if (!window.supabase) {
+        await new Promise((res, rej) => {
+          const el = document.createElement('script');
+          el.src = SYNC_CDN;
+          el.onload = res;
+          el.onerror = () => rej(new Error('The sign-in service could not be reached. Your work is safe on this device.'));
+          document.head.appendChild(el);
+        });
+      }
+      client = window.supabase.createClient(SYNC_CONFIG.url, SYNC_CONFIG.anonKey);
+      return client;
+    }
+
+    async function user() {
+      const c = await load();
+      const { data } = await c.auth.getUser();
+      return data ? data.user : null;
+    }
+
+    // Pull, merge, push. Returns the address the row belongs to.
+    async function run() {
+      const c = await load();
+      const who = await user();
+      if (!who) throw new Error('Not signed in.');
+      const got = await c.from('sync').select('body').eq('user_id', who.id).maybeSingle();
+      if (got.error) throw new Error(got.error.message);
+      if (got.data && got.data.body) {
+        const merged = store.importJSON(got.data.body);
+        if (!merged.ok) throw new Error(merged.error);
+      }
+      const put = await c.from('sync').upsert({
+        user_id: who.id, body: store.exportJSON(), updated_at: new Date().toISOString()
+      });
+      if (put.error) throw new Error(put.error.message);
+      return who.email;
+    }
+
+    return { configured, load, user, run, flag, flagged };
+  })();
+
+  function syncShow(signedIn, email) {
+    const panel = $('sync-panel');
+    if (!panel) return;
+    panel.hidden = !Sync.configured();
+    const priv = $('privacy-sync');
+    if (priv) priv.hidden = !Sync.configured();
+    $('sync-signed-out').hidden = !!signedIn;
+    $('sync-signed-in').hidden = !signedIn;
+    if (signedIn) $('sync-who').textContent = email || '';
+  }
+
+  function syncWire() {
+    if (!Sync.configured()) { syncShow(false); return; }
+    syncShow(false);
+
+    $('btn-sync-send').addEventListener('click', async () => {
+      const email = ($('sync-email').value || '').trim();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        return say('sync-status', 'That does not look like an email address.', 'warn');
+      }
+      say('sync-status', 'Sending…');
+      try {
+        const c = await Sync.load();
+        const { error } = await c.auth.signInWithOtp({
+          email, options: { emailRedirectTo: location.origin + location.pathname }
+        });
+        if (error) throw new Error(error.message);
+        Sync.flag(true);
+        say('sync-status', 'Check your email for the sign-in link. It opens this page signed in.', 'ok');
+      } catch (e) { say('sync-status', syncWhy(e), 'warn'); }
+    });
+
+    $('btn-sync-now').addEventListener('click', async () => {
+      say('sync-status', 'Syncing…');
+      try {
+        await Sync.run();
+        say('sync-status', 'Synced. Both devices now hold every attempt.', 'ok');
+        if (typeof renderProgress === 'function') renderProgress();
+      } catch (e) { say('sync-status', syncWhy(e), 'warn'); }
+    });
+
+    $('btn-sync-out').addEventListener('click', async () => {
+      try { const c = await Sync.load(); await c.auth.signOut(); } catch (e) {}
+      Sync.flag(false);
+      syncShow(false);
+      say('sync-status', 'Signed out. Your progress stays in this browser.', 'ok');
+    });
+
+    $('btn-sync-delete').addEventListener('click', async () => {
+      say('sync-status', 'Deleting…');
+      try {
+        const c = await Sync.load();
+        const { error } = await c.rpc('delete_me');
+        if (error) throw new Error(error.message);
+        await c.auth.signOut();
+        Sync.flag(false);
+        syncShow(false);
+        say('sync-status', 'Account and synced copy deleted. The copy in this browser is untouched.', 'ok');
+      } catch (e) { say('sync-status', syncWhy(e), 'warn'); }
+    });
+
+    // Coming back from a sign-in link, or returning to a device that has
+    // signed in before. Anyone else never touches the network.
+    const returning = /access_token|type=magiclink/.test(location.hash);
+    if (returning || Sync.flagged()) {
+      Sync.user().then(who => {
+        if (!who) return;
+        syncShow(true, who.email);
+        if (returning) history.replaceState(null, '', location.pathname + location.search);
+        return Sync.run().then(() => say('sync-status', 'Synced.', 'ok'));
+      }).catch(() => {});
+    }
+  }
+  syncWire();
 
   function renderEvidence() {
     const diags = store.diagnostics();
@@ -12269,6 +12522,13 @@ Deploy to Vercel:
     4. Deploy; you get an xxx.vercel.app address when it finishes
     Every later git push to main redeploys automatically.
 =========================================================================
+-->
+<!-- Anonymous visit count. Cloudflare Web Analytics sets no cookie, stores no
+     personal data and needs no consent banner. It is left switched off: paste
+     the token from the Cloudflare dashboard and remove the comment markers.
+     It loads after the page, so it can never delay or break anything offline.
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon='{"token":"PASTE_YOUR_TOKEN_HERE"}'></script>
 -->
 </body>
 </html>
