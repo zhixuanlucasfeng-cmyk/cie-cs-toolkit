@@ -1,0 +1,12 @@
+{
+  "name": "dryrun-verification",
+  "private": true,
+  "scripts": {
+    "test:core": "node scripts/test-core.cjs",
+    "test:browser": "playwright test",
+    "test": "npm run test:core && npm run test:browser"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}
