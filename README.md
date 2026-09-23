@@ -42,7 +42,7 @@ A failing hidden case is described in words ("when given two equal numbers") wit
 | **Write a question** | Students author their own questions, with their own test cases. The marking is derived by running the author's solution, so a question that does not work cannot be shared — and one whose answer never changes is refused, because printing it would beat understanding it. Questions travel as files, so this needs no server and no account. Shared questions are marked but never counted as evidence. |
 | **Pseudocode IDE** | A full editor for CIE pseudocode: syntax highlighting, problems reported as you type, auto-indent that closes blocks for you, click-a-line-number breakpoints, step and continue, with output, variables and a trace table beside it. Your program is saved in the browser as you type. |
 | **Practice** | 36 original questions plus generated ones, marked against hidden cases. Run executes your program and awards nothing; Check answer marks it and records an attempt. Show answer stays locked until two attempts. |
-| **Pseudocode Lab** | Trace simulator, Structured English → pseudocode, trace table → pseudocode, and flowchart → pseudocode + trace table + drawn chart. |
+| **Pseudocode Lab** | Build a standard flowchart step by step and turn it into Structured English, Cambridge pseudocode and a runnable trace table; also convert Structured English, trace tables and typed flowchart steps into pseudocode. |
 | **Logic Lab** | Truth tables with a column per intermediate step, and the circuit drawn with textbook gate symbols. |
 | **Progress** | Evidence per topic, the review queue, every attempt, and a page explaining exactly how each state is worked out. |
 | **Sync** *(off by default)* | Optional email sign-in — a link, no password — that copies your progress between devices. Merged, not overwritten: attempts made on either device survive. Deleting the account removes the stored copy and the address; the copy in your browser stays. |
@@ -116,7 +116,7 @@ Three tests hold the bank to account, so it cannot rot as it grows: every refere
 
 ## Built-in self-test
 
-235 self-tests cover the interpreter, the CIE-specific errors, both pseudocode converters, flowchart drawing, truth tables, hidden-case grading, the syllabus registry, the storage layer and its migrations, accessibility and the metadata. The contrast check reads the live custom properties, so the stylesheet itself is what gets tested.
+The built-in self-test covers the interpreter, the CIE-specific errors, both pseudocode converters, guided flowchart editing and drawing, truth tables, hidden-case grading, the syllabus registry, the storage layer and its migrations, accessibility and the metadata. The contrast check reads the live custom properties, so the stylesheet itself is what gets tested.
 
 Add `?selftest=1` to the URL, or run the complete verification suite locally:
 

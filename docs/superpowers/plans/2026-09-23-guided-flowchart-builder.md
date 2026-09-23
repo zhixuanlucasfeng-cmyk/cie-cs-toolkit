@@ -650,37 +650,37 @@ git commit -m "feat: run and restore student flowcharts"
 - Consumes: the complete public UI from Tasks 1-5
 - Produces: browser regressions for creation, conversion, tracing, persistence, keyboard operation, and mobile layout
 
-- [ ] **Step 1: Add keyboard-only coverage**
+- [x] **Step 1: Add keyboard-only coverage**
 
 Add a test that focuses the first insertion slot, presses Enter, activates Output from the toolbar, focuses the new chart node, presses Enter, edits the expression, and confirms the selected-node inspector and pseudocode update without a pointer.
 
-- [ ] **Step 2: Add a 390px mobile layout check**
+- [x] **Step 2: Add a 390px mobile layout check**
 
 Set viewport `{ width:390, height:844 }`, open the builder, assert the toolbar, chart, inspector, and results are visible, and assert `document.documentElement.scrollWidth === document.documentElement.clientWidth`. The chart's own `.scroll-x` region may scroll horizontally.
 
-- [ ] **Step 3: Run all browser tests and fix only observed defects**
+- [x] **Step 3: Run all browser tests and fix only observed defects**
 
 Run: `npm run test:browser`
 
 Expected: public self-test, ordinary boot, creation/persistence, keyboard, and mobile tests all pass with zero uncaught page errors.
 
-- [ ] **Step 4: Update README without introducing another stale assertion count**
+- [x] **Step 4: Update README without introducing another stale assertion count**
 
-Add the guided builder to the Pseudocode Lab description. Replace the fixed `235 self-tests` wording with `The built-in self-test covers...` so future test additions do not make the documentation false. Keep the documented `npm test` commands unchanged.
+Add the guided builder to the Pseudocode Lab description. Replace the fixed numerical self-test count with `The built-in self-test covers...` so future test additions do not make the documentation false. Keep the documented `npm test` commands unchanged.
 
-- [ ] **Step 5: Run the final release gate and consistency checks**
+- [x] **Step 5: Run the final release gate and consistency checks**
 
 Run:
 
 ```bash
 npm test
 git diff --check origin/main...HEAD
-rg -n "235 self-tests|T[B]D|T[O]DO|implement[[:space:]]+later" README.md docs/superpowers/specs/2026-09-23-guided-flowchart-builder-design.md docs/superpowers/plans/2026-09-23-guided-flowchart-builder.md
+rg -n "235[[:space:]]+self-tests|T[B]D|T[O]DO|implement[[:space:]]+later" README.md docs/superpowers/specs/2026-09-23-guided-flowchart-builder-design.md docs/superpowers/plans/2026-09-23-guided-flowchart-builder.md
 ```
 
 Expected: all tests pass; `git diff --check` exits 0; the scan prints no stale count or placeholder.
 
-- [ ] **Step 6: Commit the release coverage and documentation**
+- [x] **Step 6: Commit the release coverage and documentation**
 
 ```bash
 git add tests/browser-selftest.spec.js README.md index.html

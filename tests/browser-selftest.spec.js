@@ -72,3 +72,42 @@ test('a student builds, runs and restores a flowchart', async ({ page }) => {
   await page.getByRole('tab', { name:'Build a flowchart' }).click();
   await expect(page.getByLabel('Generated Cambridge pseudocode')).toContainText('WHILE n > 0 DO');
 });
+
+test('a keyboard user can insert, select and edit a flowchart step', async ({ page }) => {
+  await page.goto('/#/lab-pseudocode');
+  await page.getByRole('tab', { name:'Build a flowchart' }).click();
+
+  const firstSlot = page.getByRole('button', { name:'Add a step at position 1 in the main flow' });
+  await firstSlot.focus();
+  await page.keyboard.press('Enter');
+  const inputButton = page.getByRole('button', { name:'Input', exact:true });
+  await inputButton.focus();
+  await page.keyboard.press('Enter');
+
+  const node = page.getByRole('button', { name:'Input: value' });
+  await node.focus();
+  await page.keyboard.press('Enter');
+  const variable = page.getByLabel('Variable name');
+  await variable.focus();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
+  for (const key of ['c', 'o', 'u', 'n', 't']) await page.keyboard.press(key);
+
+  await expect(page.getByLabel('Generated Cambridge pseudocode')).toContainText('INPUT count');
+});
+
+test('the flowchart builder fits a narrow mobile viewport', async ({ page }) => {
+  await page.setViewportSize({ width:390, height:844 });
+  await page.goto('/#/lab-pseudocode');
+  await page.getByRole('tab', { name:'Build a flowchart' }).click();
+  await page.getByRole('button', { name:'Example' }).click();
+
+  await expect(page.getByRole('toolbar', { name:'Add a flowchart step' })).toBeVisible();
+  await expect(page.getByRole('region', { name:'Editable flowchart canvas' })).toBeVisible();
+  await expect(page.getByRole('heading', { name:'Selected step' })).toBeVisible();
+  await expect(page.getByRole('heading', { name:'Cambridge pseudocode' })).toBeVisible();
+  const sizes = await page.evaluate(() => ({
+    scrollWidth:document.documentElement.scrollWidth,
+    clientWidth:document.documentElement.clientWidth
+  }));
+  expect(sizes.scrollWidth).toBe(sizes.clientWidth);
+});
