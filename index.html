@@ -1066,8 +1066,11 @@
   #flow-builder-canvas svg { margin:0 auto; }
   .flow-inspector-actions { display:flex; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s4); }
   .flow-field-error { color:var(--danger); font-size:12px; margin-top:var(--s1); }
+  .flow-builder-results { display:grid; grid-template-columns:1fr 1fr; gap:var(--s4); margin-top:var(--s4); }
+  .flow-builder-results > * { min-width:0; margin:0; }
   @media (max-width:800px) {
     .flow-builder-grid { grid-template-columns:1fr; }
+    .flow-builder-results { grid-template-columns:1fr; }
   }
   /* The circuit is a drawing, so its parts have to be drawn: without these
      every gate falls back to SVG's default solid black fill, and a wire
@@ -1522,6 +1525,34 @@
           </aside>
         </div>
         <div id="flow-builder-status" class="status" role="status" aria-live="polite"></div>
+        <div class="flow-builder-results">
+          <section class="panel" aria-labelledby="flow-builder-english-title">
+            <div class="panel-head">
+              <h2 id="flow-builder-english-title">Structured English</h2>
+              <button class="btn" id="flow-builder-copy-english" style="margin-left:auto">Copy</button>
+            </div>
+            <div class="panel-body"><pre class="outcode" id="flow-builder-english" aria-label="Generated structured English"></pre></div>
+          </section>
+          <section class="panel" aria-labelledby="flow-builder-code-title">
+            <div class="panel-head">
+              <h2 id="flow-builder-code-title">Cambridge pseudocode</h2>
+              <div class="btn-row" style="margin:0 0 0 auto">
+                <button class="btn" id="flow-builder-copy-code">Copy</button>
+                <button class="btn" id="flow-builder-ide">Open in IDE</button>
+              </div>
+            </div>
+            <div class="panel-body"><pre class="outcode" id="flow-builder-code" aria-label="Generated Cambridge pseudocode"></pre></div>
+          </section>
+          <section class="panel" style="grid-column:1/-1" aria-labelledby="flow-builder-trace-title">
+            <div class="panel-head"><h2 id="flow-builder-trace-title">Trace table</h2></div>
+            <div class="panel-body">
+              <label class="field-label" for="flow-builder-inputs">Values for INPUT</label>
+              <textarea id="flow-builder-inputs" class="control" rows="2" spellcheck="false"></textarea>
+              <div class="btn-row"><button class="btn primary" id="flow-builder-run">Run trace</button></div>
+              <div class="scroll-x" id="flow-builder-trace" role="region" aria-label="Trace table of your flowchart" style="margin-top:12px"><p class="empty">Run the chart to see its trace.</p></div>
+            </div>
+          </section>
+        </div>
       </div>
 
       <div id="p-eng" role="tabpanel" aria-labelledby="tab-eng" tabindex="0">
@@ -12240,9 +12271,26 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   drawFlowchart();
 
   /* ================= Guided flowchart builder ================= */
-  let flowHistory = createFlowHistory(newFlowDocument());
+  const flowRestored = loadFlowDraft(window.localStorage);
+  let flowHistory = createFlowHistory(flowRestored.doc);
   let flowSelectedId = null;
   let flowSelectedSlot = { parentId:null, branch:'body', index:0 };
+  let flowInputs = flowRestored.inputs;
+  let flowLastCompiled = null;
+  let flowStorageWarning = flowRestored.warning;
+  let flowRuntimeMessage = '';
+  let flowRuntimeError = false;
+  const flowStorageWritable = !flowRestored.warning;
+
+  function flowSave() {
+    if (!flowStorageWritable) return;
+    try {
+      saveFlowDraft(window.localStorage, flowHistory.present, flowInputs);
+      flowStorageWarning = '';
+    } catch (e) {
+      flowStorageWarning = 'This browser did not allow the flowchart draft to be saved.';
+    }
+  }
 
   function flowSlotFromKey(key) {
     const parts = String(key || '').split(':');
@@ -12307,6 +12355,26 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
       '<button class="btn danger" data-flow-action="delete">Delete</button></div>';
   }
 
+  function renderFlowBuilderResults(errors) {
+    if (!errors.length) {
+      try {
+        const compiled = compileFlowDocument(flowHistory.present);
+        parseProgram(tokenize(compiled.code));
+        flowLastCompiled = compiled;
+      } catch (e) {
+        errors.push({ nodeId:null, field:'syntax', code:'syntax', message:e.message });
+      }
+    }
+    const compiled = flowLastCompiled;
+    $('flow-builder-english').textContent = compiled ? compiled.english : '';
+    $('flow-builder-code').textContent = compiled ? compiled.code : '';
+    const disabled = !!errors.length || !compiled || !compiled.code.trim();
+    $('flow-builder-copy-english').disabled = disabled;
+    $('flow-builder-copy-code').disabled = disabled;
+    $('flow-builder-ide').disabled = disabled;
+    $('flow-builder-run').disabled = disabled;
+  }
+
   function renderFlowBuilder() {
     const doc = flowHistory.present;
     const errors = validateFlowDocument(doc);
@@ -12315,19 +12383,29 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
       errors
     });
     $('flow-builder-inspector').innerHTML = flowInspectorHTML(doc, errors);
+    renderFlowBuilderResults(errors);
     $('flow-undo').disabled = !flowHistory.past.length;
     $('flow-redo').disabled = !flowHistory.future.length;
     const status = $('flow-builder-status');
-    status.className = 'status' + (errors.length ? ' err' : ' ok');
-    status.textContent = errors.length
-      ? `${errors.length} part${errors.length === 1 ? '' : 's'} need attention before this chart can run.`
-      : 'The chart has valid structure. Select a + to choose exactly where the next step goes.';
+    const messages = [];
+    if (errors.length) {
+      messages.push(`${errors.length} part${errors.length === 1 ? '' : 's'} need attention before this chart can run.`);
+    } else {
+      messages.push('The chart has valid structure. Select a + to choose exactly where the next step goes.');
+    }
+    if (flowRuntimeMessage) messages.push(flowRuntimeMessage);
+    if (flowStorageWarning) messages.push(flowStorageWarning);
+    status.className = 'status' + (errors.length || flowRuntimeError ? ' err' : flowStorageWarning ? ' warn' : ' ok');
+    status.textContent = messages.join(' ');
   }
 
   function flowApply(nextDoc, selectedId) {
     flowHistory = flowHistoryApply(flowHistory, nextDoc);
     flowSelectedId = selectedId || null;
     flowSelectedSlot = null;
+    flowRuntimeMessage = '';
+    flowRuntimeError = false;
+    flowSave();
     renderFlowBuilder();
   }
 
@@ -12374,7 +12452,15 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   $('flow-builder-inspector').addEventListener('input', event => {
     const field = event.target.dataset.flowField;
     if (!field || !flowSelectedId) return;
+    const selectionStart = typeof event.target.selectionStart === 'number' ? event.target.selectionStart : null;
     flowApply(flowUpdate(flowHistory.present, flowSelectedId, { [field]:event.target.value }), flowSelectedId);
+    const replacement = $('flow-field-' + field);
+    if (replacement) {
+      replacement.focus();
+      if (selectionStart !== null && replacement.setSelectionRange) {
+        replacement.setSelectionRange(selectionStart, selectionStart);
+      }
+    }
   });
 
   function flowNestedCount(node) {
@@ -12401,6 +12487,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
       flowHistory = flowHistoryApply(flowHistory, next);
       flowSelectedId = null;
       flowSelectedSlot = { parentId:found.parentId, branch:found.branch, index:found.index };
+      flowSave();
       renderFlowBuilder();
     } else {
       const delta = button.dataset.flowAction === 'up' ? -1 : 1;
@@ -12411,11 +12498,13 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   $('flow-undo').addEventListener('click', () => {
     flowHistory = flowHistoryUndo(flowHistory);
     if (flowSelectedId && !flowFind(flowHistory.present, flowSelectedId)) flowSelectedId = null;
+    flowSave();
     renderFlowBuilder();
   });
   $('flow-redo').addEventListener('click', () => {
     flowHistory = flowHistoryRedo(flowHistory);
     if (flowSelectedId && !flowFind(flowHistory.present, flowSelectedId)) flowSelectedId = null;
+    flowSave();
     renderFlowBuilder();
   });
 
@@ -12434,6 +12523,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     flowHistory = flowHistoryApply(flowHistory, flowExampleDocument());
     flowSelectedId = null;
     flowSelectedSlot = null;
+    flowSave();
     renderFlowBuilder();
   });
   $('flow-reset').addEventListener('click', () => {
@@ -12441,6 +12531,42 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     flowHistory = flowHistoryApply(flowHistory, newFlowDocument());
     flowSelectedId = null;
     flowSelectedSlot = { parentId:null, branch:'body', index:0 };
+    flowSave();
+    renderFlowBuilder();
+  });
+  $('flow-builder-inputs').value = flowInputs;
+  $('flow-builder-inputs').addEventListener('input', event => {
+    flowInputs = event.target.value;
+    flowRuntimeMessage = '';
+    flowRuntimeError = false;
+    flowSave();
+  });
+  $('flow-builder-copy-english').addEventListener('click', () => {
+    if (!flowLastCompiled) return;
+    copyText(flowLastCompiled.english, 'Structured English copied');
+  });
+  $('flow-builder-copy-code').addEventListener('click', () => {
+    if (!flowLastCompiled) return;
+    copyText(flowLastCompiled.code, 'Pseudocode copied');
+  });
+  $('flow-builder-ide').addEventListener('click', () => {
+    if (!flowLastCompiled) return;
+    sendToIDE(flowLastCompiled.code, flowInputs);
+  });
+  $('flow-builder-run').addEventListener('click', () => {
+    if (!flowLastCompiled) return;
+    try {
+      const run = runProgram(flowLastCompiled.code, flowInputs);
+      $('flow-builder-trace').innerHTML = run.steps.length
+        ? traceHTML(run.steps, false)
+        : '<div class="empty">This program has no steps to trace.</div>';
+      flowRuntimeMessage = 'The generated pseudocode ran successfully.';
+      flowRuntimeError = false;
+    } catch (e) {
+      $('flow-builder-trace').innerHTML = '<div class="empty">Not traced.</div>';
+      flowRuntimeMessage = 'The chart is valid, but it could not run: ' + e.message;
+      flowRuntimeError = true;
+    }
     renderFlowBuilder();
   });
   renderFlowBuilder();

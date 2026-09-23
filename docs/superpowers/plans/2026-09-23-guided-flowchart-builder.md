@@ -551,7 +551,7 @@ git commit -m "feat: add guided flowchart editing UI"
 - Consumes: `compileFlowDocument()`, `validateFlowDocument()`, `runProgram()`, `traceHTML()`, `saveFlowDraft()`, `loadFlowDraft()`, `sendToIDE()`
 - Produces: live `#flow-builder-english`, `#flow-builder-code`, `#flow-builder-trace`, `#flow-builder-inputs`, Copy buttons and `#flow-builder-ide`
 
-- [ ] **Step 1: Add a failing end-to-end student journey**
+- [x] **Step 1: Add a failing end-to-end student journey**
 
 Add a Playwright test named `student builds, runs and restores a flowchart`. It must:
 
@@ -564,13 +564,13 @@ Add a Playwright test named `student builds, runs and restores a flowchart`. It 
 
 Use accessible roles and labels instead of CSS implementation selectors wherever possible.
 
-- [ ] **Step 2: Run the new journey and verify RED**
+- [x] **Step 2: Run the new journey and verify RED**
 
 Run: `npx playwright test -g "student builds, runs and restores a flowchart"`
 
 Expected: FAIL because the result panels, trace action, and autosave integration are not implemented yet.
 
-- [ ] **Step 3: Add the result panel markup**
+- [x] **Step 3: Add the result panel markup**
 
 Below the builder grid, add three panels:
 
@@ -580,11 +580,11 @@ Below the builder grid, add three panels:
 
 Use the established panel, button, status, control, and trace-table classes.
 
-- [ ] **Step 4: Compile after every edit without guessing through validation errors**
+- [x] **Step 4: Compile after every edit without guessing through validation errors**
 
 If `validateFlowDocument` has blocking errors, keep the previous result panels visible but mark them stale and disable Copy, Run trace, and Open in IDE. If there are no errors, call `compileFlowDocument`, update both textual results, and verify `parseProgram(tokenize(result.code))` before enabling actions.
 
-- [ ] **Step 5: Run and display the trace through the existing interpreter**
+- [x] **Step 5: Run and display the trace through the existing interpreter**
 
 On Run trace:
 
@@ -597,7 +597,7 @@ $('flow-builder-trace').innerHTML = run.steps.length
 
 On interpreter failure, preserve the chart and generated text, show the exact error in the builder status, and display `Not traced.` in the trace panel.
 
-- [ ] **Step 6: Wire Copy and Open in IDE**
+- [x] **Step 6: Wire Copy and Open in IDE**
 
 Use the existing `copyText()` helper. Open in IDE calls:
 
@@ -607,7 +607,7 @@ sendToIDE(compiled.code, $('flow-builder-inputs').value);
 
 Do not create a second code editor inside the builder.
 
-- [ ] **Step 7: Autosave the document and sample input after changes**
+- [x] **Step 7: Autosave the document and sample input after changes**
 
 Load once during builder initialization:
 
@@ -619,7 +619,7 @@ flowInputs = restored.inputs;
 
 After every document edit and input change, call `saveFlowDraft(window.localStorage, flowHistory.present, flowInputs)` inside `try/catch`. Storage refusal shows a non-blocking warning; it must not prevent editing. If `restored.warning` exists, show it without overwriting the saved raw value.
 
-- [ ] **Step 8: Run the new journey GREEN, then run full verification**
+- [x] **Step 8: Run the new journey GREEN, then run full verification**
 
 Run:
 
@@ -630,7 +630,7 @@ npm test
 
 Expected: the student journey passes; every core self-test passes; the public self-test has equal pass and total counts; all Playwright tests pass.
 
-- [ ] **Step 9: Commit conversion, tracing, and persistence integration**
+- [x] **Step 9: Commit conversion, tracing, and persistence integration**
 
 ```bash
 git add index.html tests/browser-selftest.spec.js
