@@ -116,24 +116,21 @@ Three tests hold the bank to account, so it cannot rot as it grows: every refere
 
 ## Built-in self-test
 
-163 assertions covering the interpreter, the CIE-specific errors, both pseudocode converters, flowchart drawing, truth tables, hidden-case grading, the syllabus registry, the storage layer and its migrations, accessibility and the metadata. The contrast check reads the live custom properties, so the stylesheet itself is what gets tested.
+235 self-tests cover the interpreter, the CIE-specific errors, both pseudocode converters, flowchart drawing, truth tables, hidden-case grading, the syllabus registry, the storage layer and its migrations, accessibility and the metadata. The contrast check reads the live custom properties, so the stylesheet itself is what gets tested.
 
-Add `?selftest=1` to the URL, or run it from the command line:
+Add `?selftest=1` to the URL, or run the complete verification suite locally:
 
 ```bash
-node -e 'const fs=require("fs"),os=require("os"),p=require("path");
-const s=fs.readFileSync("index.html","utf8").match(/<script>([\s\S]*?)<\/script>/)[1];
-const f=p.join(os.tmpdir(),"core.js");fs.writeFileSync(f,s);
-const r=require(f).runSelfTest();
-r.forEach(x=>console.log((x.ok?"PASS ":"FAIL ")+x.name));
-console.log(r.filter(x=>x.ok).length+"/"+r.length);'
+npm ci
+npx playwright install chromium
+npm test
 ```
 
-Two tests are browser-only (contrast and the DOM checks) and pass trivially under Node, where there is no document.
+`npm run test:core` runs the portable interpreter and data checks. `npm run test:browser` loads both the self-test route and the ordinary application in Chromium. The browser run is required because contrast, accessibility and interaction checks need a real document and initialized event handlers.
 
 ## Running and deploying
 
-Open `index.html` in a browser. That is the whole build.
+Open `index.html` in a browser. That is the whole production build; the npm packages are development-only test tools and are not shipped to students.
 
 Deploy: push to GitHub, import the repo at vercel.com with Framework Preset **Other** and both Build Command and Output Directory left empty. Later pushes to `main` redeploy automatically.
 
