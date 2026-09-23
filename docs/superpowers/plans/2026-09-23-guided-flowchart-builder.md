@@ -456,7 +456,7 @@ git commit -m "feat: render editable flowchart documents"
 - Consumes: Task 2 editing/history functions and Task 3 `flowDocumentSVG()`
 - Produces: browser-only `renderFlowBuilder()`, `selectFlowNode(id)`, `selectFlowSlot(slot)` and UI controls under `#p-flow-build`
 
-- [ ] **Step 1: Add the tab and semantic HTML shell**
+- [x] **Step 1: Add the tab and semantic HTML shell**
 
 Insert a `Build a flowchart` tab before the existing text-based `Flowchart` tab. Add a `#p-flow-build` tabpanel containing:
 
@@ -486,15 +486,15 @@ Insert a `Build a flowchart` tab before the existing text-based `Flowchart` tab.
 <div id="flow-builder-status" class="status" role="status" aria-live="polite"></div>
 ```
 
-- [ ] **Step 2: Update the lab tab registry**
+- [x] **Step 2: Update the lab tab registry**
 
 Add `['tab-flow-build', 'p-flow-build']` to `LABTABS`. Keep roving `tabindex` and `aria-selected` behavior unchanged so the existing accessibility self-test covers the new tab.
 
-- [ ] **Step 3: Add responsive layout styles**
+- [x] **Step 3: Add responsive layout styles**
 
 Use a two-column grid with a minimum 360px inspector-safe canvas column and stack it below 800px. Preserve `.scroll-x` on the chart. Buttons must retain the site's minimum target sizes; do not introduce icon-only controls.
 
-- [ ] **Step 4: Initialize browser state and render the selected-node inspector**
+- [x] **Step 4: Initialize browser state and render the selected-node inspector**
 
 Use this state shape:
 
@@ -514,23 +514,23 @@ let flowInputs = '';
 5. disable Undo/Redo according to history stacks;
 6. never replace the current document because it is temporarily invalid.
 
-- [ ] **Step 5: Wire node, slot, toolbar, inspector, move, and delete events**
+- [x] **Step 5: Wire node, slot, toolbar, inspector, move, and delete events**
 
 Use event delegation on `#flow-builder-canvas`. Click or Enter/Space on `[data-flow-node]` selects that node. The same actions on `[data-flow-slot]` parse the exact slot and select it. Toolbar actions insert at the selected slot, or immediately after the selected node in its sibling sequence.
 
 Inspector `input` events call `flowUpdate`. Provide labelled Move up, Move down, and Delete buttons. Deleting an `if`, `while`, or `repeat` with nested children requires `confirm()` and states how many nested steps will be removed.
 
-- [ ] **Step 6: Wire undo, redo, example, and reset**
+- [x] **Step 6: Wire undo, redo, example, and reset**
 
 The example is the approved total-from-`n` WHILE chart from Task 1. Reset asks for confirmation when the document contains any node. Undo/redo restore document state and clear a selected ID that no longer exists.
 
-- [ ] **Step 7: Run the browser suite and manually inspect both themes**
+- [x] **Step 7: Run the browser suite and manually inspect both themes**
 
 Run: `npm run test:browser`
 
 Expected: existing browser tests pass; the new tab boots without uncaught errors. Open the local page at desktop and 390px width, toggle dark mode, and confirm the chart, inspector, toolbar, focus rings, and horizontal scrolling remain usable.
 
-- [ ] **Step 8: Commit the editing interface**
+- [x] **Step 8: Commit the editing interface**
 
 ```bash
 git add index.html

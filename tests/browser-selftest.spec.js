@@ -21,3 +21,13 @@ test('the ordinary application boots without an uncaught browser error', async (
   await expect(page.locator('.brand-name')).toHaveText('DryRun');
   expect(pageErrors).toEqual([]);
 });
+
+test('the flowchart builder exposes guided editing controls', async ({ page }) => {
+  await page.goto('/#/lab-pseudocode');
+
+  await page.getByRole('tab', { name:'Build a flowchart' }).click();
+  await expect(page.getByRole('toolbar', { name:'Add a flowchart step' })).toBeVisible();
+  await expect(page.getByRole('button', { name:'Input', exact:true })).toBeVisible();
+  await expect(page.getByRole('button', { name:'IF / ELSE', exact:true })).toBeVisible();
+  await expect(page.getByRole('region', { name:'Editable flowchart canvas' })).toBeVisible();
+});

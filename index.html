@@ -1052,6 +1052,23 @@
   svg.flow .flow-slot text { fill:var(--accent); font:bold 15px var(--font-ui); pointer-events:none; }
   svg.flow .flow-slot:hover circle,
   svg.flow .flow-slot:focus-visible circle { stroke:var(--accent); stroke-width:2.5; }
+  .flow-builder-tools {
+    display:flex; gap:var(--s2); flex-wrap:wrap; align-items:center;
+    margin-bottom:var(--s4); padding:var(--s3); border:1px solid var(--border);
+    border-radius:var(--radius-lg); background:var(--surface);
+  }
+  .flow-builder-grid {
+    display:grid; grid-template-columns:minmax(360px, 1fr) minmax(260px, 340px);
+    gap:var(--s4); align-items:start;
+  }
+  .flow-builder-grid > * { min-width:0; }
+  #flow-builder-canvas { min-height:240px; }
+  #flow-builder-canvas svg { margin:0 auto; }
+  .flow-inspector-actions { display:flex; gap:var(--s2); flex-wrap:wrap; margin-top:var(--s4); }
+  .flow-field-error { color:var(--danger); font-size:12px; margin-top:var(--s1); }
+  @media (max-width:800px) {
+    .flow-builder-grid { grid-template-columns:1fr; }
+  }
   /* The circuit is a drawing, so its parts have to be drawn: without these
      every gate falls back to SVG's default solid black fill, and a wire
      path gets filled as if it were a polygon. */
@@ -1476,8 +1493,35 @@
       <div class="inspector-tabs" role="tablist" aria-label="Pseudocode tools" style="border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:16px;background:var(--surface)">
         <button role="tab" id="tab-eng" aria-selected="true" aria-controls="p-eng">English → code</button>
         <button role="tab" id="tab-tt" aria-selected="false" aria-controls="p-tt" tabindex="-1">Table → code</button>
+        <button role="tab" id="tab-flow-build" aria-selected="false" aria-controls="p-flow-build" tabindex="-1">Build a flowchart</button>
         <button role="tab" id="tab-flow" aria-selected="false" aria-controls="p-flow" tabindex="-1">Flowchart</button>
         <button role="tab" id="tab-make" aria-selected="false" aria-controls="p-make" tabindex="-1">Write a question</button>
+      </div>
+
+      <div id="p-flow-build" role="tabpanel" aria-labelledby="tab-flow-build" tabindex="0" hidden>
+        <div class="flow-builder-tools" role="toolbar" aria-label="Add a flowchart step">
+          <button class="btn" data-add-flow="input">Input</button>
+          <button class="btn" data-add-flow="output">Output</button>
+          <button class="btn" data-add-flow="process">Process</button>
+          <button class="btn" data-add-flow="if">IF / ELSE</button>
+          <button class="btn" data-add-flow="while">WHILE</button>
+          <button class="btn" data-add-flow="repeat">REPEAT / UNTIL</button>
+          <button class="btn" id="flow-undo" disabled>Undo</button>
+          <button class="btn" id="flow-redo" disabled>Redo</button>
+          <button class="btn" id="flow-example">Example</button>
+          <button class="btn danger" id="flow-reset">Reset</button>
+        </div>
+        <div class="flow-builder-grid">
+          <section class="panel" aria-labelledby="flow-chart-title">
+            <div class="panel-head"><h2 id="flow-chart-title">Your flowchart</h2></div>
+            <div class="panel-body scroll-x" id="flow-builder-canvas" role="region" aria-label="Editable flowchart canvas"></div>
+          </section>
+          <aside class="panel" aria-labelledby="flow-inspector-title">
+            <div class="panel-head"><h2 id="flow-inspector-title">Selected step</h2></div>
+            <div class="panel-body" id="flow-builder-inspector"></div>
+          </aside>
+        </div>
+        <div id="flow-builder-status" class="status" role="status" aria-live="polite"></div>
       </div>
 
       <div id="p-eng" role="tabpanel" aria-labelledby="tab-eng" tabindex="0">
@@ -12195,10 +12239,217 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   });
   drawFlowchart();
 
+  /* ================= Guided flowchart builder ================= */
+  let flowHistory = createFlowHistory(newFlowDocument());
+  let flowSelectedId = null;
+  let flowSelectedSlot = { parentId:null, branch:'body', index:0 };
+
+  function flowSlotFromKey(key) {
+    const parts = String(key || '').split(':');
+    if (parts.length !== 3 || !/^\d+$/.test(parts[2])) return null;
+    return { parentId:parts[0] === 'root' ? null : parts[0], branch:parts[1], index:Number(parts[2]) };
+  }
+
+  function flowErrorHTML(errors, field) {
+    const error = errors.find(item => item.field === field);
+    return error ? `<p class="flow-field-error" id="flow-error-${esc(field)}">${esc(error.message)}</p>` : '';
+  }
+
+  function flowTextField(label, field, value, errors) {
+    const error = errors.find(item => item.field === field);
+    return `<label class="field-label" for="flow-field-${esc(field)}">${esc(label)}</label>` +
+      `<input class="control" id="flow-field-${esc(field)}" data-flow-field="${esc(field)}" ` +
+      `value="${esc(value == null ? '' : value)}" spellcheck="false"` +
+      (error ? ` aria-invalid="true" aria-describedby="flow-error-${esc(field)}"` : '') + '>' +
+      flowErrorHTML(errors, field);
+  }
+
+  function flowTypeField(value, errors) {
+    const error = errors.find(item => item.field === 'dataType');
+    const types = ['INTEGER', 'REAL', 'BOOLEAN', 'CHAR', 'STRING'];
+    return '<label class="field-label" for="flow-field-dataType">Variable type</label>' +
+      `<select class="control" id="flow-field-dataType" data-flow-field="dataType"` +
+      (error ? ' aria-invalid="true" aria-describedby="flow-error-dataType"' : '') + '>' +
+      types.map(type => `<option${type === value ? ' selected' : ''}>${type}</option>`).join('') +
+      '</select>' + flowErrorHTML(errors, 'dataType');
+  }
+
+  function flowInspectorHTML(doc, errors) {
+    if (!flowSelectedId) {
+      const where = flowSelectedSlot
+        ? (flowSelectedSlot.parentId == null ? 'the main flow' :
+          (flowSelectedSlot.branch === 'then' ? 'the Yes branch' :
+           flowSelectedSlot.branch === 'else' ? 'the No branch' : 'the loop body'))
+        : 'the main flow';
+      return `<p>Select a shape to edit it, or choose a step above to add it to ${esc(where)}.</p>`;
+    }
+    const found = flowFind(doc, flowSelectedId);
+    if (!found) return '<p>The selected step no longer exists.</p>';
+    const node = found.node;
+    const ownErrors = errors.filter(error => error.nodeId === node.id);
+    let html = `<p class="pill" style="display:inline-block;margin-bottom:12px">${esc(node.type.toUpperCase())}</p>`;
+    if (node.type === 'input') {
+      html += flowTextField('Variable name', 'name', node.name, ownErrors) +
+        flowTypeField(node.dataType, ownErrors);
+    } else if (node.type === 'output') {
+      html += flowTextField('Value or expression', 'expression', node.expression, ownErrors);
+    } else if (node.type === 'process') {
+      html += flowTextField('Variable', 'target', node.target, ownErrors) +
+        flowTextField('Value or expression', 'expression', node.expression, ownErrors) +
+        flowTypeField(node.dataType, ownErrors);
+    } else {
+      html += flowTextField(node.type === 'repeat' ? 'Until condition' : 'Condition',
+        'condition', node.condition, ownErrors);
+    }
+    return html + '<div class="flow-inspector-actions">' +
+      '<button class="btn" data-flow-action="up">Move up</button>' +
+      '<button class="btn" data-flow-action="down">Move down</button>' +
+      '<button class="btn danger" data-flow-action="delete">Delete</button></div>';
+  }
+
+  function renderFlowBuilder() {
+    const doc = flowHistory.present;
+    const errors = validateFlowDocument(doc);
+    $('flow-builder-canvas').innerHTML = flowDocumentSVG(doc, {
+      selectedId:flowSelectedId,
+      errors
+    });
+    $('flow-builder-inspector').innerHTML = flowInspectorHTML(doc, errors);
+    $('flow-undo').disabled = !flowHistory.past.length;
+    $('flow-redo').disabled = !flowHistory.future.length;
+    const status = $('flow-builder-status');
+    status.className = 'status' + (errors.length ? ' err' : ' ok');
+    status.textContent = errors.length
+      ? `${errors.length} part${errors.length === 1 ? '' : 's'} need attention before this chart can run.`
+      : 'The chart has valid structure. Select a + to choose exactly where the next step goes.';
+  }
+
+  function flowApply(nextDoc, selectedId) {
+    flowHistory = flowHistoryApply(flowHistory, nextDoc);
+    flowSelectedId = selectedId || null;
+    flowSelectedSlot = null;
+    renderFlowBuilder();
+  }
+
+  function flowInsertionSlot() {
+    if (flowSelectedSlot) return flowSelectedSlot;
+    if (flowSelectedId) {
+      const found = flowFind(flowHistory.present, flowSelectedId);
+      if (found) return { parentId:found.parentId, branch:found.branch, index:found.index + 1 };
+    }
+    return { parentId:null, branch:'body', index:flowHistory.present.body.length };
+  }
+
+  function flowActivateCanvasTarget(target) {
+    const node = target.closest('[data-flow-node]');
+    const slot = target.closest('[data-flow-slot]');
+    if (node) {
+      flowSelectedId = node.getAttribute('data-flow-node');
+      flowSelectedSlot = null;
+      renderFlowBuilder();
+    } else if (slot) {
+      const parsed = flowSlotFromKey(slot.getAttribute('data-flow-slot'));
+      if (!parsed) return;
+      flowSelectedId = null;
+      flowSelectedSlot = parsed;
+      renderFlowBuilder();
+    }
+  }
+
+  $('flow-builder-canvas').addEventListener('click', event => flowActivateCanvasTarget(event.target));
+  $('flow-builder-canvas').addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    if (!event.target.closest('[data-flow-node],[data-flow-slot]')) return;
+    event.preventDefault();
+    flowActivateCanvasTarget(event.target);
+  });
+
+  document.querySelector('.flow-builder-tools').addEventListener('click', event => {
+    const button = event.target.closest('[data-add-flow]');
+    if (!button) return;
+    const node = createFlowNode(button.dataset.addFlow);
+    flowApply(flowInsert(flowHistory.present, flowInsertionSlot(), node), node.id);
+  });
+
+  $('flow-builder-inspector').addEventListener('input', event => {
+    const field = event.target.dataset.flowField;
+    if (!field || !flowSelectedId) return;
+    flowApply(flowUpdate(flowHistory.present, flowSelectedId, { [field]:event.target.value }), flowSelectedId);
+  });
+
+  function flowNestedCount(node) {
+    let count = 0;
+    const visit = list => (list || []).forEach(child => {
+      count += 1;
+      if (child.type === 'if') { visit(child.then); visit(child.else); }
+      else if (child.type === 'while' || child.type === 'repeat') visit(child.body);
+    });
+    if (node.type === 'if') { visit(node.then); visit(node.else); }
+    else if (node.type === 'while' || node.type === 'repeat') visit(node.body);
+    return count;
+  }
+
+  $('flow-builder-inspector').addEventListener('click', event => {
+    const button = event.target.closest('[data-flow-action]');
+    if (!button || !flowSelectedId) return;
+    const found = flowFind(flowHistory.present, flowSelectedId);
+    if (!found) return;
+    if (button.dataset.flowAction === 'delete') {
+      const nested = flowNestedCount(found.node);
+      if (nested && !confirm(`Delete this step and its ${nested} nested step${nested === 1 ? '' : 's'}?`)) return;
+      const next = flowDelete(flowHistory.present, flowSelectedId);
+      flowHistory = flowHistoryApply(flowHistory, next);
+      flowSelectedId = null;
+      flowSelectedSlot = { parentId:found.parentId, branch:found.branch, index:found.index };
+      renderFlowBuilder();
+    } else {
+      const delta = button.dataset.flowAction === 'up' ? -1 : 1;
+      flowApply(flowMove(flowHistory.present, flowSelectedId, delta), flowSelectedId);
+    }
+  });
+
+  $('flow-undo').addEventListener('click', () => {
+    flowHistory = flowHistoryUndo(flowHistory);
+    if (flowSelectedId && !flowFind(flowHistory.present, flowSelectedId)) flowSelectedId = null;
+    renderFlowBuilder();
+  });
+  $('flow-redo').addEventListener('click', () => {
+    flowHistory = flowHistoryRedo(flowHistory);
+    if (flowSelectedId && !flowFind(flowHistory.present, flowSelectedId)) flowSelectedId = null;
+    renderFlowBuilder();
+  });
+
+  function flowExampleDocument() {
+    return { version:FLOW_DOC_VERSION, body:[
+      createFlowNode('input', { name:'n', dataType:'INTEGER' }),
+      createFlowNode('process', { target:'total', expression:'0', dataType:'INTEGER' }),
+      createFlowNode('while', { condition:'n > 0', body:[
+        createFlowNode('process', { target:'total', expression:'total + n' }),
+        createFlowNode('process', { target:'n', expression:'n - 1' })
+      ]}),
+      createFlowNode('output', { expression:'total' })
+    ] };
+  }
+  $('flow-example').addEventListener('click', () => {
+    flowHistory = flowHistoryApply(flowHistory, flowExampleDocument());
+    flowSelectedId = null;
+    flowSelectedSlot = null;
+    renderFlowBuilder();
+  });
+  $('flow-reset').addEventListener('click', () => {
+    if (flowHistory.present.body.length && !confirm('Clear this flowchart and start again?')) return;
+    flowHistory = flowHistoryApply(flowHistory, newFlowDocument());
+    flowSelectedId = null;
+    flowSelectedSlot = { parentId:null, branch:'body', index:0 };
+    renderFlowBuilder();
+  });
+  renderFlowBuilder();
+
   /* ============================================================
      Pseudocode Lab sub-tabs
      ============================================================ */
-  const LABTABS = [['tab-eng', 'p-eng'], ['tab-tt', 'p-tt'], ['tab-flow', 'p-flow'], ['tab-make', 'p-make']];
+  const LABTABS = [['tab-eng', 'p-eng'], ['tab-tt', 'p-tt'], ['tab-flow-build', 'p-flow-build'],
+    ['tab-flow', 'p-flow'], ['tab-make', 'p-make']];
   function showLabTab(which) {
     const id = which.indexOf('tab-') === 0 ? which : 'tab-' + which;
     LABTABS.forEach(([t, p]) => {
