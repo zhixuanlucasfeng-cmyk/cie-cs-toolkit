@@ -9756,8 +9756,12 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   const LINE_H = 20, PAD_T = 10;
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 
-  /* ---------- Self-test mode ---------- */
-  if (/[?&]selftest=1/.test(location.search)) {
+  /* ---------- Self-test mode ----------
+     The report is rendered after UI boot. Browser-only tests exercise real
+     event handlers and dynamic tabs, so running them here would test markup
+     that has not been wired or populated yet. */
+  const SELF_TEST_MODE = /[?&]selftest=1/.test(location.search);
+  function renderSelfTestReport() {
     const res = runSelfTest();
     const pass = res.filter(r => r.ok).length;
     document.body.innerHTML =
@@ -9767,7 +9771,6 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
         : `<div class="f">✗ ${esc(r.name)}<br><span style="white-space:pre-wrap;padding-left:2em">${esc(r.err)}</span></div>`
       ).join('') +
       `<p style="margin-top:20px"><a href="./">← Back to DryRun</a></p></div>`;
-    return;
   }
 
   /* ---------- Toast ---------- */
@@ -12527,6 +12530,10 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
      ============================================================ */
   renderCourseChoices();
   runDemo();
+  if (SELF_TEST_MODE) {
+    renderSelfTestReport();
+    return;
+  }
   const startView = (location.hash || '').replace(/^#\//, '');
   go(VIEWS[startView] ? startView : (store.getProfile() ? 'dashboard' : 'welcome'));
 })();
