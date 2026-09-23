@@ -3,7 +3,11 @@ const { test, expect } = require('@playwright/test');
 test('the public self-test route passes every test in a real browser', async ({ page }) => {
   await page.goto('/?selftest=1');
 
-  await expect(page.locator('#selftest h2')).toHaveText('Self-test: 235 / 235 passed');
+  const heading = await page.locator('#selftest h2').textContent();
+  const counts = heading && heading.match(/^Self-test: (\d+) \/ (\d+) passed$/);
+  expect(counts).not.toBeNull();
+  expect(Number(counts[1])).toBe(Number(counts[2]));
+  expect(Number(counts[2])).toBeGreaterThanOrEqual(235);
   await expect(page.locator('#selftest .f')).toHaveCount(0);
 });
 

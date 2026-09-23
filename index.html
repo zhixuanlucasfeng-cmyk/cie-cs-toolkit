@@ -3504,7 +3504,128 @@ function checkPseudoAgainstTable(code, table) {
 }
 
 /* ======================================================================
-   Module E: pseudocode -> flowchart (hand-drawn SVG, textbook shapes)
+   Module E1: guided flowchart document
+   The editable source is a structured tree. START, STOP, arrows and joins
+   are derived, so an unfinished UI cannot create disconnected control flow.
+   ====================================================================== */
+
+const FLOW_DOC_VERSION = 1;
+const FLOW_DRAFT_KEY = 'dryrun.flowchart.v1';
+const FLOW_TYPES = new Set(['input', 'output', 'process', 'if', 'while', 'repeat']);
+let flowIdCounter = 0;
+
+function flowId() {
+  flowIdCounter += 1;
+  return 'flow-' + Date.now().toString(36) + '-' + flowIdCounter.toString(36);
+}
+
+function createFlowNode(type, values, id) {
+  if (!FLOW_TYPES.has(type)) throw new Error('Unknown flowchart node type: ' + type);
+  const defaults = {
+    input:{ name:'value', dataType:'INTEGER' },
+    output:{ expression:'value' },
+    process:{ target:'value', expression:'0', dataType:'INTEGER' },
+    if:{ condition:'value = 0', then:[], else:[] },
+    while:{ condition:'value > 0', body:[] },
+    repeat:{ condition:'value = 0', body:[] }
+  };
+  return Object.assign({ id:id || flowId(), type }, defaults[type], values || {});
+}
+
+function newFlowDocument() {
+  return { version:FLOW_DOC_VERSION, body:[] };
+}
+
+function flowLiteralType(expression) {
+  const s = String(expression == null ? '' : expression).trim();
+  if (/^(?:TRUE|FALSE)$/i.test(s)) return 'BOOLEAN';
+  if (/^[+-]?\d+$/.test(s)) return 'INTEGER';
+  if (/^[+-]?(?:\d+\.\d*|\d*\.\d+)$/.test(s)) return 'REAL';
+  if (/^"[\s\S]*"$/.test(s)) return s.slice(1, -1).length === 1 ? 'CHAR' : 'STRING';
+  return '';
+}
+
+function compileFlowDocument(doc) {
+  if (!doc || doc.version !== FLOW_DOC_VERSION || !Array.isArray(doc.body)) {
+    throw new Error('This flowchart document is not supported.');
+  }
+
+  const declarations = new Map();
+  const codeBody = [];
+  const english = [];
+  const indent = depth => '    '.repeat(depth);
+  const declare = (name, dataType, expression, id) => {
+    if (!declarations.has(name)) {
+      declarations.set(name, { type:dataType || flowLiteralType(expression) || 'INTEGER', id });
+    }
+  };
+  const code = (depth, text, id) => codeBody.push({ text:indent(depth) + text, id });
+  const prose = (depth, text) => english.push(indent(depth) + text);
+
+  function walk(list, depth) {
+    for (const node of (list || [])) {
+      switch (node.type) {
+        case 'input':
+          declare(node.name, node.dataType, '', node.id);
+          prose(depth, 'Input ' + node.name);
+          code(depth, 'INPUT ' + node.name, node.id);
+          break;
+        case 'output':
+          prose(depth, 'Output ' + node.expression);
+          code(depth, 'OUTPUT ' + node.expression, node.id);
+          break;
+        case 'process':
+          declare(node.target, node.dataType, node.expression, node.id);
+          prose(depth, 'Set ' + node.target + ' to ' + node.expression);
+          code(depth, node.target + ' ← ' + node.expression, node.id);
+          break;
+        case 'if':
+          prose(depth, 'If ' + node.condition + ' then');
+          code(depth, 'IF ' + node.condition + ' THEN', node.id);
+          walk(node.then, depth + 1);
+          prose(depth, 'Otherwise');
+          code(depth, 'ELSE', node.id);
+          walk(node.else, depth + 1);
+          prose(depth, 'End if');
+          code(depth, 'ENDIF', node.id);
+          break;
+        case 'while':
+          prose(depth, 'While ' + node.condition + ' do');
+          code(depth, 'WHILE ' + node.condition + ' DO', node.id);
+          walk(node.body, depth + 1);
+          prose(depth, 'End while');
+          code(depth, 'ENDWHILE', node.id);
+          break;
+        case 'repeat':
+          prose(depth, 'Repeat');
+          code(depth, 'REPEAT', node.id);
+          walk(node.body, depth + 1);
+          prose(depth, 'Until ' + node.condition);
+          code(depth, 'UNTIL ' + node.condition, node.id);
+          break;
+        default:
+          throw new Error('Unknown flowchart node type: ' + node.type);
+      }
+    }
+  }
+
+  walk(doc.body, 0);
+  const declarationLines = [...declarations].map(([name, meta]) => ({
+    text:'DECLARE ' + name + ' : ' + meta.type,
+    id:meta.id
+  }));
+  const allLines = declarationLines.concat(codeBody);
+  const lineNodeIds = {};
+  allLines.forEach((line, index) => { lineNodeIds[index + 1] = line.id; });
+  return {
+    english:english.join('\n'),
+    code:allLines.map(line => line.text).join('\n'),
+    lineNodeIds
+  };
+}
+
+/* ======================================================================
+   Module E2: pseudocode -> flowchart (hand-drawn SVG, textbook shapes)
    Boxes are laid out on one vertical axis; branches take a side lane and
    rejoin, loops return up a lane of their own.
    ====================================================================== */
@@ -8245,6 +8366,49 @@ const TESTS = [
       'array cells', 'array columns should be refused');
   }],
   /* ---- Module E: flowcharts ---- */
+  ['Flow builder: a new document keeps terminators out of editable data', () => {
+    const doc = newFlowDocument();
+    assertEq(doc.version, 1, 'the document version should be explicit');
+    assert(Array.isArray(doc.body), 'the body should be a sequence');
+    assert(!JSON.stringify(doc).includes('START') && !JSON.stringify(doc).includes('STOP'),
+      'terminators should be derived, not stored');
+  }],
+  ['Flow builder: one document compiles to English and runnable pseudocode', () => {
+    const doc = { version:1, body:[
+      { id:'n1', type:'input', name:'n', dataType:'INTEGER' },
+      { id:'n2', type:'process', target:'total', expression:'0', dataType:'INTEGER' },
+      { id:'n3', type:'while', condition:'n > 0', body:[
+        { id:'n4', type:'process', target:'total', expression:'total + n' },
+        { id:'n5', type:'process', target:'n', expression:'n - 1' }
+      ]},
+      { id:'n6', type:'output', expression:'total' }
+    ]};
+    const out = compileFlowDocument(doc);
+    assert(out.english.includes('While n > 0 do') && out.english.includes('End while'),
+      'English should retain the loop');
+    assert(out.code.includes('DECLARE n : INTEGER') && out.code.includes('WHILE n > 0 DO'),
+      'pseudocode should declare and loop');
+    assertEq(runProgram(out.code, '4').env.output.join(''), '10', 'generated code should run');
+    assertEq(out.lineNodeIds[out.code.split('\n').indexOf('INPUT n') + 1], 'n1',
+      'generated source lines should map back to nodes');
+  }],
+  ['Flow builder: nested IF and REPEAT preserve their meaning', () => {
+    const doc = { version:1, body:[
+      { id:'p', type:'process', target:'x', expression:'2', dataType:'INTEGER' },
+      { id:'r', type:'repeat', condition:'x = 0', body:[
+        { id:'i', type:'if', condition:'x > 1', then:[
+          { id:'o1', type:'output', expression:'x' }
+        ], else:[
+          { id:'o2', type:'output', expression:'0' }
+        ]},
+        { id:'d', type:'process', target:'x', expression:'x - 1' }
+      ]}
+    ]};
+    const out = compileFlowDocument(doc);
+    parseProgram(tokenize(out.code));
+    assertEq(runProgram(out.code, '').env.output.join(','), '2,0',
+      'nested output should be preserved');
+  }],
   ['Flowchart: a FOR loop draws a decision, a return path and both labels', () => {
     const svg = flowchartSVG('DECLARE i : INTEGER\nDECLARE total : INTEGER\ntotal ← 0\nFOR i ← 1 TO 5\n    total ← total + i\nNEXT i\nOUTPUT total');
     assert(/<svg class="flow"/.test(svg), 'should be an SVG');
@@ -9728,7 +9892,8 @@ function runSelfTest() {
 // Let Node require this logic too (in the browser module is undefined, so the catch runs)
 try { if (typeof module !== 'undefined') module.exports = { runProgram, createRun, truthTable, runSelfTest, TESTS,
   structuredEnglishToPseudo, traceTableToPseudo, checkPseudoAgainstTable,
-  flowchartSVG, flowchartToPseudo,
+  flowchartSVG, flowchartToPseudo, FLOW_DOC_VERSION, FLOW_DRAFT_KEY,
+  newFlowDocument, createFlowNode, compileFlowDocument,
   makeQuestion, markTrace, markOutput, markTruth, markPseudocode, PQ_KINDS,
   QUESTION_BANK, questionById, questionsFor, gradeSubmission, questionCases,
   detectConstructs, runCase, GRADE_STATUS, diagnose, DIAGNOSIS_RULES, misconceptionLabel,

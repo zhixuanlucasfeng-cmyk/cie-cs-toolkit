@@ -41,7 +41,7 @@
   - `createFlowNode(type, values?, id?): FlowNode`
   - `compileFlowDocument(doc): { english, code, lineNodeIds }`
 
-- [ ] **Step 1: Make the browser self-test assertion independent of the growing test count**
+- [x] **Step 1: Make the browser self-test assertion independent of the growing test count**
 
 Replace the exact `235 / 235` assertion with:
 
@@ -54,13 +54,13 @@ expect(Number(counts[2])).toBeGreaterThanOrEqual(235);
 await expect(page.locator('#selftest .f')).toHaveCount(0);
 ```
 
-- [ ] **Step 2: Run the browser suite to prove the harness change stays green**
+- [x] **Step 2: Run the browser suite to prove the harness change stays green**
 
 Run: `npm run test:browser`
 
 Expected: both existing tests pass, and the self-test still reports no `.f` rows.
 
-- [ ] **Step 3: Add failing core tests for the document shape and canonical compilation**
+- [x] **Step 3: Add failing core tests for the document shape and canonical compilation**
 
 Add these named cases to `TESTS` in the Module E section:
 
@@ -109,13 +109,13 @@ Add these named cases to `TESTS` in the Module E section:
 }],
 ```
 
-- [ ] **Step 4: Run the core suite and verify RED**
+- [x] **Step 4: Run the core suite and verify RED**
 
 Run: `npm run test:core`
 
 Expected: FAIL because `newFlowDocument` and `compileFlowDocument` are not defined.
 
-- [ ] **Step 5: Implement node construction and the recursive compiler**
+- [x] **Step 5: Implement node construction and the recursive compiler**
 
 Add a labelled `Module E1: guided flowchart document` section. Use this public shape:
 
@@ -168,13 +168,13 @@ return {
 };
 ```
 
-- [ ] **Step 6: Export the pure interfaces and run the core suite GREEN**
+- [x] **Step 6: Export the pure interfaces and run the core suite GREEN**
 
 Add the five constants/functions to `module.exports`, then run: `npm run test:core`
 
 Expected: all tests pass and the total is greater than 235.
 
-- [ ] **Step 7: Commit the compiler foundation**
+- [x] **Step 7: Commit the compiler foundation**
 
 ```bash
 git add index.html tests/browser-selftest.spec.js
