@@ -3624,6 +3624,231 @@ function compileFlowDocument(doc) {
   };
 }
 
+function cloneFlowDocument(doc) {
+  return JSON.parse(JSON.stringify(doc));
+}
+
+function flowVisitSequences(doc, visitor) {
+  function visit(sequence, parentId, branch, depth) {
+    if (visitor(sequence, parentId, branch, depth) === false) return false;
+    for (const node of sequence) {
+      if (node.type === 'if') {
+        if (visit(node.then || [], node.id, 'then', depth + 1) === false) return false;
+        if (visit(node.else || [], node.id, 'else', depth + 1) === false) return false;
+      } else if (node.type === 'while' || node.type === 'repeat') {
+        if (visit(node.body || [], node.id, 'body', depth + 1) === false) return false;
+      }
+    }
+    return true;
+  }
+  visit(doc.body, null, 'body', 0);
+}
+
+function flowFind(doc, nodeId) {
+  let found = null;
+  flowVisitSequences(doc, (sequence, parentId, branch) => {
+    const index = sequence.findIndex(node => node.id === nodeId);
+    if (index < 0) return true;
+    found = { node:sequence[index], sequence, index, parentId, branch };
+    return false;
+  });
+  return found;
+}
+
+function flowSequenceForSlot(doc, slot) {
+  if (!slot || !Number.isInteger(slot.index)) throw new Error('Choose a valid insertion point.');
+  if (slot.parentId == null) {
+    if (slot.branch !== 'body') throw new Error('The top-level sequence is named body.');
+    return doc.body;
+  }
+  const parent = flowFind(doc, slot.parentId);
+  if (!parent) throw new Error('The selected parent no longer exists.');
+  const allowed = parent.node.type === 'if' ? ['then', 'else'] :
+    (parent.node.type === 'while' || parent.node.type === 'repeat' ? ['body'] : []);
+  if (!allowed.includes(slot.branch)) throw new Error('That node has no ' + slot.branch + ' branch.');
+  return parent.node[slot.branch];
+}
+
+function flowInsert(doc, slot, node) {
+  const next = cloneFlowDocument(doc);
+  const sequence = flowSequenceForSlot(next, slot);
+  if (slot.index < 0 || slot.index > sequence.length) throw new Error('Insertion point is outside the sequence.');
+  sequence.splice(slot.index, 0, cloneFlowDocument(node));
+  return next;
+}
+
+function flowUpdate(doc, nodeId, patch) {
+  const next = cloneFlowDocument(doc);
+  const found = flowFind(next, nodeId);
+  if (!found) throw new Error('The selected step no longer exists.');
+  const id = found.node.id, type = found.node.type;
+  Object.assign(found.node, cloneFlowDocument(patch || {}), { id, type });
+  return next;
+}
+
+function flowDelete(doc, nodeId) {
+  const next = cloneFlowDocument(doc);
+  const found = flowFind(next, nodeId);
+  if (!found) return next;
+  found.sequence.splice(found.index, 1);
+  return next;
+}
+
+function flowMove(doc, nodeId, delta) {
+  const next = cloneFlowDocument(doc);
+  const found = flowFind(next, nodeId);
+  if (!found) throw new Error('The selected step no longer exists.');
+  const target = Math.max(0, Math.min(found.sequence.length - 1, found.index + Number(delta || 0)));
+  if (target === found.index) return next;
+  const [node] = found.sequence.splice(found.index, 1);
+  found.sequence.splice(target, 0, node);
+  return next;
+}
+
+function validateFlowDocument(doc) {
+  const errors = [];
+  const idPattern = /^[A-Za-z][A-Za-z0-9_]*$/;
+  const dataTypes = new Set(['INTEGER', 'REAL', 'BOOLEAN', 'CHAR', 'STRING']);
+  const seenIds = new Set();
+  const declared = new Set();
+  let nodeCount = 0;
+
+  if (!doc || doc.version !== FLOW_DOC_VERSION || !Array.isArray(doc.body)) {
+    return [{ nodeId:null, field:'document', code:'version', message:'This flowchart document is not supported.' }];
+  }
+
+  function add(node, field, code, message) {
+    errors.push({ nodeId:node ? node.id : null, field, code, message });
+  }
+  function required(node, field, label) {
+    if (!String(node[field] == null ? '' : node[field]).trim()) {
+      add(node, field, 'required', 'Enter ' + label + '.');
+      return false;
+    }
+    return true;
+  }
+  function variable(node, field) {
+    if (required(node, field, 'a variable name') && !idPattern.test(String(node[field]).trim())) {
+      add(node, field, 'identifier', 'Use a letter first, followed only by letters, numbers, or underscores.');
+    }
+  }
+  function type(node) {
+    if (node.dataType && !dataTypes.has(node.dataType)) {
+      add(node, 'dataType', 'data-type', 'Choose INTEGER, REAL, BOOLEAN, CHAR, or STRING.');
+    }
+  }
+  function walk(sequence, controlDepth) {
+    for (const node of sequence) {
+      nodeCount += 1;
+      if (!node || !FLOW_TYPES.has(node.type)) {
+        add(node, 'type', 'node-type', 'Choose a supported flowchart step.');
+        continue;
+      }
+      if (!node.id || seenIds.has(node.id)) add(node, 'id', 'node-id', 'Every step needs a unique identity.');
+      else seenIds.add(node.id);
+
+      if (node.type === 'input') {
+        variable(node, 'name'); type(node);
+        if (node.name) declared.add(node.name);
+      } else if (node.type === 'output') {
+        required(node, 'expression', 'a value to output');
+      } else if (node.type === 'process') {
+        variable(node, 'target');
+        required(node, 'expression', 'a value or expression');
+        type(node);
+        if (node.target && !declared.has(node.target) && !node.dataType && !flowLiteralType(node.expression)) {
+          add(node, 'dataType', 'type-required', 'Choose a type for this new variable.');
+        }
+        if (node.target) declared.add(node.target);
+      } else {
+        required(node, 'condition', 'a condition');
+        const nextDepth = controlDepth + 1;
+        if (nextDepth > 12) add(node, 'type', 'depth-limit', 'Flowcharts can nest up to 12 control structures.');
+        if (node.type === 'if') {
+          walk(Array.isArray(node.then) ? node.then : [], nextDepth);
+          walk(Array.isArray(node.else) ? node.else : [], nextDepth);
+        } else {
+          const body = Array.isArray(node.body) ? node.body : [];
+          if (!body.length) add(node, 'body', 'required', 'Add at least one step inside this loop.');
+          walk(body, nextDepth);
+        }
+      }
+    }
+  }
+  walk(doc.body, 0);
+  if (nodeCount > 100) {
+    errors.push({ nodeId:null, field:'document', code:'node-limit', message:'Flowcharts can contain up to 100 steps.' });
+  }
+
+  if (!errors.length) {
+    try {
+      const compiled = compileFlowDocument(doc);
+      parseProgram(tokenize(compiled.code));
+    } catch (e) {
+      const compiled = compileFlowDocument(doc);
+      const nodeId = e && e.line ? compiled.lineNodeIds[e.line] || null : null;
+      errors.push({ nodeId, field:'syntax', code:'syntax', message:e.message });
+    }
+  }
+  return errors;
+}
+
+function createFlowHistory(doc) {
+  return { past:[], present:cloneFlowDocument(doc), future:[] };
+}
+function flowHistoryApply(history, nextDoc) {
+  return {
+    past:history.past.concat([history.present]).slice(-50),
+    present:cloneFlowDocument(nextDoc),
+    future:[]
+  };
+}
+function flowHistoryUndo(history) {
+  if (!history.past.length) return history;
+  return {
+    past:history.past.slice(0, -1),
+    present:history.past[history.past.length - 1],
+    future:[history.present].concat(history.future)
+  };
+}
+function flowHistoryRedo(history) {
+  if (!history.future.length) return history;
+  return {
+    past:history.past.concat([history.present]).slice(-50),
+    present:history.future[0],
+    future:history.future.slice(1)
+  };
+}
+
+function saveFlowDraft(backend, doc, inputs) {
+  backend.setItem(FLOW_DRAFT_KEY, JSON.stringify({
+    version:FLOW_DOC_VERSION,
+    document:doc,
+    inputs:String(inputs || '')
+  }));
+}
+function loadFlowDraft(backend) {
+  let raw;
+  try { raw = backend.getItem(FLOW_DRAFT_KEY); }
+  catch (e) {
+    return { doc:newFlowDocument(), inputs:'', warning:'This browser did not allow the saved flowchart to be read.' };
+  }
+  if (!raw) return { doc:newFlowDocument(), inputs:'', warning:'' };
+  try {
+    const saved = JSON.parse(raw);
+    if (!saved || saved.version !== FLOW_DOC_VERSION || !saved.document ||
+        saved.document.version !== FLOW_DOC_VERSION || !Array.isArray(saved.document.body)) {
+      throw new Error('unsupported');
+    }
+    return { doc:cloneFlowDocument(saved.document), inputs:String(saved.inputs || ''), warning:'' };
+  } catch (e) {
+    return {
+      doc:newFlowDocument(), inputs:'',
+      warning:'The saved flowchart could not be opened. It has been left untouched on this device.'
+    };
+  }
+}
+
 /* ======================================================================
    Module E2: pseudocode -> flowchart (hand-drawn SVG, textbook shapes)
    Boxes are laid out on one vertical axis; branches take a side lane and
@@ -8409,6 +8634,73 @@ const TESTS = [
     assertEq(runProgram(out.code, '').env.output.join(','), '2,0',
       'nested output should be preserved');
   }],
+  ['Flow builder: nested edits return a new document', () => {
+    const start = { version:1, body:[createFlowNode('if', {}, 'if1')] };
+    const inserted = flowInsert(start, { parentId:'if1', branch:'then', index:0 },
+      createFlowNode('output', { expression:'1' }, 'out1'));
+    assertEq(start.body[0].then.length, 0, 'editing should not mutate history');
+    assertEq(inserted.body[0].then[0].id, 'out1', 'the node should enter the chosen branch');
+    const updated = flowUpdate(inserted, 'out1', { expression:'2' });
+    assertEq(updated.body[0].then[0].expression, '2', 'the selected node should update');
+    const deleted = flowDelete(updated, 'out1');
+    assertEq(deleted.body[0].then.length, 0, 'the nested node should be removable');
+  }],
+  ['Flow builder: move stays inside the current sequence', () => {
+    const doc = { version:1, body:[
+      createFlowNode('output', { expression:'1' }, 'a'),
+      createFlowNode('output', { expression:'2' }, 'b')
+    ]};
+    const moved = flowMove(doc, 'b', -1);
+    assertEq(moved.body.map(n => n.id).join(','), 'b,a', 'move up should reorder siblings');
+  }],
+  ['Flow builder: validation identifies the exact node and field', () => {
+    const doc = { version:1, body:[
+      createFlowNode('input', { name:'two words' }, 'bad-name'),
+      createFlowNode('while', { condition:'', body:[] }, 'bad-loop')
+    ]};
+    const errors = validateFlowDocument(doc);
+    assert(errors.some(e => e.nodeId === 'bad-name' && e.field === 'name'),
+      'invalid name should be tied to its field');
+    assert(errors.some(e => e.nodeId === 'bad-loop' && e.field === 'condition'),
+      'blank condition should be tied to its field');
+    assert(errors.some(e => e.nodeId === 'bad-loop' && e.field === 'body'),
+      'empty loop body should be reported');
+  }],
+  ['Flow builder: node and nesting safety limits are enforced', () => {
+    const tooMany = { version:1, body:Array.from({ length:101 }, (_, i) =>
+      createFlowNode('output', { expression:String(i) }, 'n' + i)) };
+    assert(validateFlowDocument(tooMany).some(e => e.code === 'node-limit'),
+      '101 nodes should be rejected');
+    let body = [createFlowNode('output', { expression:'1' }, 'leaf')];
+    for (let i = 0; i < 13; i++) {
+      body = [createFlowNode('while', { condition:'TRUE', body }, 'w' + i)];
+    }
+    assert(validateFlowDocument({ version:1, body }).some(e => e.code === 'depth-limit'),
+      'depth 13 should be rejected');
+  }],
+  ['Flow builder: history supports undo and redo', () => {
+    const a = newFlowDocument();
+    const b = flowInsert(a, { parentId:null, branch:'body', index:0 },
+      createFlowNode('output', {}, 'o'));
+    let h = flowHistoryApply(createFlowHistory(a), b);
+    h = flowHistoryUndo(h);
+    assertEq(h.present.body.length, 0, 'undo should restore the previous tree');
+    h = flowHistoryRedo(h);
+    assertEq(h.present.body[0].id, 'o', 'redo should restore the edit');
+  }],
+  ['Flow builder: drafts round-trip and malformed JSON is not overwritten', () => {
+    const mem = memoryBackend();
+    const doc = { version:1, body:[createFlowNode('output', { expression:'7' }, 'o')] };
+    saveFlowDraft(mem, doc, '4');
+    const restored = loadFlowDraft(mem);
+    assertEq(restored.doc.body[0].expression, '7', 'the saved draft should return');
+    assertEq(restored.inputs, '4', 'sample input should return');
+    mem.setItem(FLOW_DRAFT_KEY, '{broken');
+    const bad = loadFlowDraft(mem);
+    assert(bad.warning && bad.doc.body.length === 0,
+      'bad data should load a safe document with a warning');
+    assertEq(mem.getItem(FLOW_DRAFT_KEY), '{broken', 'bad saved data should remain untouched');
+  }],
   ['Flowchart: a FOR loop draws a decision, a return path and both labels', () => {
     const svg = flowchartSVG('DECLARE i : INTEGER\nDECLARE total : INTEGER\ntotal ← 0\nFOR i ← 1 TO 5\n    total ← total + i\nNEXT i\nOUTPUT total');
     assert(/<svg class="flow"/.test(svg), 'should be an SVG');
@@ -9894,6 +10186,9 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   structuredEnglishToPseudo, traceTableToPseudo, checkPseudoAgainstTable,
   flowchartSVG, flowchartToPseudo, FLOW_DOC_VERSION, FLOW_DRAFT_KEY,
   newFlowDocument, createFlowNode, compileFlowDocument,
+  flowInsert, flowUpdate, flowDelete, flowMove, validateFlowDocument,
+  createFlowHistory, flowHistoryApply, flowHistoryUndo, flowHistoryRedo,
+  saveFlowDraft, loadFlowDraft,
   makeQuestion, markTrace, markOutput, markTruth, markPseudocode, PQ_KINDS,
   QUESTION_BANK, questionById, questionsFor, gradeSubmission, questionCases,
   detectConstructs, runCase, GRADE_STATUS, diagnose, DIAGNOSIS_RULES, misconceptionLabel,

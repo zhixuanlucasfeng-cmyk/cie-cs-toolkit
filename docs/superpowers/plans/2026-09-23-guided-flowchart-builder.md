@@ -205,7 +205,7 @@ git commit -m "feat: compile guided flowchart documents"
   - `saveFlowDraft(backend, doc, inputs): void`
   - `loadFlowDraft(backend): { doc, inputs, warning }`
 
-- [ ] **Step 1: Add failing tests for nested editing and immutable results**
+- [x] **Step 1: Add failing tests for nested editing and immutable results**
 
 ```js
 ['Flow builder: insert, update, move and delete preserve the previous document', () => {
@@ -229,7 +229,7 @@ git commit -m "feat: compile guided flowchart documents"
 }],
 ```
 
-- [ ] **Step 2: Add failing tests for precise validation**
+- [x] **Step 2: Add failing tests for precise validation**
 
 ```js
 ['Flow builder: validation names the node and field that block conversion', () => {
@@ -252,7 +252,7 @@ git commit -m "feat: compile guided flowchart documents"
 }],
 ```
 
-- [ ] **Step 3: Add failing tests for undo/redo and the isolated storage key**
+- [x] **Step 3: Add failing tests for undo/redo and the isolated storage key**
 
 ```js
 ['Flow builder: history supports undo and redo without mutating documents', () => {
@@ -276,13 +276,13 @@ git commit -m "feat: compile guided flowchart documents"
 }],
 ```
 
-- [ ] **Step 4: Run the core suite and verify RED**
+- [x] **Step 4: Run the core suite and verify RED**
 
 Run: `npm run test:core`
 
 Expected: FAIL on the new editing, validation, history, and persistence symbols.
 
-- [ ] **Step 5: Implement immutable tree traversal and validation**
+- [x] **Step 5: Implement immutable tree traversal and validation**
 
 Use one internal sequence walker for `body`, `then`, and `else`. Every edit begins with `structuredClone(doc)` when available and a JSON clone fallback, changes the clone, and returns it. `flowInsert` validates this slot contract:
 
@@ -301,7 +301,7 @@ Use one internal sequence walker for `body`, `then`, and `else`. Every edit begi
 
 Validate identifiers with `/^[A-Za-z][A-Za-z0-9_]*$/`, data types against `INTEGER|REAL|BOOLEAN|CHAR|STRING`, required fields, loop bodies, parser compatibility, 100 nodes, and 12 nesting levels. Empty `IF` branches are valid.
 
-- [ ] **Step 6: Implement history and backend-injected persistence**
+- [x] **Step 6: Implement history and backend-injected persistence**
 
 Use this history shape and cap the past stack at 50 documents:
 
@@ -317,13 +317,13 @@ JSON.stringify({ version:FLOW_DOC_VERSION, document:doc, inputs:String(inputs ||
 
 `loadFlowDraft` must not remove or rewrite malformed/unsupported data. It returns a starter document and a human-readable warning instead.
 
-- [ ] **Step 7: Export the pure interfaces and run the core suite GREEN**
+- [x] **Step 7: Export the pure interfaces and run the core suite GREEN**
 
 Run: `npm run test:core`
 
 Expected: all core tests pass.
 
-- [ ] **Step 8: Commit the safe editing model**
+- [x] **Step 8: Commit the safe editing model**
 
 ```bash
 git add index.html
