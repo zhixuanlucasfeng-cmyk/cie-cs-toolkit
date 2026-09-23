@@ -1044,6 +1044,14 @@
   svg.flow text.lbl { fill:var(--warning); font:11px var(--font-mono); }
   svg.flow polyline { fill:none; stroke:var(--text-muted); stroke-width:1.5; }
   svg.flow marker path { fill:var(--text-muted); stroke:none; }
+  svg.flow .flow-node { cursor:pointer; }
+  svg.flow .flow-node.is-selected > :first-child { stroke:var(--accent); stroke-width:3; }
+  svg.flow .flow-node.is-error > :first-child { stroke:var(--danger); stroke-width:3; }
+  svg.flow .flow-slot { cursor:pointer; }
+  svg.flow .flow-slot circle { fill:var(--surface); stroke:var(--border-strong); stroke-width:1.5; }
+  svg.flow .flow-slot text { fill:var(--accent); font:bold 15px var(--font-ui); pointer-events:none; }
+  svg.flow .flow-slot:hover circle,
+  svg.flow .flow-slot:focus-visible circle { stroke:var(--accent); stroke-width:2.5; }
   /* The circuit is a drawing, so its parts have to be drawn: without these
      every gate falls back to SVG's default solid black fill, and a wire
      path gets filled as if it were a polygon. */
@@ -3864,20 +3872,29 @@ function fbTextSVG(cx, y, h, label, cls) {
   return `<text x="${fbR(cx)}" y="${fbR(y + h / 2)}" text-anchor="middle" dominant-baseline="central"` +
     `${cls ? ` class="${cls}"` : ''}>${fbEsc(label)}</text>`;
 }
-function fbShape(kind, cx, y, w, h, label) {
+function fbAttr(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+}
+function fbShape(kind, cx, y, w, h, label, meta) {
   const l = cx - w / 2, rt = cx + w / 2;
+  let shape;
   if (kind === 'terminator') {
-    return `<rect x="${fbR(l)}" y="${fbR(y)}" width="${fbR(w)}" height="${fbR(h)}" rx="${fbR(h / 2)}"/>` + fbTextSVG(cx, y, h, label);
-  }
-  if (kind === 'process') {
-    return `<rect x="${fbR(l)}" y="${fbR(y)}" width="${fbR(w)}" height="${fbR(h)}" rx="3"/>` + fbTextSVG(cx, y, h, label);
-  }
-  if (kind === 'io') {
-    return `<polygon points="${fbR(l + 10)},${fbR(y)} ${fbR(rt + 10)},${fbR(y)} ${fbR(rt - 10)},${fbR(y + h)} ${fbR(l - 10)},${fbR(y + h)}"/>` +
+    shape = `<rect x="${fbR(l)}" y="${fbR(y)}" width="${fbR(w)}" height="${fbR(h)}" rx="${fbR(h / 2)}"/>` + fbTextSVG(cx, y, h, label);
+  } else if (kind === 'process') {
+    shape = `<rect x="${fbR(l)}" y="${fbR(y)}" width="${fbR(w)}" height="${fbR(h)}" rx="3"/>` + fbTextSVG(cx, y, h, label);
+  } else if (kind === 'io') {
+    shape = `<polygon points="${fbR(l + 10)},${fbR(y)} ${fbR(rt + 10)},${fbR(y)} ${fbR(rt - 10)},${fbR(y + h)} ${fbR(l - 10)},${fbR(y + h)}"/>` +
+      fbTextSVG(cx, y, h, label);
+  } else {
+    shape = `<polygon points="${fbR(cx)},${fbR(y)} ${fbR(rt)},${fbR(y + h / 2)} ${fbR(cx)},${fbR(y + h)} ${fbR(l)},${fbR(y + h / 2)}"/>` +
       fbTextSVG(cx, y, h, label);
   }
-  return `<polygon points="${fbR(cx)},${fbR(y)} ${fbR(rt)},${fbR(y + h / 2)} ${fbR(cx)},${fbR(y + h)} ${fbR(l)},${fbR(y + h / 2)}"/>` +
-    fbTextSVG(cx, y, h, label);
+  if (!meta || !meta.nodeId) return shape;
+  const classes = ['flow-node'];
+  if (meta.selected) classes.push('is-selected');
+  if (meta.error) classes.push('is-error');
+  return `<g class="${classes.join(' ')}" data-flow-node="${fbAttr(meta.nodeId)}" role="button" tabindex="0" ` +
+    `aria-selected="${meta.selected ? 'true' : 'false'}" aria-label="${fbAttr(meta.ariaLabel || label)}">${shape}</g>`;
 }
 const fbPts = pts => pts.map(p => fbR(p[0]) + ',' + fbR(p[1])).join(' ');
 function fbArrow(out, pts) { out.push(`<polyline points="${fbPts(pts)}" marker-end="url(#fbArrow)"/>`); }
@@ -3888,11 +3905,11 @@ function fbLabel(out, x, y, s) {
 
 // Every block owns a box: `left`/`right` measure from its vertical axis, the
 // entry is at (cx, y) and the exit at (cx, y + h).
-function fbBox(kind, label) {
+function fbBox(kind, label, meta) {
   const w = fbW(label), ext = kind === 'io' ? 10 : 0;
   return {
     left: w / 2 + ext, right: w / 2 + ext, h: FLOW.h,
-    draw(cx, y, out) { out.push(fbShape(kind, cx, y, w, FLOW.h, label)); }
+    draw(cx, y, out) { out.push(fbShape(kind, cx, y, w, FLOW.h, label, meta)); }
   };
 }
 function fbSeq(list) {
@@ -3913,7 +3930,7 @@ function fbSeq(list) {
   };
 }
 
-function fbIf(cond, thenB, elseB) {
+function fbIf(cond, thenB, elseB, meta) {
   const dw = fbW(cond, 44), dh = FLOW.dh;
   if (!elseB) {
     const lane = Math.max(dw / 2, thenB.right) + FLOW.lane;
@@ -3922,7 +3939,7 @@ function fbIf(cond, thenB, elseB) {
       right: lane + 8,
       h: dh + FLOW.gap + thenB.h + FLOW.gap,
       draw(cx, y, out) {
-        out.push(fbShape('decision', cx, y, dw, dh, cond));
+        out.push(fbShape('decision', cx, y, dw, dh, cond, meta));
         fbLabel(out, cx - 15, y + dh + 12, 'Yes');
         fbArrow(out, [[cx, y + dh], [cx, y + dh + FLOW.gap]]);
         thenB.draw(cx, y + dh + FLOW.gap, out);
@@ -3938,7 +3955,7 @@ function fbIf(cond, thenB, elseB) {
     left: off + thenB.left, right: off + elseB.right,
     h: dh + FLOW.gap + Math.max(thenB.h, elseB.h) + FLOW.gap,
     draw(cx, y, out) {
-      out.push(fbShape('decision', cx, y, dw, dh, cond));
+      out.push(fbShape('decision', cx, y, dw, dh, cond, meta));
       const topY = y + dh + FLOW.gap, joinY = y + this.h;
       fbLabel(out, cx - off + 18, y + dh / 2 - 10, 'Yes');
       fbLine(out, [[cx - dw / 2, y + dh / 2], [cx - off, y + dh / 2]]);
@@ -3956,7 +3973,7 @@ function fbIf(cond, thenB, elseB) {
 }
 
 // WHILE, and the loop half of FOR: test first, body below, return up the left lane.
-function fbWhileLoop(cond, bodyB) {
+function fbWhileLoop(cond, bodyB, meta) {
   const dw = fbW(cond, 44), dh = FLOW.dh;
   const back = Math.max(dw / 2, bodyB.left) + FLOW.lane;
   const exit = Math.max(dw / 2, bodyB.right) + FLOW.lane;
@@ -3964,7 +3981,7 @@ function fbWhileLoop(cond, bodyB) {
     left: back + 8, right: exit + 8,
     h: dh + FLOW.gap + bodyB.h + FLOW.gap,
     draw(cx, y, out) {
-      out.push(fbShape('decision', cx, y, dw, dh, cond));
+      out.push(fbShape('decision', cx, y, dw, dh, cond, meta));
       fbLabel(out, cx - 15, y + dh + 12, 'Yes');
       fbArrow(out, [[cx, y + dh], [cx, y + dh + FLOW.gap]]);
       const bodyY = y + dh + FLOW.gap;
@@ -3978,7 +3995,7 @@ function fbWhileLoop(cond, bodyB) {
 }
 
 // REPEAT: body first, test at the bottom, "No" returns to above the body.
-function fbRepeatLoop(cond, bodyB) {
+function fbRepeatLoop(cond, bodyB, meta) {
   const dw = fbW(cond, 44), dh = FLOW.dh;
   const back = Math.max(dw / 2, bodyB.left) + FLOW.lane;
   return {
@@ -3988,12 +4005,99 @@ function fbRepeatLoop(cond, bodyB) {
       bodyB.draw(cx, y, out);
       const dY = y + bodyB.h + FLOW.gap;
       fbArrow(out, [[cx, y + bodyB.h], [cx, dY]]);
-      out.push(fbShape('decision', cx, dY, dw, dh, cond));
+      out.push(fbShape('decision', cx, dY, dw, dh, cond, meta));
       fbLabel(out, cx - 15, dY + dh + 12, 'Yes');
       fbLabel(out, cx - back + 18, dY + dh / 2 - 10, 'No');
       fbArrow(out, [[cx - dw / 2, dY + dh / 2], [cx - back, dY + dh / 2], [cx - back, y - 13], [cx, y - 13]]);
     }
   };
+}
+
+function fbSlot(slotKey, label) {
+  const h = 22;
+  return {
+    left:13, right:13, h,
+    draw(cx, y, out) {
+      const cy = y + h / 2;
+      out.push(`<g class="flow-slot" data-flow-slot="${fbAttr(slotKey)}" role="button" tabindex="0" ` +
+        `aria-label="${fbAttr(label)}"><circle cx="${fbR(cx)}" cy="${fbR(cy)}" r="9"/>` +
+        `<text x="${fbR(cx)}" y="${fbR(cy)}" text-anchor="middle" dominant-baseline="central">+</text></g>`);
+    }
+  };
+}
+
+function flowDocumentSVG(doc, options) {
+  options = options || {};
+  const errorIds = new Set((options.errors || []).map(error => error.nodeId).filter(Boolean));
+  const selectedId = options.selectedId || null;
+  const parentKey = id => id == null ? 'root' : id;
+  const slotKey = (parentId, branch, index) => parentKey(parentId) + ':' + branch + ':' + index;
+  const slotLabel = (parentId, branch, index) => {
+    const place = parentId == null ? 'the main flow' :
+      (branch === 'then' ? 'the Yes branch' : branch === 'else' ? 'the No branch' : 'the loop');
+    return 'Add a step at position ' + (index + 1) + ' in ' + place;
+  };
+  const meta = (node, label) => ({
+    nodeId:node.id,
+    selected:node.id === selectedId,
+    error:errorIds.has(node.id),
+    ariaLabel:label
+  });
+
+  function nodeBlock(node) {
+    if (node.type === 'input') {
+      const label = 'INPUT ' + (node.name || '?');
+      return fbBox('io', label, meta(node, 'Input: ' + (node.name || 'unfinished')));
+    }
+    if (node.type === 'output') {
+      const label = 'OUTPUT ' + (node.expression || '?');
+      return fbBox('io', label, meta(node, 'Output: ' + (node.expression || 'unfinished')));
+    }
+    if (node.type === 'process') {
+      const label = (node.target || '?') + ' ← ' + (node.expression || '?');
+      return fbBox('process', label, meta(node, 'Process: ' + label));
+    }
+    if (node.type === 'if') {
+      const label = node.condition || 'Enter a condition';
+      return fbIf(label, sequenceBlock(node.then || [], node.id, 'then'),
+        sequenceBlock(node.else || [], node.id, 'else'), meta(node, 'Decision: ' + label));
+    }
+    if (node.type === 'while') {
+      const label = node.condition || 'Enter a condition';
+      return fbWhileLoop(label, sequenceBlock(node.body || [], node.id, 'body'),
+        meta(node, 'While: ' + label));
+    }
+    if (node.type === 'repeat') {
+      const label = node.condition || 'Enter a condition';
+      return fbRepeatLoop(label, sequenceBlock(node.body || [], node.id, 'body'),
+        meta(node, 'Repeat until: ' + label));
+    }
+    return fbBox('process', 'Unsupported step');
+  }
+
+  function sequenceBlock(list, parentId, branch) {
+    const blocks = [];
+    for (let i = 0; i <= list.length; i++) {
+      blocks.push(fbSlot(slotKey(parentId, branch, i), slotLabel(parentId, branch, i)));
+      if (i < list.length) blocks.push(nodeBlock(list[i]));
+    }
+    return fbSeq(blocks);
+  }
+
+  const root = fbSeq([
+    fbBox('terminator', 'START'),
+    sequenceBlock(doc && Array.isArray(doc.body) ? doc.body : [], null, 'body'),
+    fbBox('terminator', 'STOP')
+  ]);
+  const out = [];
+  const cx = root.left + 22, width = root.left + root.right + 44, height = root.h + 44;
+  root.draw(cx, 22, out);
+  return `<svg class="flow flow-builder" viewBox="0 0 ${fbR(width)} ${fbR(height)}" ` +
+    `width="${fbR(width)}" height="${fbR(height)}" role="group" aria-label="Editable flowchart">` +
+    `<defs><marker id="fbBuilderArrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">` +
+    `<path d="M0,0 L8,4 L0,8 z"/></marker>` +
+    `<marker id="fbArrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">` +
+    `<path d="M0,0 L8,4 L0,8 z"/></marker></defs>` + out.join('') + '</svg>';
 }
 
 function fbStmt(s, text) {
@@ -8701,6 +8805,38 @@ const TESTS = [
       'bad data should load a safe document with a warning');
     assertEq(mem.getItem(FLOW_DRAFT_KEY), '{broken', 'bad saved data should remain untouched');
   }],
+  ['Flow builder: document SVG has standard shapes and selectable nodes', () => {
+    const doc = { version:1, body:[
+      createFlowNode('input', { name:'n' }, 'in'),
+      createFlowNode('process', { target:'x', expression:'n + 1' }, 'set'),
+      createFlowNode('if', { condition:'x > 3', then:[
+        createFlowNode('output', { expression:'x' }, 'out')
+      ], else:[] }, 'choice')
+    ]};
+    const svg = flowDocumentSVG(doc, { selectedId:'choice', errors:[] });
+    assert(svg.includes('data-flow-node="in"') && svg.includes('data-flow-node="choice"'),
+      'nodes should be addressable');
+    assert(svg.includes('aria-selected="true"'), 'the selected node should be exposed');
+    assert((svg.match(/<polygon/g) || []).length >= 2,
+      'input and decision should use standard polygons');
+    assert(svg.includes('>Yes<') && svg.includes('>No<'),
+      'decision branches should be labelled');
+  }],
+  ['Flow builder: every sequence and empty branch exposes an insertion slot', () => {
+    const doc = { version:1, body:[createFlowNode('if', { then:[], else:[] }, 'choice')] };
+    const svg = flowDocumentSVG(doc, {});
+    assert(svg.includes('data-flow-slot="root:body:0"'), 'the root should have a first slot');
+    assert(svg.includes('data-flow-slot="choice:then:0"'), 'the empty Yes branch should have a slot');
+    assert(svg.includes('data-flow-slot="choice:else:0"'), 'the empty No branch should have a slot');
+  }],
+  ['Flow builder: invalid nodes carry an error state without breaking SVG', () => {
+    const doc = { version:1, body:[createFlowNode('while', { condition:'', body:[] }, 'loop')] };
+    const svg = flowDocumentSVG(doc, { errors:validateFlowDocument(doc) });
+    assert(svg.startsWith('<svg') && svg.endsWith('</svg>'),
+      'unfinished work should still draw');
+    assert(svg.includes('data-flow-node="loop"') && svg.includes('is-error'),
+      'the exact node should be marked');
+  }],
   ['Flowchart: a FOR loop draws a decision, a return path and both labels', () => {
     const svg = flowchartSVG('DECLARE i : INTEGER\nDECLARE total : INTEGER\ntotal ← 0\nFOR i ← 1 TO 5\n    total ← total + i\nNEXT i\nOUTPUT total');
     assert(/<svg class="flow"/.test(svg), 'should be an SVG');
@@ -10186,6 +10322,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   structuredEnglishToPseudo, traceTableToPseudo, checkPseudoAgainstTable,
   flowchartSVG, flowchartToPseudo, FLOW_DOC_VERSION, FLOW_DRAFT_KEY,
   newFlowDocument, createFlowNode, compileFlowDocument,
+  flowDocumentSVG,
   flowInsert, flowUpdate, flowDelete, flowMove, validateFlowDocument,
   createFlowHistory, flowHistoryApply, flowHistoryUndo, flowHistoryRedo,
   saveFlowDraft, loadFlowDraft,

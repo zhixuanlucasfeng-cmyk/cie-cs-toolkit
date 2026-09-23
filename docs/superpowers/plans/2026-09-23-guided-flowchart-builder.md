@@ -344,7 +344,7 @@ git commit -m "feat: edit and preserve flowchart drafts"
 - Consumes: `FlowDocument`, `validateFlowDocument(doc)` and existing `fbBox`, `fbSeq`, `fbIf`, `fbWhileLoop`, `fbRepeatLoop`
 - Produces: `flowDocumentSVG(doc, { selectedId?, errors? }): string`
 
-- [ ] **Step 1: Add failing tests for standard shapes and editing metadata**
+- [x] **Step 1: Add failing tests for standard shapes and editing metadata**
 
 ```js
 ['Flow builder: document SVG has standard shapes and selectable nodes', () => {
@@ -376,13 +376,13 @@ git commit -m "feat: edit and preserve flowchart drafts"
 }],
 ```
 
-- [ ] **Step 2: Run the core suite and verify RED**
+- [x] **Step 2: Run the core suite and verify RED**
 
 Run: `npm run test:core`
 
 Expected: FAIL because `flowDocumentSVG` is not defined.
 
-- [ ] **Step 3: Add optional metadata to existing layout primitives**
+- [x] **Step 3: Add optional metadata to existing layout primitives**
 
 Extend `fbShape`, `fbBox`, `fbIf`, `fbWhileLoop`, and `fbRepeatLoop` with an optional final `meta` argument while preserving every current caller. When `meta.nodeId` exists, wrap the shape and its label in:
 
@@ -397,7 +397,7 @@ Extend `fbShape`, `fbBox`, `fbIf`, `fbWhileLoop`, and `fbRepeatLoop` with an opt
 
 Only include `is-selected`, `is-error`, or `aria-selected="true"` when applicable. Escape every ID and label with the existing helpers.
 
-- [ ] **Step 4: Implement document-to-layout conversion with insertion slots**
+- [x] **Step 4: Implement document-to-layout conversion with insertion slots**
 
 Add `fbSlot(slotKey, label)` as a small circular `+` control with `data-flow-slot`, `role="button"`, `tabindex="0"`, and a precise accessible label. Build each sequence as:
 
@@ -415,7 +415,7 @@ slot(0), node(0), slot(1), node(1), ... slot(length)
 
 Use slot keys exactly as `parentId-or-root:branch:index`, for example `root:body:2` and `choice:else:0`. Always render `START`, the editable body with slots, and `STOP`.
 
-- [ ] **Step 5: Add builder-specific SVG styles**
+- [x] **Step 5: Add builder-specific SVG styles**
 
 Add styles using existing tokens for `.flow-node`, `.flow-slot`, `.is-selected`, and `.is-error`. Required behavior:
 
@@ -430,13 +430,13 @@ Add styles using existing tokens for `.flow-node`, `.flow-slot`, `.is-selected`,
 
 Keep visible focus and dark-theme compatibility; do not hard-code colours.
 
-- [ ] **Step 6: Export and verify both old and new renderers**
+- [x] **Step 6: Export and verify both old and new renderers**
 
 Run: `npm run test:core`
 
 Expected: all old `flowchartSVG` tests and new `flowDocumentSVG` tests pass.
 
-- [ ] **Step 7: Commit the interactive renderer**
+- [x] **Step 7: Commit the interactive renderer**
 
 ```bash
 git add index.html
