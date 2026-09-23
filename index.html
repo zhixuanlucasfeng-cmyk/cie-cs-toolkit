@@ -6947,23 +6947,32 @@ function completionsAt(src, caret) {
     }
   }
   for (const [name, info] of declaredNames(text)) {
-    // The word being typed is not a suggestion for itself.
-    if (name.toUpperCase().startsWith(upper) && name !== word) {
+    if (name.toUpperCase().startsWith(upper)) {
       items.push({ text: name, kind: info.kind, detail: info.detail, snippet: null });
     }
   }
+
+  // A suggestion identical to what is already typed, with nothing to expand,
+  // changes nothing when accepted — and while it is on screen the list owns
+  // Enter. That is how "IF total = 0 THEN" lost the ENDIF this editor is
+  // supposed to add for you: THEN offered THEN, Enter went to the list, and
+  // the newline handler never ran. Written once here so every source of
+  // suggestions is covered, not just the declared names it was noticed on.
+  // A block keyword is kept even when it matches exactly, because accepting
+  // it really does expand the block.
+  const useful = items.filter(it => it.text !== word || it.snippet);
 
   // Exact prefix case first, then shortest, then alphabetical — so typing
   // "OU" offers OUTPUT before OTHERWISE, and "i" offers a variable i before
   // IF only when it really is closer.
   const rank = { variable: 0, constant: 0, function: 1, procedure: 1, builtin: 2, keyword: 3 };
-  items.sort((a, b) =>
+  useful.sort((a, b) =>
     (a.text.startsWith(word) ? 0 : 1) - (b.text.startsWith(word) ? 0 : 1) ||
     rank[a.kind] - rank[b.kind] ||
     a.text.length - b.text.length ||
     (a.text < b.text ? -1 : a.text > b.text ? 1 : 0));
 
-  return { from, to: at, items: items.slice(0, 8) };
+  return { from, to: at, items: useful.slice(0, 8) };
 }
 
 /*
@@ -7851,6 +7860,21 @@ const TESTS = [
     assert(/ENDWHILE/.test(c.items[0].snippet), 'and its snippet closes the block: ' + c.items[0].snippet);
     assert(/NEXT i/.test(completionsAt('FO', 2).items[0].snippet), 'FOR brings NEXT');
     assert(/UNTIL/.test(completionsAt('REP', 3).items[0].snippet), 'REPEAT brings UNTIL');
+  }],
+  ['Editing: a finished word offers nothing, so Enter stays the editor\'s', () => {
+    // While the list is open it owns Enter. A suggestion that is already
+    // typed changes nothing when accepted, so it must not be offered — the
+    // newline and its ENDIF are worth more than a no-op.
+    assertEq(completionsAt('DECLARE total : INTEGER', 23).items.length, 0, 'INTEGER does not suggest INTEGER');
+    assertEq(completionsAt('IF total = 0 THEN', 17).items.length, 0, 'THEN does not suggest THEN');
+    assertEq(completionsAt('WHILE x > 0 DO', 14).items.length, 0, 'DO does not suggest DO');
+    // Still offered while the word is unfinished, and still expanded when the
+    // exact match is a block that brings its ending.
+    assertEq(completionsAt('OU', 2).items[0].text, 'OUTPUT', 'an unfinished word still completes');
+    assert(completionsAt('IF', 2).items.length === 1 && completionsAt('IF', 2).items[0].snippet,
+      'a finished block keyword is kept, because accepting it expands the block');
+    assertEq(completionsAt('DECLARE t : integer', 19).items[0].text, 'INTEGER',
+      'a lowercase word is still offered its uppercase form');
   }],
   ['Editing: completion stays quiet inside strings and comments', () => {
     assertEq(completionsAt('OUTPUT "OU', 10).items.length, 0, 'not inside a string');
@@ -12085,7 +12109,8 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     ideTab('output');
 
     const startedAt = ideRun.stepCount;
-    const watching = mode === 'continue' && ideBreaks.size > 0;
+    // A breakpoint is a mark on a line, not a property of one button.
+    const watching = ideBreaks.size > 0;
     const tick = () => {
       if (!ideRun) return;
       const t0 = performance.now();
