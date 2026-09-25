@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>DryRun — Cambridge 0478 &amp; 9618 pseudocode, trace table and logic practice</title>
-<meta name="description" content="Free practice for Cambridge IGCSE 0478 and AS &amp; A Level 9618 Computer Science: write pseudocode and have it run against hidden test cases, complete trace tables, draw flowcharts, and build truth tables and logic circuits. Runs in your browser, no account, nothing uploaded. Independent resource, not endorsed by Cambridge.">
+<meta name="description" content="Free practice for Cambridge IGCSE 0478 and AS &amp; A Level 9618 Computer Science: write pseudocode and have it run against hidden test cases, complete trace tables, draw flowcharts, and build truth tables and logic circuits. Runs in your browser; your learning work stays on your device. Independent resource, not endorsed by Cambridge.">
 <meta name="keywords" content="Cambridge 0478 pseudocode practice, 9618 pseudocode practice, trace table practice, Boolean logic practice, Computer Science hidden test cases, IGCSE Computer Science algorithms">
 <link rel="canonical" href="https://dryruncs.com/">
 <meta name="robots" content="index, follow">
@@ -1044,6 +1044,7 @@
   svg.flow text { fill:var(--text-primary); font:12px var(--font-mono); }
   svg.flow text.lbl { fill:var(--warning); font:11px var(--font-mono); }
   svg.flow polyline { fill:none; stroke:var(--text-muted); stroke-width:1.5; }
+  svg.flow .flow-subroutine-line { stroke:var(--text-muted); stroke-width:1.5; }
   svg.flow marker path { fill:var(--text-muted); stroke:none; }
   svg.flow .flow-node { cursor:pointer; }
   svg.flow .flow-node.is-selected > :first-child { stroke:var(--accent); stroke-width:3; }
@@ -1249,8 +1250,8 @@
               <button class="btn primary lg" id="btn-wel-start">Try the diagnostic</button>
               <button class="btn lg" id="btn-wel-ide">Open the editor</button>
             </div>
-            <p class="hint">Everything stays in this browser. There is nothing to sign in to, and it
-              keeps working with the network off.</p>
+            <p class="hint">Your learning work stays in this browser. No account is required, and the
+              tools keep working with the network off.</p>
           </div>
           <div class="landing-proof">
             <div class="proof-head"><span class="dot is-due" aria-hidden="true"></span> Why one right answer is not enough</div>
@@ -1370,7 +1371,7 @@
 
         <div class="data-notice" id="onboard-data">
           <h2>Where your work is kept</h2>
-          <p>Your answers and progress stay in this browser. Nothing is uploaded, there are no accounts, and no one else can see your work — including us.</p>
+          <p>Your answers and progress stay in this browser. They are not sent to analytics, no account is required, and no one else can see your work — including us.</p>
           <p><b>That also means:</b> clearing your browser data, using private browsing, or moving to another device will remove your progress unless you export it first.</p>
           <div class="btn-row">
             <button class="btn" id="btn-onboard-import">Restore a backup</button>
@@ -1507,6 +1508,7 @@
           <button class="btn" data-add-flow="input">Input</button>
           <button class="btn" data-add-flow="output">Output</button>
           <button class="btn" data-add-flow="process">Process</button>
+          <button class="btn" data-add-flow="subroutine">Subroutine</button>
           <button class="btn" data-add-flow="if">IF / ELSE</button>
           <button class="btn" data-add-flow="while">WHILE</button>
           <button class="btn" data-add-flow="repeat">REPEAT / UNTIL</button>
@@ -1904,9 +1906,11 @@
       <div class="panel">
         <div class="panel-head"><h2>Your data</h2></div>
         <div class="panel-body">
-          <p><b>Everything stays in this browser.</b> Nothing is uploaded and the page carries no
-            analytics and no third-party scripts. <b>Signed out, once it has loaded it makes no network
-            requests at all</b> — and it is signed out unless you deliberately sign in.</p>
+          <p><b>Your learning data stays in this browser.</b> Your code, answers, marks, progress,
+            feedback and keystrokes are not sent to analytics. DryRun uses cookie-free
+            <b>Vercel Web Analytics</b> to count anonymous visits and show broad statistics such as
+            pages viewed, country, referrer, device and browser. It does not receive your code,
+            answers, progress, feedback or keystrokes.</p>
           <p id="privacy-sync" hidden><b>Unless you sign in.</b> Signing in is optional and nothing asks you to.
             If you do, your progress record is copied to the sync server so your other devices can read it, and your
             email address is stored so the sign-in link can reach you. Nothing else is sent: no browsing, no keystrokes,
@@ -1922,8 +1926,8 @@
       <div class="panel">
         <div class="panel-head"><h2>For schools</h2></div>
         <div class="panel-body">
-          <p>Because nothing leaves the browser, there is no student data for a school to process on
-            our side. Evidence reaches a teacher only when a student exports a file and hands it over.</p>
+          <p>Because no learning record leaves the browser, there is no student work for a school to
+            process on our side. Evidence reaches a teacher only when a student exports a file and hands it over.</p>
         </div>
       </div>
 
@@ -3595,7 +3599,7 @@ function checkPseudoAgainstTable(code, table) {
 
 const FLOW_DOC_VERSION = 1;
 const FLOW_DRAFT_KEY = 'dryrun.flowchart.v1';
-const FLOW_TYPES = new Set(['input', 'output', 'process', 'if', 'while', 'repeat']);
+const FLOW_TYPES = new Set(['input', 'output', 'process', 'subroutine', 'if', 'while', 'repeat']);
 let flowIdCounter = 0;
 
 function flowId() {
@@ -3609,6 +3613,7 @@ function createFlowNode(type, values, id) {
     input:{ name:'value', dataType:'INTEGER' },
     output:{ expression:'value' },
     process:{ target:'value', expression:'0', dataType:'INTEGER' },
+    subroutine:{ name:'ProcedureName', arguments:'' },
     if:{ condition:'value = 0', then:[], else:[] },
     while:{ condition:'value > 0', body:[] },
     repeat:{ condition:'value = 0', body:[] }
@@ -3663,6 +3668,12 @@ function compileFlowDocument(doc) {
           prose(depth, 'Set ' + node.target + ' to ' + node.expression);
           code(depth, node.target + ' ← ' + node.expression, node.id);
           break;
+        case 'subroutine': {
+          const args = String(node.arguments || '').split(',').map(value => value.trim()).filter(Boolean);
+          prose(depth, 'Call ' + node.name + (args.length ? ' with ' + args.join(' and ') : ''));
+          code(depth, 'CALL ' + node.name + '(' + args.join(', ') + ')', node.id);
+          break;
+        }
         case 'if':
           prose(depth, 'If ' + node.condition + ' then');
           code(depth, 'IF ' + node.condition + ' THEN', node.id);
@@ -3844,6 +3855,8 @@ function validateFlowDocument(doc) {
           add(node, 'dataType', 'type-required', 'Choose a type for this new variable.');
         }
         if (node.target) declared.add(node.target);
+      } else if (node.type === 'subroutine') {
+        variable(node, 'name');
       } else {
         required(node, 'condition', 'a condition');
         const nextDepth = controlDepth + 1;
@@ -3958,6 +3971,11 @@ function fbShape(kind, cx, y, w, h, label, meta) {
     shape = `<rect x="${fbR(l)}" y="${fbR(y)}" width="${fbR(w)}" height="${fbR(h)}" rx="${fbR(h / 2)}"/>` + fbTextSVG(cx, y, h, label);
   } else if (kind === 'process') {
     shape = `<rect x="${fbR(l)}" y="${fbR(y)}" width="${fbR(w)}" height="${fbR(h)}" rx="3"/>` + fbTextSVG(cx, y, h, label);
+  } else if (kind === 'subroutine') {
+    shape = `<rect data-flow-shape="subroutine" x="${fbR(l)}" y="${fbR(y)}" width="${fbR(w)}" height="${fbR(h)}" rx="3"/>` +
+      `<line class="flow-subroutine-line" x1="${fbR(l + 10)}" y1="${fbR(y)}" x2="${fbR(l + 10)}" y2="${fbR(y + h)}"/>` +
+      `<line class="flow-subroutine-line" x1="${fbR(rt - 10)}" y1="${fbR(y)}" x2="${fbR(rt - 10)}" y2="${fbR(y + h)}"/>` +
+      fbTextSVG(cx, y, h, label);
   } else if (kind === 'io') {
     shape = `<polygon points="${fbR(l + 10)},${fbR(y)} ${fbR(rt + 10)},${fbR(y)} ${fbR(rt - 10)},${fbR(y + h)} ${fbR(l - 10)},${fbR(y + h)}"/>` +
       fbTextSVG(cx, y, h, label);
@@ -4133,6 +4151,11 @@ function flowDocumentSVG(doc, options) {
       const label = (node.target || '?') + ' ← ' + (node.expression || '?');
       return fbBox('process', label, meta(node, 'Process: ' + label));
     }
+    if (node.type === 'subroutine') {
+      const args = String(node.arguments || '').split(',').map(value => value.trim()).filter(Boolean).join(', ');
+      const label = 'CALL ' + (node.name || '?') + '(' + args + ')';
+      return fbBox('subroutine', label, meta(node, 'Subroutine: ' + label));
+    }
     if (node.type === 'if') {
       const label = node.condition || 'Enter a condition';
       return fbIf(label, sequenceBlock(node.then || [], node.id, 'then'),
@@ -4181,6 +4204,7 @@ function fbStmt(s, text) {
     case 'DECLARE': case 'CONST': case 'NOP': return null;   // declarations are not drawn
     case 'ASSIGN':  return fbBox('process', text(s.line));
     case 'INPUT': case 'OUTPUT': return fbBox('io', text(s.line));
+    case 'CALL': return fbBox('subroutine', text(s.line));
     case 'IF': {
       const cond = text(s.line).replace(/^IF\s+/i, '').replace(/\s+THEN$/i, '');
       const thenB = fbSeq(s.then.map(x => fbStmt(x, text)));
@@ -8797,6 +8821,17 @@ const TESTS = [
     assertEq(out.lineNodeIds[out.code.split('\n').indexOf('INPUT n') + 1], 'n1',
       'generated source lines should map back to nodes');
   }],
+  ['Flow builder: a subroutine step compiles to a procedure call', () => {
+    const doc = { version:1, body:[
+      createFlowNode('subroutine', { name:'CalculateTotal', arguments:'Values, Count' }, 'call')
+    ]};
+    const out = compileFlowDocument(doc);
+    assertEq(out.code, 'CALL CalculateTotal(Values, Count)',
+      'the generated pseudocode should use Cambridge CALL syntax');
+    assertEq(out.english, 'Call CalculateTotal with Values and Count',
+      'the English form should read naturally');
+    assertEq(out.lineNodeIds[1], 'call', 'the call line should map back to its flowchart node');
+  }],
   ['Flow builder: nested IF and REPEAT preserve their meaning', () => {
     const doc = { version:1, body:[
       { id:'p', type:'process', target:'x', expression:'2', dataType:'INTEGER' },
@@ -8845,6 +8880,19 @@ const TESTS = [
       'blank condition should be tied to its field');
     assert(errors.some(e => e.nodeId === 'bad-loop' && e.field === 'body'),
       'empty loop body should be reported');
+  }],
+  ['Flow builder: subroutine names use Cambridge identifiers and arguments may be empty', () => {
+    const bad = { version:1, body:[
+      createFlowNode('subroutine', { name:'two words', arguments:'' }, 'bad-call')
+    ]};
+    const errors = validateFlowDocument(bad);
+    assert(errors.some(error => error.nodeId === 'bad-call' && error.field === 'name'),
+      'an invalid procedure name should be tied to the name field');
+    const good = { version:1, body:[
+      createFlowNode('subroutine', { name:'ShowMenu', arguments:'' }, 'good-call')
+    ]};
+    assertEq(validateFlowDocument(good).length, 0,
+      'a no-argument procedure call should be valid');
   }],
   ['Flow builder: node and nesting safety limits are enforced', () => {
     const tooMany = { version:1, body:Array.from({ length:101 }, (_, i) =>
@@ -8898,6 +8946,17 @@ const TESTS = [
     assert(svg.includes('>Yes<') && svg.includes('>No<'),
       'decision branches should be labelled');
   }],
+  ['Flow builder: subroutines use the standard predefined-process symbol', () => {
+    const doc = { version:1, body:[
+      createFlowNode('subroutine', { name:'ShowMenu', arguments:'' }, 'call')
+    ]};
+    const svg = flowDocumentSVG(doc, {});
+    assert(svg.includes('data-flow-shape="subroutine"'),
+      'the SVG should identify the subroutine symbol');
+    assert((svg.match(/<line /g) || []).length >= 2,
+      'the predefined-process rectangle should have a vertical line on each side');
+    assert(svg.includes('CALL ShowMenu()'), 'the symbol should show the generated call');
+  }],
   ['Flow builder: every sequence and empty branch exposes an insertion slot', () => {
     const doc = { version:1, body:[createFlowNode('if', { then:[], else:[] }, 'choice')] };
     const svg = flowDocumentSVG(doc, {});
@@ -8927,6 +8986,12 @@ const TESTS = [
     assert(svg.includes('OUTPUT &quot;pass&quot;') || svg.includes('OUTPUT "pass"'), 'the THEN branch should be drawn');
     assert(svg.includes('OUTPUT &quot;fail&quot;') || svg.includes('OUTPUT "fail"'), 'the ELSE branch should be drawn');
     assert(svg.includes('>Yes<') && svg.includes('>No<'), 'both branch labels should be drawn');
+  }],
+  ['Flowchart: a CALL statement draws the standard subroutine symbol', () => {
+    const svg = flowchartSVG('CALL ShowMenu()');
+    assert(svg.includes('data-flow-shape="subroutine"'),
+      'a procedure call should use the predefined-process shape');
+    assert(svg.includes('CALL ShowMenu()'), 'the call should stay readable inside the symbol');
   }],
   ['Flowchart: text with < and > is escaped, not broken', () => {
     const svg = flowchartSVG('DECLARE a : INTEGER\nDECLARE b : INTEGER\na ← 1\nb ← 2\nIF a < b THEN\n    OUTPUT a\nENDIF');
@@ -12346,6 +12411,10 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
       html += flowTextField('Variable', 'target', node.target, ownErrors) +
         flowTextField('Value or expression', 'expression', node.expression, ownErrors) +
         flowTypeField(node.dataType, ownErrors);
+    } else if (node.type === 'subroutine') {
+      html += flowTextField('Procedure name', 'name', node.name, ownErrors) +
+        flowTextField('Arguments', 'arguments', node.arguments, ownErrors) +
+        '<p class="hint">Separate arguments with commas. Leave this empty when the procedure takes no arguments.</p>';
     } else {
       html += flowTextField(node.type === 'repeat' ? 'Until condition' : 'Condition',
         'condition', node.condition, ownErrors);
@@ -12565,7 +12634,14 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
       flowRuntimeError = false;
     } catch (e) {
       $('flow-builder-trace').innerHTML = '<div class="empty">Not traced.</div>';
-      flowRuntimeMessage = 'The chart is valid, but it could not run: ' + e.message;
+      let hasSubroutine = false;
+      flowVisitSequences(flowHistory.present, sequence => {
+        if (sequence.some(node => node.type === 'subroutine')) hasSubroutine = true;
+      });
+      flowRuntimeMessage = 'The chart is valid, but it could not run: ' + e.message +
+        (hasSubroutine && /no procedure called/i.test(e.message)
+          ? '. Open the generated code in the IDE and define the procedure before running it.'
+          : '');
       flowRuntimeError = true;
     }
     renderFlowBuilder();
@@ -13530,12 +13606,11 @@ Deploy to Vercel:
     Every later git push to main redeploys automatically.
 =========================================================================
 -->
-<!-- Anonymous visit count. Cloudflare Web Analytics sets no cookie, stores no
-     personal data and needs no consent banner. It is left switched off: paste
-     the token from the Cloudflare dashboard and remove the comment markers.
-     It loads after the page, so it can never delay or break anything offline.
-<script defer src="https://static.cloudflareinsights.com/beacon.min.js"
-        data-cf-beacon='{"token":"PASTE_YOUR_TOKEN_HERE"}'></script>
--->
+<!-- Vercel serves this same-origin, deferred script only in deployed builds.
+     Learning data never enters the analytics queue; it records page views only. -->
+<script>
+  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+</script>
+<script defer src="/_vercel/insights/script.js"></script>
 </body>
 </html>

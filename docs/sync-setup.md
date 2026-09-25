@@ -1,8 +1,9 @@
 # Switching on optional sync
 
-Sync ships **off**. With no project configured the page behaves exactly as it always
-has: no account, no network request after load, nothing leaves the browser. Signing in
-never unlocks a feature — it only copies a progress record between a person's own devices.
+Sync ships **off**. With no project configured, no account is required and no learning
+data leaves the browser. The deployed site still sends cookie-free, anonymous page-view
+counts to Vercel Web Analytics. Signing in never unlocks a feature — it only copies a
+progress record between a person's own devices.
 
 Three steps, about ten minutes.
 

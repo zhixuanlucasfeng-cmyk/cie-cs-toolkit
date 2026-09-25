@@ -1,6 +1,6 @@
 # DryRun — Computer Science Reasoning Lab
 
-A reasoning workbench for Cambridge Computer Science (IGCSE 0478 and AS & A Level 9618). One self-contained HTML file: no framework, no build step, no dependencies. It works offline, and signed out it makes no network request after loading — nothing you type leaves your browser.
+A reasoning workbench for Cambridge Computer Science (IGCSE 0478 and AS & A Level 9618). One self-contained HTML file: no framework, no build step, no dependencies. The learning tools work offline and nothing you type is sent to analytics. The deployed site makes a small, cookie-free request to Vercel Web Analytics for anonymous aggregate traffic counts.
 
 Signing in is **optional and switched off by default**; it unlocks no feature and only copies your own progress between your own devices. See [docs/sync-setup.md](docs/sync-setup.md).
 

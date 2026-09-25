@@ -22,6 +22,16 @@ test('the ordinary application boots without an uncaught browser error', async (
   expect(pageErrors).toEqual([]);
 });
 
+test('anonymous traffic measurement is installed and honestly disclosed', async ({ page }) => {
+  await page.goto('/#/about');
+
+  await expect(page.locator('script[src="/_vercel/insights/script.js"]')).toHaveCount(1);
+  await expect(page.getByText('Vercel Web Analytics', { exact:false })).toBeVisible();
+  await expect(page.locator('#view-about .panel-body').first())
+    .toContainText('It does not receive your code, answers, progress, feedback or keystrokes.');
+  await expect(page.locator('script[data-cf-beacon]')).toHaveCount(0);
+});
+
 test('the flowchart builder exposes guided editing controls', async ({ page }) => {
   await page.goto('/#/lab-pseudocode');
 
@@ -30,6 +40,26 @@ test('the flowchart builder exposes guided editing controls', async ({ page }) =
   await expect(page.getByRole('button', { name:'Input', exact:true })).toBeVisible();
   await expect(page.getByRole('button', { name:'IF / ELSE', exact:true })).toBeVisible();
   await expect(page.getByRole('region', { name:'Editable flowchart canvas' })).toBeVisible();
+});
+
+test('a student adds and edits a subroutine call in the flowchart builder', async ({ page }) => {
+  await page.goto('/#/lab-pseudocode');
+  await page.getByRole('tab', { name:'Build a flowchart' }).click();
+
+  await page.getByRole('button', { name:'Add a step at position 1 in the main flow' }).click();
+  await page.getByRole('button', { name:'Subroutine', exact:true }).click();
+  await page.getByLabel('Procedure name').fill('CalculateTotal');
+  await page.getByLabel('Arguments').fill('Values, Count');
+
+  await expect(page.getByLabel('Generated Cambridge pseudocode'))
+    .toContainText('CALL CalculateTotal(Values, Count)');
+  await expect(page.getByLabel('Generated structured English'))
+    .toContainText('Call CalculateTotal with Values and Count');
+  await expect(page.getByRole('button', { name:'Subroutine: CALL CalculateTotal(Values, Count)' }))
+    .toBeVisible();
+  await page.getByRole('button', { name:'Run trace' }).click();
+  await expect(page.locator('#flow-builder-status'))
+    .toContainText('Open the generated code in the IDE and define the procedure');
 });
 
 test('a student builds, runs and restores a flowchart', async ({ page }) => {
