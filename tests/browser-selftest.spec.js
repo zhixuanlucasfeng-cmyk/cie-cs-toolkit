@@ -19,7 +19,35 @@ test('the ordinary application boots without an uncaught browser error', async (
 
   await expect(page.locator('.appbar')).toBeVisible();
   await expect(page.locator('.brand-name')).toHaveText('DryRun');
+  await expect(page.locator('#view-ide')).toHaveClass(/is-active/);
+  await expect(page.getByLabel('Pseudocode editor. Click a line number to set a breakpoint.')).toBeVisible();
   expect(pageErrors).toEqual([]);
+});
+
+test('the retired dashboard route opens the editor and course setup sits below the tools', async ({ page }) => {
+  await page.goto('/#/dashboard');
+
+  await expect(page.locator('#view-ide')).toHaveClass(/is-active/);
+  await expect(page).toHaveURL(/#\/ide$/);
+  await expect(page.getByRole('heading', { name:'Dashboard' })).toHaveCount(0);
+
+  const order = await page.evaluate(() => ({
+    tools:document.querySelector('#rail-nav').getBoundingClientRect().top,
+    course:document.querySelector('#rail-course-group').getBoundingClientRect().top
+  }));
+  expect(order.course).toBeGreaterThan(order.tools);
+  await expect(page.getByRole('button', { name:'Choose or change course' })).toBeVisible();
+});
+
+test('students can choose a readable editor colour theme', async ({ page }) => {
+  await page.goto('/#/settings');
+
+  const themes = page.getByRole('group', { name:'Colour theme' }).getByRole('button');
+  await expect(themes).toHaveCount(4);
+  await page.getByRole('button', { name:'Violet theme' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'violet');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'violet');
 });
 
 test('anonymous traffic measurement is installed and honestly disclosed', async ({ page }) => {
@@ -60,6 +88,24 @@ test('a student adds and edits a subroutine call in the flowchart builder', asyn
   await page.getByRole('button', { name:'Run trace' }).click();
   await expect(page.locator('#flow-builder-status'))
     .toContainText('Open the generated code in the IDE and define the procedure');
+});
+
+test('a student can swap the visible Yes and No sides of a decision', async ({ page }) => {
+  await page.goto('/#/lab-pseudocode');
+  await page.getByRole('tab', { name:'Build a flowchart' }).click();
+  await page.getByRole('button', { name:'Add a step at position 1 in the main flow' }).click();
+  await page.getByRole('button', { name:'IF / ELSE', exact:true }).click();
+
+  const branchDirection = page.getByRole('group', { name:'Decision branch direction' });
+  await expect(branchDirection).toBeVisible();
+  await page.getByRole('button', { name:'Yes on right' }).click();
+
+  const positions = await page.locator('#flow-builder-canvas svg text.lbl').evaluateAll(labels => {
+    const byText = Object.fromEntries(labels.map(label => [label.textContent.trim(), Number(label.getAttribute('x'))]));
+    return { yes:byText.Yes, no:byText.No };
+  });
+  expect(positions.yes).toBeGreaterThan(positions.no);
+  await expect(page.getByLabel('Generated Cambridge pseudocode')).toContainText('IF value = 0 THEN');
 });
 
 test('a student builds, runs and restores a flowchart', async ({ page }) => {

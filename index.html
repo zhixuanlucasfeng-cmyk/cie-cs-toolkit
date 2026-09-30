@@ -23,16 +23,10 @@
 <meta name="twitter:image:alt" content="A DryRun mark breakdown: a hard-coded answer scoring 1 out of 5, with the failing hidden test case named.">
 <meta name="theme-color" content="#faf9f6">
 <script data-boot>
-  /* Carries an attribute so the plain-tag match that pulls out the logic
-     script — used by the command-line self-test in the README — still finds
-     that one first. Runs before anything is drawn: a remembered night setting applied after
-     paint would flash a white page at someone reading in the dark. Paper is
-     the default — the system preference is not consulted, because the reader
-     asked for this with a button, not with an OS setting. */
+  /* Apply the chosen palette before paint so a reload never flashes paper. */
   try {
-    if (localStorage.getItem('dryrun.theme') === 'dark') {
-      document.documentElement.dataset.theme = 'dark';
-    }
+    const savedTheme = localStorage.getItem('dryrun.theme');
+    if (['dark', 'gold', 'violet'].includes(savedTheme)) document.documentElement.dataset.theme = savedTheme;
   } catch (e) {}
 </script>
 <script type="application/ld+json">
@@ -140,6 +134,32 @@
     --select:rgba(124,199,221,.28);
   }
 
+  /* Compact colour worlds inspired by focused typing tools. The structure
+     stays quiet; only the ink and code colours change. */
+  :root[data-theme="gold"] {
+    color-scheme:dark;
+    --bg:#323437; --surface:#2c2e31; --surface-raised:#3a3c3f; --surface-active:#444649;
+    --border:#4b4d50; --border-strong:#65676a;
+    --text-primary:#d1d0c5; --text-secondary:#b5b3a9; --text-muted:#aaa89e;
+    --accent:#e2b714; --accent-strong:#f1ce46; --accent-ink:#252629;
+    --warning:#f0a85a; --danger:#ff7272; --success:#8fce72; --focus:#e2b714;
+    --accent-wash:rgba(226,183,20,.12); --danger-wash:rgba(255,114,114,.13);
+    --success-wash:rgba(143,206,114,.12); --warning-wash:rgba(240,168,90,.12);
+    --row-stripe:rgba(255,255,255,.025); --select:rgba(226,183,20,.25);
+  }
+
+  :root[data-theme="violet"] {
+    color-scheme:dark;
+    --bg:#1e1b2e; --surface:#272238; --surface-raised:#332d49; --surface-active:#403758;
+    --border:#4b4164; --border-strong:#675a82;
+    --text-primary:#f4f1ff; --text-secondary:#c9c1dc; --text-muted:#a39ab9;
+    --accent:#c5a3ff; --accent-strong:#decaff; --accent-ink:#211b31;
+    --warning:#f2be72; --danger:#ff8f9d; --success:#8edbb5; --focus:#d7bdff;
+    --accent-wash:rgba(197,163,255,.13); --danger-wash:rgba(255,143,157,.14);
+    --success-wash:rgba(142,219,181,.13); --warning-wash:rgba(242,190,114,.13);
+    --row-stripe:rgba(255,255,255,.025); --select:rgba(197,163,255,.28);
+  }
+
   * { box-sizing:border-box; }
   html { -webkit-text-size-adjust:100%; }
   /* Surfaces the browser draws for us still belong to the page. */
@@ -216,14 +236,6 @@
   .brand-name { font-family:var(--font-display); font-weight:600; font-size:16px; white-space:nowrap; }
   .brand-sub { color:var(--text-muted); font-size:12px; white-space:nowrap; }
 
-  .course-chip {
-    display:flex; align-items:center; gap:var(--s2);
-    background:var(--surface-raised); border:1px solid var(--border);
-    border-radius:var(--radius); padding:var(--s1) var(--s3);
-    font-size:12.5px; color:var(--text-secondary); font-family:var(--font-mono);
-    cursor:pointer;
-  }
-  .course-chip:hover { border-color:var(--border-strong); color:var(--text-primary); }
   .appbar-right { margin-left:auto; display:flex; align-items:center; gap:var(--s2); }
 
   .pill {
@@ -300,6 +312,16 @@
   .rail-item .count { font-size:11px; color:var(--text-muted); font-family:var(--font-mono); }
   .rail-item.is-locked .label { color:var(--text-muted); }
   .rail-item.is-locked .count { color:var(--warning); }
+  .rail-course-summary { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .theme-options { display:flex; flex-wrap:wrap; gap:var(--s2); }
+  .theme-choice { min-width:92px; justify-content:flex-start; }
+  .theme-choice[aria-pressed="true"] { border-color:var(--accent); background:var(--accent-wash); }
+  .theme-dot { width:12px; height:12px; border-radius:50%; border:1px solid currentColor; }
+  .theme-dot.paper { background:#faf9f6; color:#14566b; }
+  .theme-dot.dark { background:#15181d; color:#7cc7dd; }
+  .theme-dot.gold { background:#323437; color:#e2b714; }
+  .theme-dot.violet { background:#1e1b2e; color:#c5a3ff; }
 
   .workspace { flex:1; min-width:0; padding:var(--s6); }
   /* The bar is sticky, so anything scrolled to must clear it. */
@@ -332,8 +354,7 @@
      word inside one refuses to shrink and pushes the page sideways. Every
      grid in this file opts out. */
   .grid-2 > *, .stack > *, .landing-lede > *, .landing-split > *,
-  .steps-row > *, .teacher-grid > *, .choice-grid > *, .topic-map > *,
-  .action-list > * { min-width:0; }
+  .steps-row > *, .teacher-grid > *, .choice-grid > *, .topic-map > * { min-width:0; }
 
   /* ============================================================
      Forms
@@ -481,23 +502,6 @@
   .diagnosis p { margin:var(--s1) 0 0; font-size:13px; color:var(--text-secondary); }
   .mark-total { display:flex; justify-content:space-between; align-items:baseline; padding-top:var(--s3); font-family:var(--font-mono); }
   .mark-total b { font-size:20px; font-family:var(--font-display); }
-
-  /* ============================================================
-     Dashboard
-     ============================================================ */
-  .action-list { display:grid; gap:var(--s3); }
-  .action {
-    display:flex; align-items:center; gap:var(--s3); text-align:left; width:100%;
-    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg);
-    padding:var(--s4); cursor:pointer; color:var(--text-primary);
-    transition:border-color var(--motion), background var(--motion);
-  }
-  .action:hover { border-color:var(--accent); background:var(--surface-raised); }
-  .action .body { flex:1; min-width:0; }
-  .action .title { font-weight:600; font-size:15px; display:block; }
-  .action .sub { font-size:13px; color:var(--text-secondary); }
-  .action .chev { color:var(--text-muted); flex-shrink:0; }
-  .action.primary { border-color:var(--accent); }
 
   .topic-map { display:grid; gap:var(--s2); }
   .topic-row {
@@ -921,7 +925,7 @@
     :root { --appbar-h:56px; }
     .brand { min-height:44px; }
     .icon-btn { display:inline-flex; width:44px; height:44px; flex-shrink:0; }
-    .brand-sub, .course-chip .label-long { display:none; }
+    .brand-sub { display:none; }
     .appbar { gap:var(--s2); padding:0 var(--s3); }
     /* The bar's width is budgeted down to 360px, so this control collapses to
        a mark rather than taking a word's worth of it. Same trick as #btn-start.
@@ -932,22 +936,25 @@
     .workspace { padding:var(--s4) var(--s3) 96px; }
 
     /* The bar must never push the page wider than the screen. Settings and
-       the evidence pill live in the rail and on the dashboard, so they go. */
+       evidence remain available from the navigation drawer, so they go. */
     .appbar-right .pill, #btn-settings { display:none; }
     .appbar-right { flex-shrink:0; }
     .brand { min-width:0; }
     .brand-name { font-size:15px; }
-    .course-chip { min-height:44px; flex-shrink:1; min-width:0; overflow:hidden; }
-    #course-chip-text { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     #btn-start { flex-shrink:0; padding-inline:var(--s3); }
 
     /* The rail becomes a drawer instead of stacking above the tool. */
     .rail {
       position:fixed; top:0; bottom:0; left:0; z-index:50; width:min(84vw, 320px);
       max-height:none; transform:translateX(-100%);
-      transition:transform var(--motion); padding-top:calc(var(--s4) + env(safe-area-inset-top));
+      visibility:hidden; pointer-events:none;
+      transition:transform var(--motion), visibility 0s linear var(--motion);
+      padding-top:calc(var(--s4) + env(safe-area-inset-top));
     }
-    .rail.is-open { transform:none; }
+    .rail.is-open {
+      transform:none; visibility:visible; pointer-events:auto;
+      transition-delay:0s;
+    }
 
     .onboard { padding:var(--s6) 0; }
     .onboard h1 { font-size:26px; }
@@ -1012,10 +1019,9 @@
     #btn-start::after { content:"Practise"; font-size:13.5px; }
   }
   /* Below this — a phone at 200% browser zoom lands here — the bar cannot fit
-     three controls, so the chip steps aside. The course is still named on the
-     dashboard and in Settings. */
+     three controls, so the chip steps aside. The course is still named in the
+     navigation drawer and Settings. */
   @media (max-width:360px) {
-    .course-chip { display:none; }
     .appbar { gap:var(--s2); padding:0 var(--s2); }
     /* The menu and the primary action are what a reader needs here; the
        wordmark is decoration at this size and gives up its space first. */
@@ -1117,10 +1123,6 @@
       <span class="brand-sub">&nbsp;Computer Science Reasoning Lab</span>
     </span>
   </button>
-  <button class="course-chip" id="course-chip" aria-label="Change qualification and exam year">
-    <span id="course-chip-text">Choose your course</span>
-    <span aria-hidden="true">▾</span>
-  </button>
   <div class="appbar-right">
     <span class="pill is-unscouted" id="evidence-pill">No evidence yet</span>
     <button class="btn ghost" id="btn-theme" aria-label="Switch to night mode">Night</button>
@@ -1140,6 +1142,13 @@
     <div class="rail-group">
       <div class="rail-label" id="rail-nav-label">Sections</div>
       <div role="list" aria-labelledby="rail-nav-label" id="rail-nav"></div>
+    </div>
+    <div class="rail-group" id="rail-course-group">
+      <div class="rail-label">Course</div>
+      <button class="rail-item" id="rail-course" type="button" aria-label="Choose or change course">
+        <span class="label rail-course-summary" id="rail-course-text">Choose your course</span>
+        <span class="count" aria-hidden="true">→</span>
+      </button>
     </div>
     <div class="rail-group">
       <div class="rail-label" id="rail-topics-label">Syllabus topics</div>
@@ -1399,29 +1408,6 @@
               </div>
             </div>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================= Dashboard ================= -->
-    <section class="view" id="view-dashboard" aria-labelledby="dash-h">
-      <div class="page-head">
-        <h1 id="dash-h">Dashboard</h1>
-        <p id="dash-sub"></p>
-      </div>
-      <div class="action-list" id="dash-actions"></div>
-
-      <div class="panel" style="margin-top:24px">
-        <div class="panel-head"><h2>Syllabus progress</h2></div>
-        <div class="panel-body">
-          <div class="topic-map" id="dash-topics"></div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><h2>Recent attempts</h2></div>
-        <div class="panel-body">
-          <div class="scroll-x" id="dash-recent"></div>
         </div>
       </div>
     </section>
@@ -1847,6 +1833,18 @@
         <p>Stored in this browser only.</p>
       </div>
       <div class="panel">
+        <div class="panel-head"><h2>Colour theme</h2></div>
+        <div class="panel-body">
+          <p>Choose the colours you want to write code in.</p>
+          <div class="theme-options" role="group" aria-label="Colour theme">
+            <button class="btn theme-choice" type="button" data-theme-choice="light" aria-label="Paper theme"><span class="theme-dot paper"></span>Paper</button>
+            <button class="btn theme-choice" type="button" data-theme-choice="dark" aria-label="Midnight theme"><span class="theme-dot dark"></span>Midnight</button>
+            <button class="btn theme-choice" type="button" data-theme-choice="gold" aria-label="Gold theme"><span class="theme-dot gold"></span>Gold</button>
+            <button class="btn theme-choice" type="button" data-theme-choice="violet" aria-label="Violet theme"><span class="theme-dot violet"></span>Violet</button>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
         <div class="panel-head"><h2>Who is using this browser</h2></div>
         <div class="panel-body">
           <p>Sharing a computer? Add yourself so your work stays separate. Names stay on this device.</p>
@@ -1916,7 +1914,7 @@
             email address is stored so the sign-in link can reach you. Nothing else is sent: no browsing, no keystrokes,
             no third-party tracking. <b>Delete account and synced data</b> in Progress removes the stored copy and the
             email address for good; the copy in this browser stays.</p>
-          <p>Stored: the course you chose, every attempt and its marks, your topic evidence, your review queue, your saved editor program, and any feedback you write. All under <code>dryrun.store.v3</code> and a few keys beside it, including whether you chose paper or night.</p>
+          <p>Stored: the course you chose, every attempt and its marks, your topic evidence, your review queue, your saved editor program, and any feedback you write. All under <code>dryrun.store.v3</code> and a few keys beside it, including your colour theme.</p>
           <p>The last few versions of your work are kept as automatic copies, and one is taken before anything risky. A damaged record is restored from the newest copy by itself.</p>
           <p><b>If you clear your browser data, switch device or use private browsing, your progress is gone unless you exported it.</b> Settings has Export, Import and Erase. Erasing everything removes the automatic copies too.</p>
           <p>Several people can share one browser: add each of them in Settings and they get separate records. Names are labels typed on the device, not accounts.</p>
@@ -3614,7 +3612,7 @@ function createFlowNode(type, values, id) {
     output:{ expression:'value' },
     process:{ target:'value', expression:'0', dataType:'INTEGER' },
     subroutine:{ name:'ProcedureName', arguments:'' },
-    if:{ condition:'value = 0', then:[], else:[] },
+    if:{ condition:'value = 0', then:[], else:[], yesSide:'left' },
     while:{ condition:'value > 0', body:[] },
     repeat:{ condition:'value = 0', body:[] }
   };
@@ -4044,24 +4042,29 @@ function fbIf(cond, thenB, elseB, meta) {
       }
     };
   }
-  const off = Math.max(dw / 2 + 30, thenB.right + 16, elseB.left + 16);
+  const yesLeft = !meta || meta.yesSide !== 'right';
+  const leftB = yesLeft ? thenB : elseB;
+  const rightB = yesLeft ? elseB : thenB;
+  const leftLabel = yesLeft ? 'Yes' : 'No';
+  const rightLabel = yesLeft ? 'No' : 'Yes';
+  const off = Math.max(dw / 2 + 30, leftB.right + 16, rightB.left + 16);
   return {
-    left: off + thenB.left, right: off + elseB.right,
-    h: dh + FLOW.gap + Math.max(thenB.h, elseB.h) + FLOW.gap,
+    left: off + leftB.left, right: off + rightB.right,
+    h: dh + FLOW.gap + Math.max(leftB.h, rightB.h) + FLOW.gap,
     draw(cx, y, out) {
       out.push(fbShape('decision', cx, y, dw, dh, cond, meta));
       const topY = y + dh + FLOW.gap, joinY = y + this.h;
-      fbLabel(out, cx - off + 18, y + dh / 2 - 10, 'Yes');
+      fbLabel(out, cx - off + 18, y + dh / 2 - 10, leftLabel);
       fbLine(out, [[cx - dw / 2, y + dh / 2], [cx - off, y + dh / 2]]);
       fbArrow(out, [[cx - off, y + dh / 2], [cx - off, topY]]);
-      thenB.draw(cx - off, topY, out);
-      fbLine(out, [[cx - off, topY + thenB.h], [cx - off, joinY], [cx, joinY]]);
+      leftB.draw(cx - off, topY, out);
+      fbArrow(out, [[cx - off, topY + leftB.h], [cx - off, joinY], [cx, joinY]]);
 
-      fbLabel(out, cx + off - 18, y + dh / 2 - 10, 'No');
+      fbLabel(out, cx + off - 18, y + dh / 2 - 10, rightLabel);
       fbLine(out, [[cx + dw / 2, y + dh / 2], [cx + off, y + dh / 2]]);
       fbArrow(out, [[cx + off, y + dh / 2], [cx + off, topY]]);
-      elseB.draw(cx + off, topY, out);
-      fbLine(out, [[cx + off, topY + elseB.h], [cx + off, joinY], [cx, joinY]]);
+      rightB.draw(cx + off, topY, out);
+      fbArrow(out, [[cx + off, topY + rightB.h], [cx + off, joinY], [cx, joinY]]);
     }
   };
 }
@@ -4135,7 +4138,8 @@ function flowDocumentSVG(doc, options) {
     nodeId:node.id,
     selected:node.id === selectedId,
     error:errorIds.has(node.id),
-    ariaLabel:label
+    ariaLabel:label,
+    yesSide:node.yesSide || 'left'
   });
 
   function nodeBlock(node) {
@@ -5862,8 +5866,8 @@ function questionsForSyllabus(syllabusId) {
   and must stay off this list: gating them silently was what made the nav look
   broken before anyone had onboarded.
 */
-const VIEWS_NEEDING_COURSE = ['dashboard', 'practice', 'progress', 'settings'];
-const ALL_VIEWS = ['ide', 'welcome', 'onboarding', 'dashboard', 'practice',
+const VIEWS_NEEDING_COURSE = ['practice', 'progress'];
+const ALL_VIEWS = ['ide', 'welcome', 'onboarding', 'practice',
                    'lab-pseudocode', 'lab-logic', 'progress', 'settings', 'about'];
 
 const STORE_VERSION = 3;
@@ -9306,7 +9310,7 @@ const TESTS = [
     assert(/q-a,0478\.8,code,1,5,5,42000/.test(csv[1]), 'and still hold the attempt');
   }],
   /* ---- Accessibility: contrast is checked against the real stylesheet ---- */
-  ['Accessibility: every text colour meets WCAG AA on its own surface, in both themes', () => {
+  ['Accessibility: every text colour meets WCAG AA on its own surface, in every theme', () => {
     if (typeof document === 'undefined') return;   // Node: nothing to compute
     const pairs = [
       ['--text-primary', '--bg'], ['--text-secondary', '--bg'], ['--text-muted', '--bg'],
@@ -9317,11 +9321,11 @@ const TESTS = [
       ['--warning', '--surface'], ['--danger', '--surface'], ['--success', '--surface'],
       ['--focus', '--bg']
     ];
-    // Night is a whole palette, not a tint, so it is checked as strictly as
-    // paper. The reader's own choice is put back afterwards.
+    // Every palette is checked as strictly as paper. The reader's own choice
+    // is put back afterwards.
     const was = document.documentElement.dataset.theme;
     const check = theme => {
-      if (theme === 'dark') document.documentElement.dataset.theme = 'dark';
+      if (theme !== 'light') document.documentElement.dataset.theme = theme;
       else delete document.documentElement.dataset.theme;
       const cs = getComputedStyle(document.documentElement);
       const tok = n => cs.getPropertyValue(n).trim();
@@ -9334,7 +9338,7 @@ const TESTS = [
       assert(contrastRatio(tok('--accent-ink'), tok('--accent')) >= 4.5,
         `${theme}: button text on the accent fill must also pass`);
     };
-    try { check('light'); check('dark'); }
+    try { ['light', 'dark', 'gold', 'violet'].forEach(check); }
     finally { if (was) document.documentElement.dataset.theme = was; else delete document.documentElement.dataset.theme; }
   }],
   ['Accessibility: the contrast helper agrees with known values', () => {
@@ -9601,9 +9605,10 @@ const TESTS = [
       assert(!VIEWS_NEEDING_COURSE.includes(v),
         `"${v}" must not need a course — it is a free tool, and gating it silently reads as broken`);
     }
-    for (const v of ['dashboard', 'practice', 'progress', 'settings']) {
+    for (const v of ['practice', 'progress']) {
       assert(VIEWS_NEEDING_COURSE.includes(v), `"${v}" reads the profile, so it does need a course`);
     }
+    assert(!VIEWS_NEEDING_COURSE.includes('settings'), 'Settings must expose course setup before a course is chosen');
     VIEWS_NEEDING_COURSE.forEach(v => assert(ALL_VIEWS.includes(v), `${v} should be a real view`));
   }],
   ['Navigation: every rail destination exists in the markup', () => {
@@ -10160,10 +10165,10 @@ const TESTS = [
   }],
   ['Learners: switching never leaves another person’s course on screen', () => {
     if (typeof document === 'undefined') return;
-    // The header chip is rewritten unconditionally, so it cannot keep showing
+    // The rail course control is rewritten unconditionally, so it cannot keep showing
     // a course belonging to whoever used the browser before.
-    const el = document.getElementById('course-chip-text');
-    assert(el, 'the course chip should exist');
+    const el = document.getElementById('rail-course-text');
+    assert(el, 'the course control should exist');
     assertEq(el.textContent.trim(), 'Choose your course',
       'with no course chosen the chip must say so, not name someone else’s');
   }],
@@ -10581,7 +10586,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
      ============================================================ */
   const VIEWS = {
     ide:'view-ide', welcome:'view-welcome', onboarding:'view-onboarding',
-    dashboard:'view-dashboard', practice:'view-practice',
+    practice:'view-practice',
     'lab-pseudocode':'view-lab-pseudocode', 'lab-logic':'view-lab-logic',
     progress:'view-progress', settings:'view-settings', about:'view-about'
   };
@@ -10600,7 +10605,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   const NEEDS_COURSE = new Set(VIEWS_NEEDING_COURSE);
 
   function go(view, opts) {
-    if (!VIEWS[view]) view = 'dashboard';
+    if (view === 'dashboard' || !VIEWS[view]) view = 'ide';
     if (!store.getProfile() && NEEDS_COURSE.has(view)) {
       // Bouncing silently is what made this look broken: say what is needed.
       view = 'onboarding';
@@ -10615,7 +10620,6 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     if (location.hash !== '#/' + view) history.replaceState(null, '', '#/' + view);
     renderRail();
     closeDrawer();
-    if (view === 'dashboard') renderDashboard();
     if (view === 'progress') { renderProgress(); renderEvidence(); }
     if (view === 'welcome') renderWelcome();
     if (view === 'ide') renderIDE();
@@ -10675,11 +10679,11 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
         `<span class="count" aria-hidden="true">${n || 'soon'}</span></button>`;
     }).join('') || (topics.length ? '<p class="rail-label" style="text-transform:none;letter-spacing:0">No topic matches that.</p>' : '');
 
-    // The chip is always rewritten, never left as it was: with no profile it
+    // The course control is always rewritten: with no profile it
     // must not keep showing the previous learner's course.
     const syl = profile ? syllabusById(profile.syllabusId) : null;
-    $('course-chip-text').innerHTML = (profile && syl)
-      ? `${esc(syl.code)} <span class="label-long">· ${esc(String(profile.examYear))}${profile.level ? ' · ' + esc(profile.level) : ''}</span>`
+    $('rail-course-text').innerHTML = (profile && syl)
+      ? `${esc(syl.code)} · ${esc(String(profile.examYear))}${profile.level ? ' · ' + esc(profile.level) : ''}`
       : 'Choose your course';
     const all = store.allTopicProgress();
     const due = store.dueReviews().length;
@@ -10870,7 +10874,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
       say('onboard-import-status',
         `Restored ${n} course record${n === 1 ? '' : 's'}, ${r.attempts} attempt${r.attempts === 1 ? '' : 's'}.`, 'ok');
       renderRail();
-      if (store.getProfile()) { toast('Welcome back'); go('dashboard'); }
+      if (store.getProfile()) { toast('Welcome back'); go('ide'); }
     };
     reader.onerror = () => say('onboard-import-status', 'That file could not be read.', 'err');
     reader.readAsText(file);
@@ -10893,7 +10897,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     const changed = store.profileId() !== before;
     if (changed) { session = null; item = null; }
     if (sharedPending) { const q = sharedPending; sharedPending = null; startSharedSession(q); return; }
-    go('dashboard');
+    go('ide');
     if (changed) toast(`Now working on ${describeProfile(store.getProfile())}`);
   });
 
@@ -10943,69 +10947,13 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     }).join('') +
     '<p class="hint">Counted from the question bank when this page loaded, not written down.</p>';
   }
-  const toSetup = () => go(store.getProfile() ? 'dashboard' : 'onboarding');
+  const toSetup = () => store.getProfile()
+    ? go('practice', { fresh:true, diagnostic:true })
+    : go('onboarding');
   ['btn-wel-start', 'btn-wel-start-2'].forEach(id => $(id).addEventListener('click', toSetup));
   $('btn-wel-ide').addEventListener('click', () => go('ide'));
   $('btn-wel-labs-2').addEventListener('click', () => go('lab-pseudocode'));
   $('btn-wel-privacy').addEventListener('click', () => go('about'));
-
-  function renderDashboard() {
-    const profile = store.getProfile();
-    const syl = syllabusById(profile.syllabusId);
-    $('dash-sub').innerHTML =
-      `${esc(syl.title)} (${esc(syl.code)}) · ${esc(syl.versionLabel)} · sitting ${esc(String(profile.examYear))}` +
-      (profile.level ? ' · ' + esc(profile.level) : '') +
-      '';
-
-    const attempts = store.attempts();
-    const due = store.dueReviews();
-    const all = store.allTopicProgress();
-    const topics = topicsOf(profile.syllabusId).filter(t => practiceCountForTopic(t) > 0);
-    const weakest = topics
-      .map(t => ({ t, p: all[t.code] || store.topicProgress(t.code) }))
-      .sort((a, b) => rank(a.p.evidence) - rank(b.p.evidence))[0];
-
-    const actions = [];
-    if (!attempts.length) {
-      actions.push({ title:'Start with a short diagnostic', sub:'Six questions across the topics, so your first evidence is real rather than guessed.', go:'practice', opts:{ fresh:true, diagnostic:true }, primary:true });
-    } else {
-      const saved = store.getSession();
-      if (saved && saved.index < saved.items.length) {
-        actions.push({ title:'Continue where you left off',
-          sub:`${saved.label} — question ${saved.index + 1} of ${saved.items.length}`,
-          go:'practice', opts:{ resume:true }, primary:true });
-      }
-      if (due.length) actions.push({ title:`Review ${due.length} question${due.length === 1 ? '' : 's'}`, sub:'These are things you got wrong, come back round on a spacing schedule.', go:'practice', opts:{ fresh:true, review:true } });
-      if (weakest) actions.push({ title:`Practise ${weakest.t.name}`, sub:`Your weakest evidence right now: ${weakest.p.evidence.toLowerCase()}.`, go:'practice', opts:{ fresh:true, topicId:weakest.t.code } });
-    }
-    $('dash-actions').innerHTML = actions.map((a, i) =>
-      `<button class="action${a.primary ? ' primary' : ''}" data-action="${i}">` +
-      `<span class="body"><span class="title">${esc(a.title)}</span><span class="sub">${esc(a.sub)}</span></span>` +
-      `<span class="chev" aria-hidden="true">→</span></button>`).join('');
-    $('dash-actions').onclick = ev => {
-      const b = ev.target.closest('[data-action]'); if (!b) return;
-      const a = actions[Number(b.dataset.action)];
-      go(a.go, a.opts);
-    };
-
-    $('dash-topics').innerHTML = topics.map(t => {
-      const p = all[t.code] || store.topicProgress(t.code);
-      const n = practiceCountForTopic(t);
-      return `<button class="topic-row" data-topic="${esc(t.code)}">` +
-        `<span class="dot ${EVIDENCE_CLASS[p.evidence]}" aria-hidden="true" style="width:8px;height:8px;border-radius:50%"></span>` +
-        `<span class="name">${esc(t.name)}<br><span class="code">${esc(t.code)} · ${n} question${n === 1 ? '' : 's'} · ${esc(t.paper)}</span></span>` +
-        `<span class="pill ${EVIDENCE_CLASS[p.evidence]}">${esc(p.evidence)}</span></button>`;
-    }).join('') || '<p class="empty">No practice topics for this syllabus version yet.</p>';
-    $('dash-topics').onclick = ev => {
-      const b = ev.target.closest('[data-topic]'); if (!b) return;
-      go('practice', { fresh:true, topicId:b.dataset.topic });
-    };
-
-    $('dash-recent').innerHTML = attempts.length
-      ? attemptsTable(attempts.slice(-8).reverse())
-      : '<p class="empty">No evidence yet — nothing has been attempted, which is not the same as getting things wrong.</p>';
-  }
-  const rank = e => ({ 'REVIEW DUE':0, 'UNSCOUTED':1, 'DEVELOPING':2, 'SECURE':3 })[e];
 
   function attemptsTable(list) {
     return '<table><thead><tr><th>When</th><th>Question</th><th>Topic</th><th>Result</th><th class="n">Marks</th></tr></thead><tbody>' +
@@ -11074,7 +11022,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
 
   function startSession(opts) {
     const items = buildSession(opts || {});
-    if (!items.length) { toast('No questions for that topic yet'); go('dashboard'); return; }
+    if (!items.length) { toast('No questions for that topic yet'); go('progress'); return; }
     session = { items, index:0, startedAt:Date.now(),
                 label: opts.diagnostic ? 'Diagnostic' : opts.review ? 'Review session' : (opts.topicId ? 'Topic practice' : 'Mixed practice'),
                 topicId: opts.topicId || null, diagnostic: !!opts.diagnostic, revealed:[] };
@@ -11410,7 +11358,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
       }
       session = null;
       store.clearSession();
-      go('dashboard');
+      go('progress');
       toast(`Session finished — ${right} of ${done.length} correct`);
       return;
     }
@@ -11420,7 +11368,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   }
   $('btn-end-session').addEventListener('click', () => {
     if (!confirmRestart()) return;
-    session = null; store.clearSession(); go('dashboard');
+    session = null; store.clearSession(); go('ide');
   });
 
   /* ---------- Inspector ---------- */
@@ -11535,30 +11483,41 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     download('dryrun-progress.json', store.exportJSON(), 'application/json');
     say('prog-export-status', 'Exported as JSON.', 'ok');
   });
-  /* ---------- Paper or night ---------- */
+  /* ---------- Colour themes ---------- */
   const THEME_KEY = 'dryrun.theme';
-  const THEME_BG = { light:'#faf9f6', dark:'#15181d' };
+  const THEMES = ['light', 'dark', 'gold', 'violet'];
+  const THEME_NAME = { light:'Paper', dark:'Midnight', gold:'Gold', violet:'Violet' };
+  const THEME_BG = { light:'#faf9f6', dark:'#15181d', gold:'#323437', violet:'#1e1b2e' };
 
   function applyTheme(mode) {
-    const dark = mode === 'dark';
-    if (dark) document.documentElement.dataset.theme = 'dark';
+    if (!THEMES.includes(mode)) mode = 'light';
+    if (mode !== 'light') document.documentElement.dataset.theme = mode;
     else delete document.documentElement.dataset.theme;
     // The browser's own chrome is part of the page on a phone.
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', THEME_BG[dark ? 'dark' : 'light']);
+    if (meta) meta.setAttribute('content', THEME_BG[mode]);
     const btn = $('btn-theme');
     if (btn) {
-      btn.textContent = dark ? 'Day' : 'Night';
-      btn.setAttribute('aria-label', dark ? 'Switch to day mode' : 'Switch to night mode');
+      const next = THEMES[(THEMES.indexOf(mode) + 1) % THEMES.length];
+      btn.textContent = THEME_NAME[mode];
+      btn.setAttribute('aria-label', `Current theme ${THEME_NAME[mode]}. Switch to ${THEME_NAME[next]}`);
     }
-    try { dark ? localStorage.setItem(THEME_KEY, 'dark') : localStorage.removeItem(THEME_KEY); } catch (e) {}
+    document.querySelectorAll('[data-theme-choice]').forEach(choice => {
+      choice.setAttribute('aria-pressed', String(choice.dataset.themeChoice === mode));
+    });
+    try { mode === 'light' ? localStorage.removeItem(THEME_KEY) : localStorage.setItem(THEME_KEY, mode); } catch (e) {}
   }
 
   // The boot script in the head has already set the attribute; this only
   // catches the button up with it.
-  applyTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+  applyTheme(document.documentElement.dataset.theme || 'light');
   $('btn-theme').addEventListener('click', () => {
-    applyTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+    const current = document.documentElement.dataset.theme || 'light';
+    applyTheme(THEMES[(THEMES.indexOf(current) + 1) % THEMES.length]);
+  });
+  document.querySelector('.theme-options').addEventListener('click', event => {
+    const choice = event.target.closest('[data-theme-choice]');
+    if (choice) applyTheme(choice.dataset.themeChoice);
   });
 
   $('btn-export-csv').addEventListener('click', () => {
@@ -11825,7 +11784,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
         session = null; item = null;
         renderRail();
         toast('Switched to ' + (store.currentLearner() || {}).label);
-        go(store.getProfile() ? 'dashboard' : 'onboarding');
+        go('ide');
       };
     });
     $('learner-list').querySelectorAll('[data-remove]').forEach(b => {
@@ -11895,6 +11854,21 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     renderLearners();
     renderSnapshots();
     const p = store.getProfile();
+    if (!p) {
+      $('settings-course').innerHTML =
+        '<p>No course selected. The editor, flowchart builder, converters and logic tools already work.</p>' +
+        '<div class="btn-row"><button class="btn primary" id="btn-change-course">Choose a course for practice</button></div>';
+      $('btn-change-course').onclick = () => {
+        draft = { qualification:null, examYear:null, level:null, confidence:null };
+        renderCourseChoices();
+        $('step-year').hidden = true;
+        renderYearChoices();
+        go('onboarding');
+      };
+      $('btn-set-reset').disabled = true;
+      return;
+    }
+    $('btn-set-reset').disabled = false;
     const syl = syllabusById(p.syllabusId);
     const others = store.listProfiles().filter(x => !x.active);
     $('settings-course').innerHTML =
@@ -11919,7 +11893,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
         store.setProfile({ qualification:o.qualification, syllabusId:o.syllabusId,
                            examYear:o.examYear, level:o.level });
         toast(`Now working on ${describeProfile(store.getProfile())}`);
-        go('dashboard');
+        go('settings');
       };
     });
     $('btn-change-course').onclick = () => {
@@ -11985,8 +11959,8 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     $('btn-start').textContent = store.getProfile() ? 'Start practice' : 'Choose course';
   }
   $('btn-settings').addEventListener('click', () => go('settings'));
-  $('btn-home').addEventListener('click', () => go('welcome'));
-  $('course-chip').addEventListener('click', () => go('settings'));
+  $('btn-home').addEventListener('click', () => go('ide'));
+  $('rail-course').addEventListener('click', () => go(store.getProfile() ? 'settings' : 'onboarding'));
   /* ================= Tab 2: logic gates ================= */
   $('expr').value = SAMPLE_EXPR;
 
@@ -12418,6 +12392,14 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     } else {
       html += flowTextField(node.type === 'repeat' ? 'Until condition' : 'Condition',
         'condition', node.condition, ownErrors);
+      if (node.type === 'if') {
+        const side = node.yesSide === 'right' ? 'right' : 'left';
+        html += '<span class="field-label">Decision branch direction</span>' +
+          '<div class="btn-row" role="group" aria-label="Decision branch direction">' +
+          `<button class="btn" type="button" data-flow-action="yes-left" aria-pressed="${side === 'left'}">Yes on left</button>` +
+          `<button class="btn" type="button" data-flow-action="yes-right" aria-pressed="${side === 'right'}">Yes on right</button></div>` +
+          '<p class="hint">This changes the drawing only. The generated pseudocode keeps the same Yes and No logic.</p>';
+      }
     }
     return html + '<div class="flow-inspector-actions">' +
       '<button class="btn" data-flow-action="up">Move up</button>' +
@@ -12550,7 +12532,10 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     if (!button || !flowSelectedId) return;
     const found = flowFind(flowHistory.present, flowSelectedId);
     if (!found) return;
-    if (button.dataset.flowAction === 'delete') {
+    if (button.dataset.flowAction === 'yes-left' || button.dataset.flowAction === 'yes-right') {
+      const yesSide = button.dataset.flowAction === 'yes-right' ? 'right' : 'left';
+      flowApply(flowUpdate(flowHistory.present, flowSelectedId, { yesSide }), flowSelectedId);
+    } else if (button.dataset.flowAction === 'delete') {
       const nested = flowNestedCount(found.node);
       if (nested && !confirm(`Delete this step and its ${nested} nested step${nested === 1 ? '' : 's'}?`)) return;
       const next = flowDelete(flowHistory.present, flowSelectedId);
@@ -13542,7 +13527,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
       : 'INPUT will use only the list above; running out is an error.');
     ideSave();
   });
-  $('ide-study').addEventListener('click', () => go(store.getProfile() ? 'dashboard' : 'onboarding'));
+  $('ide-study').addEventListener('click', () => go(store.getProfile() ? 'practice' : 'onboarding'));
   $('ide-send').addEventListener('click', () => {
     go('lab-pseudocode');
   });
@@ -13586,7 +13571,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     return;
   }
   const startView = (location.hash || '').replace(/^#\//, '');
-  go(VIEWS[startView] ? startView : (store.getProfile() ? 'dashboard' : 'welcome'));
+  go(startView === 'dashboard' ? 'ide' : (VIEWS[startView] ? startView : 'ide'));
 })();
 
 </script>
