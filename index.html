@@ -162,14 +162,14 @@
 
   :root[data-theme="crimson"] {
     color-scheme:dark;
-    --bg:#211416; --surface:#2b171b; --surface-raised:#371d22; --surface-active:#46242b;
-    --border:#573038; --border-strong:#75424c;
-    --text-primary:#f4e7e9; --text-secondary:#d2b7bb; --text-muted:#b48f95;
-    --accent:#ff6b7a; --accent-strong:#ff9aa5; --accent-ink:#24090d;
-    --warning:#efb366; --danger:#ff8790; --success:#89d6a2; --focus:#ffadb6;
-    --accent-wash:rgba(255,107,122,.14); --danger-wash:rgba(255,135,144,.15);
-    --success-wash:rgba(137,214,162,.13); --warning-wash:rgba(239,179,102,.13);
-    --row-stripe:rgba(255,255,255,.025); --select:rgba(255,107,122,.27);
+    --bg:#160a0b; --surface:#1e0d0f; --surface-raised:#291215; --surface-active:#35171b;
+    --border:#472128; --border-strong:#66313a;
+    --text-primary:#f3e8e8; --text-secondary:#d0b7b8; --text-muted:#ab898c;
+    --accent:#f53340; --accent-strong:#ff6670; --accent-ink:#071010;
+    --warning:#e9b56d; --danger:#ff6b75; --success:#8bd3a5; --focus:#ff858d;
+    --accent-wash:rgba(245,51,64,.16); --danger-wash:rgba(255,107,117,.15);
+    --success-wash:rgba(139,211,165,.13); --warning-wash:rgba(233,181,109,.13);
+    --row-stripe:rgba(255,255,255,.025); --select:rgba(245,51,64,.30);
   }
 
   :root[data-theme="cyber"] {
@@ -346,7 +346,7 @@
   .theme-dot.dark { background:#15181d; color:#7cc7dd; }
   .theme-dot.gold { background:#323437; color:#e2b714; }
   .theme-dot.violet { background:#1e1b2e; color:#c5a3ff; }
-  .theme-dot.crimson { background:#211416; color:#ff6b7a; }
+  .theme-dot.crimson { background:#160a0b; color:#f53340; }
   .theme-dot.cyber { background:#0b1020; color:#67e8f9; }
 
   .workspace { flex:1; min-width:0; padding:var(--s6); }
@@ -11542,7 +11542,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   };
   const THEME_BG = {
     light:'#faf9f6', dark:'#15181d', gold:'#323437', violet:'#1e1b2e',
-    crimson:'#211416', cyber:'#0b1020'
+    crimson:'#160a0b', cyber:'#0b1020'
   };
 
   function applyTheme(mode) {

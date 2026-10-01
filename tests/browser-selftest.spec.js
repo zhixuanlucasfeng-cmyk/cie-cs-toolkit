@@ -40,12 +40,18 @@ test('the retired dashboard route opens the editor and course setup sits below t
 });
 
 test('students can choose a readable editor colour theme', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion:'reduce' });
   await page.goto('/#/settings');
 
   const themes = page.getByRole('group', { name:'Colour theme' }).getByRole('button');
   await expect(themes).toHaveCount(6);
   await page.getByRole('button', { name:'Crimson theme' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'crimson');
+  const crimson = await page.locator('#btn-start').evaluate(button =>
+    getComputedStyle(button).backgroundColor.match(/\d+/g).slice(0, 3).map(Number));
+  expect(crimson[0]).toBeGreaterThan(140);
+  expect(crimson[1]).toBeLessThan(60);
+  expect(crimson[2]).toBeLessThan(70);
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'crimson');
 });
