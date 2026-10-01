@@ -43,11 +43,25 @@ test('students can choose a readable editor colour theme', async ({ page }) => {
   await page.goto('/#/settings');
 
   const themes = page.getByRole('group', { name:'Colour theme' }).getByRole('button');
-  await expect(themes).toHaveCount(4);
-  await page.getByRole('button', { name:'Violet theme' }).click();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'violet');
+  await expect(themes).toHaveCount(6);
+  await page.getByRole('button', { name:'Crimson theme' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'crimson');
   await page.reload();
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'violet');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'crimson');
+});
+
+test('Cyber Mode gives code words live colour without ignoring reduced motion', async ({ page }) => {
+  await page.goto('/#/settings');
+  await page.getByRole('button', { name:'Cyber Mode theme' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'cyber');
+
+  await page.goto('/#/ide');
+  const keyword = page.locator('#ide-paint .t-kw').first();
+  await expect(keyword).toBeVisible();
+  expect(await keyword.evaluate(node => getComputedStyle(node).animationName)).toBe('cyber-word-shift');
+
+  await page.emulateMedia({ reducedMotion:'reduce' });
+  expect(await keyword.evaluate(node => getComputedStyle(node).animationName)).toBe('none');
 });
 
 test('anonymous traffic measurement is installed and honestly disclosed', async ({ page }) => {

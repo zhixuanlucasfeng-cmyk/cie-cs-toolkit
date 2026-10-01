@@ -26,7 +26,7 @@
   /* Apply the chosen palette before paint so a reload never flashes paper. */
   try {
     const savedTheme = localStorage.getItem('dryrun.theme');
-    if (['dark', 'gold', 'violet'].includes(savedTheme)) document.documentElement.dataset.theme = savedTheme;
+    if (['dark', 'gold', 'violet', 'crimson', 'cyber'].includes(savedTheme)) document.documentElement.dataset.theme = savedTheme;
   } catch (e) {}
 </script>
 <script type="application/ld+json">
@@ -158,6 +158,30 @@
     --accent-wash:rgba(197,163,255,.13); --danger-wash:rgba(255,143,157,.14);
     --success-wash:rgba(142,219,181,.13); --warning-wash:rgba(242,190,114,.13);
     --row-stripe:rgba(255,255,255,.025); --select:rgba(197,163,255,.28);
+  }
+
+  :root[data-theme="crimson"] {
+    color-scheme:dark;
+    --bg:#211416; --surface:#2b171b; --surface-raised:#371d22; --surface-active:#46242b;
+    --border:#573038; --border-strong:#75424c;
+    --text-primary:#f4e7e9; --text-secondary:#d2b7bb; --text-muted:#b48f95;
+    --accent:#ff6b7a; --accent-strong:#ff9aa5; --accent-ink:#24090d;
+    --warning:#efb366; --danger:#ff8790; --success:#89d6a2; --focus:#ffadb6;
+    --accent-wash:rgba(255,107,122,.14); --danger-wash:rgba(255,135,144,.15);
+    --success-wash:rgba(137,214,162,.13); --warning-wash:rgba(239,179,102,.13);
+    --row-stripe:rgba(255,255,255,.025); --select:rgba(255,107,122,.27);
+  }
+
+  :root[data-theme="cyber"] {
+    color-scheme:dark;
+    --bg:#0b1020; --surface:#0f172a; --surface-raised:#16213a; --surface-active:#1d2c49;
+    --border:#243553; --border-strong:#365071;
+    --text-primary:#e8f5ff; --text-secondary:#b4c9da; --text-muted:#8aa5bb;
+    --accent:#67e8f9; --accent-strong:#a7f3d0; --accent-ink:#07151e;
+    --warning:#fef08a; --danger:#ff8aa4; --success:#86efac; --focus:#93c5fd;
+    --accent-wash:rgba(103,232,249,.12); --danger-wash:rgba(255,138,164,.14);
+    --success-wash:rgba(134,239,172,.12); --warning-wash:rgba(254,240,138,.12);
+    --row-stripe:rgba(255,255,255,.025); --select:rgba(103,232,249,.24);
   }
 
   * { box-sizing:border-box; }
@@ -322,6 +346,8 @@
   .theme-dot.dark { background:#15181d; color:#7cc7dd; }
   .theme-dot.gold { background:#323437; color:#e2b714; }
   .theme-dot.violet { background:#1e1b2e; color:#c5a3ff; }
+  .theme-dot.crimson { background:#211416; color:#ff6b7a; }
+  .theme-dot.cyber { background:#0b1020; color:#67e8f9; }
 
   .workspace { flex:1; min-width:0; padding:var(--s6); }
   /* The bar is sticky, so anything scrolled to must clear it. */
@@ -692,6 +718,25 @@
   .t-id   { color:var(--text-primary); }
   .t-bad  { color:var(--danger); text-decoration:underline wavy var(--danger); }
 
+  /* Cyber Mode gives the program a living spectrum without turning the app
+     chrome into a light show. Every stop remains readable on its dark code
+     surface; staggered phases keep neighbouring words distinct. */
+  @keyframes cyber-word-shift {
+    0%   { color:#67e8f9; }
+    25%  { color:#a7f3d0; }
+    50%  { color:#fef08a; }
+    75%  { color:#f9a8d4; }
+    100% { color:#c4b5fd; }
+  }
+  :root[data-theme="cyber"] #ide-paint :is(.t-kw,.t-type,.t-num,.t-str,.t-op,.t-id) {
+    animation:cyber-word-shift 10s linear infinite alternate;
+  }
+  :root[data-theme="cyber"] #ide-paint .t-type { animation-delay:-2s; }
+  :root[data-theme="cyber"] #ide-paint .t-num  { animation-delay:-4s; }
+  :root[data-theme="cyber"] #ide-paint .t-str  { animation-delay:-6s; }
+  :root[data-theme="cyber"] #ide-paint .t-op   { animation-delay:-8s; }
+  :root[data-theme="cyber"] #ide-paint .t-id   { animation-delay:-5s; }
+
   .ide-status {
     border-top:1px solid var(--border); padding:var(--s2) var(--s4);
     font:12.5px var(--font-mono); color:var(--text-secondary); min-height:34px;
@@ -932,7 +977,7 @@
        The spoken name is set on the element, so it stays a sentence. */
     #btn-theme { font-size:0; padding:0 var(--s3); }
     #btn-theme::after { content:"\263E"; font-size:15px; }
-    :root[data-theme="dark"] #btn-theme::after { content:"\2600"; }
+    :root[data-theme] #btn-theme::after { content:"\2600"; }
     .workspace { padding:var(--s4) var(--s3) 96px; }
 
     /* The bar must never push the page wider than the screen. Settings and
@@ -1037,6 +1082,9 @@
 
   @media (prefers-reduced-motion:reduce) {
     *, *::before, *::after { transition-duration:1ms !important; animation-duration:1ms !important; }
+    :root[data-theme="cyber"] #ide-paint :is(.t-kw,.t-type,.t-num,.t-str,.t-op,.t-id) {
+      animation:none;
+    }
   }
 
   /* Self-test page */
@@ -1841,6 +1889,8 @@
             <button class="btn theme-choice" type="button" data-theme-choice="dark" aria-label="Midnight theme"><span class="theme-dot dark"></span>Midnight</button>
             <button class="btn theme-choice" type="button" data-theme-choice="gold" aria-label="Gold theme"><span class="theme-dot gold"></span>Gold</button>
             <button class="btn theme-choice" type="button" data-theme-choice="violet" aria-label="Violet theme"><span class="theme-dot violet"></span>Violet</button>
+            <button class="btn theme-choice" type="button" data-theme-choice="crimson" aria-label="Crimson theme"><span class="theme-dot crimson"></span>Crimson</button>
+            <button class="btn theme-choice" type="button" data-theme-choice="cyber" aria-label="Cyber Mode theme"><span class="theme-dot cyber"></span>Cyber Mode</button>
           </div>
         </div>
       </div>
@@ -9338,7 +9388,7 @@ const TESTS = [
       assert(contrastRatio(tok('--accent-ink'), tok('--accent')) >= 4.5,
         `${theme}: button text on the accent fill must also pass`);
     };
-    try { ['light', 'dark', 'gold', 'violet'].forEach(check); }
+    try { ['light', 'dark', 'gold', 'violet', 'crimson', 'cyber'].forEach(check); }
     finally { if (was) document.documentElement.dataset.theme = was; else delete document.documentElement.dataset.theme; }
   }],
   ['Accessibility: the contrast helper agrees with known values', () => {
@@ -11485,9 +11535,15 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   });
   /* ---------- Colour themes ---------- */
   const THEME_KEY = 'dryrun.theme';
-  const THEMES = ['light', 'dark', 'gold', 'violet'];
-  const THEME_NAME = { light:'Paper', dark:'Midnight', gold:'Gold', violet:'Violet' };
-  const THEME_BG = { light:'#faf9f6', dark:'#15181d', gold:'#323437', violet:'#1e1b2e' };
+  const THEMES = ['light', 'dark', 'gold', 'violet', 'crimson', 'cyber'];
+  const THEME_NAME = {
+    light:'Paper', dark:'Midnight', gold:'Gold', violet:'Violet',
+    crimson:'Crimson', cyber:'Cyber Mode'
+  };
+  const THEME_BG = {
+    light:'#faf9f6', dark:'#15181d', gold:'#323437', violet:'#1e1b2e',
+    crimson:'#211416', cyber:'#0b1020'
+  };
 
   function applyTheme(mode) {
     if (!THEMES.includes(mode)) mode = 'light';
