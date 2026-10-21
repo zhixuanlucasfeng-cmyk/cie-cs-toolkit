@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>DryRun — Cambridge 0478 &amp; 9618 pseudocode, trace table and logic practice</title>
-<meta name="description" content="Free practice for Cambridge IGCSE 0478 and AS &amp; A Level 9618 Computer Science: write pseudocode and have it run against hidden test cases, complete trace tables, draw flowcharts, and build truth tables and logic circuits. Runs in your browser; your learning work stays on your device. Independent resource, not endorsed by Cambridge.">
-<meta name="keywords" content="Cambridge 0478 pseudocode practice, 9618 pseudocode practice, trace table practice, Boolean logic practice, Computer Science hidden test cases, IGCSE Computer Science algorithms">
+<title>DryRun — Cambridge pseudocode, SQL, flowchart and logic practice</title>
+<meta name="description" content="Free Cambridge IGCSE 0478 and AS &amp; A Level 9618 Computer Science practice: run pseudocode, SQL DDL and DML, trace tables, flowcharts, truth tables and logic circuits in your browser. Independent resource, not endorsed by Cambridge.">
+<meta name="keywords" content="Cambridge 0478 pseudocode practice, 9618 pseudocode practice, SQL DDL DML practice, trace table practice, Boolean logic practice, IGCSE Computer Science algorithms">
 <link rel="canonical" href="https://dryruncs.com/">
 <meta name="robots" content="index, follow">
 <meta property="og:type" content="website">
@@ -32,11 +32,11 @@
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"LearningResource","name":"DryRun — Computer Science Reasoning Lab",
 "url":"https://dryruncs.com/",
-"description":"Practice for Cambridge IGCSE 0478 and AS & A Level 9618 Computer Science: pseudocode marked against hidden test cases, trace tables, flowcharts and Boolean logic.",
+"description":"Practice for Cambridge IGCSE 0478 and AS & A Level 9618 Computer Science: pseudocode marked against hidden tests, SQL DDL and DML, trace tables, flowcharts and Boolean logic.",
 "inLanguage":"en","isAccessibleForFree":true,
 "learningResourceType":["Practice problem set","Interactive tool"],
 "educationalLevel":["Cambridge IGCSE","Cambridge International AS & A Level"],
-"teaches":["Pseudocode","Trace tables","Flowcharts","Boolean logic","Algorithm design"],
+"teaches":["Pseudocode","SQL DDL and DML","Trace tables","Flowcharts","Boolean logic","Algorithm design"],
 "isFamilyFriendly":true}
 </script>
 <!-- Inline so there is no favicon request to 404, and no network dependency. -->
@@ -397,6 +397,8 @@
     min-height:38px;
   }
   textarea.control { resize:vertical; }
+  textarea.sql-source { min-height:390px; resize:vertical; }
+  .sql-layout table { width:auto; min-width:100%; }
   input.control:hover, textarea.control:hover, select.control:hover { border-color:var(--border-strong); }
   input.control:focus, textarea.control:focus, select.control:focus { border-color:var(--accent); outline:none; box-shadow:0 0 0 2px var(--accent-wash); }
 
@@ -1327,6 +1329,7 @@
                 unhandled, a loop that runs one time too many.</li>
               <li>Whatever you get wrong comes back on a spaced schedule until it stops being wrong.</li>
               <li>Structured English, trace tables, flowcharts and logic circuits, converted between each other.</li>
+              <li>A local SQL sandbox for practising database DDL and DML without an account or server.</li>
             </ul>
           </div>
           <div>
@@ -1531,6 +1534,7 @@
 
       <div class="inspector-tabs" role="tablist" aria-label="Pseudocode tools" style="border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:16px;background:var(--surface)">
         <button role="tab" id="tab-eng" aria-selected="true" aria-controls="p-eng">English → code</button>
+        <button role="tab" id="tab-code-trace" aria-selected="false" aria-controls="p-code-trace" tabindex="-1">Code → table</button>
         <button role="tab" id="tab-tt" aria-selected="false" aria-controls="p-tt" tabindex="-1">Table → code</button>
         <button role="tab" id="tab-flow-build" aria-selected="false" aria-controls="p-flow-build" tabindex="-1">Build a flowchart</button>
         <button role="tab" id="tab-flow" aria-selected="false" aria-controls="p-flow" tabindex="-1">Flowchart</button>
@@ -1620,6 +1624,28 @@
               <div class="panel-head"><h2>Trace table</h2></div>
               <div class="panel-body"><div class="scroll-x" id="eng-trace" role="region" aria-label="Trace table of the converted program"><p class="empty">Nothing converted yet.</p></div></div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="p-code-trace" role="tabpanel" aria-labelledby="tab-code-trace" tabindex="0" hidden>
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head"><h2>Cambridge pseudocode</h2></div>
+            <div class="panel-body">
+              <label class="field-label" for="code-trace-src">Pseudocode to trace</label>
+              <textarea id="code-trace-src" class="control" rows="14" spellcheck="false" wrap="off"></textarea>
+              <div style="margin-top:12px">
+                <label class="field-label" for="code-trace-inputs">Input values for trace</label>
+                <textarea id="code-trace-inputs" class="control" rows="2" spellcheck="false" placeholder="One value per line"></textarea>
+              </div>
+              <div class="btn-row"><button class="btn primary" id="code-trace-run">Build trace table</button></div>
+              <p class="status" id="code-trace-status" role="status" aria-live="polite"></p>
+            </div>
+          </div>
+          <div class="panel" style="margin:0">
+            <div class="panel-head"><h2>Trace table</h2></div>
+            <div class="panel-body"><div class="scroll-x" id="code-trace-out" role="region" aria-label="Trace table from pseudocode"><p class="empty">Run the pseudocode to see every step.</p></div></div>
           </div>
         </div>
       </div>
@@ -1769,6 +1795,40 @@
               <p class="circ-hint" id="circ-hint">Click any row of the truth table to send those inputs through the circuit.</p>
               <div class="scroll-x" id="circ-out" role="region" aria-label="Logic circuit"><p class="empty">Click "Generate" to see it.</p></div>
             </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SQL Lab ================= -->
+    <section class="view" id="view-lab-sql" aria-labelledby="sql-h">
+      <div class="page-head">
+        <h1 id="sql-h">SQL Lab</h1>
+        <p>Write and run common DDL and DML in a private, in-memory database. Refreshing or resetting clears the tables.</p>
+      </div>
+      <div class="grid-2 sql-layout">
+        <div class="panel">
+          <div class="panel-head"><h2>SQL editor</h2></div>
+          <div class="panel-body">
+            <label class="field-label" for="sql-src">SQL editor</label>
+            <textarea id="sql-src" class="control sql-source" rows="18" spellcheck="false" wrap="off"></textarea>
+            <div class="btn-row">
+              <button class="btn primary" id="sql-run">Run SQL</button>
+              <button class="btn" id="sql-example">Load example</button>
+              <button class="btn ghost" id="sql-reset">Reset database</button>
+            </div>
+            <p class="status" id="sql-status" role="status" aria-live="polite"></p>
+            <p class="hint">Supports CREATE TABLE, ALTER TABLE ADD/DROP COLUMN, DROP TABLE, INSERT, SELECT, UPDATE, DELETE and simple WHERE conditions joined with AND or OR.</p>
+          </div>
+        </div>
+        <div class="stack">
+          <div class="panel" style="margin:0">
+            <div class="panel-head"><h2>Result</h2></div>
+            <div class="panel-body"><div class="scroll-x" id="sql-result" role="region" aria-label="SQL result"><p class="empty">Run a SELECT statement to see rows.</p></div></div>
+          </div>
+          <div class="panel" style="margin:0">
+            <div class="panel-head"><h2>Database schema</h2></div>
+            <div class="panel-body"><div class="scroll-x" id="sql-schema" role="region" aria-label="Database schema"><p class="empty">No tables yet.</p></div></div>
           </div>
         </div>
       </div>
@@ -5918,7 +5978,7 @@ function questionsForSyllabus(syllabusId) {
 */
 const VIEWS_NEEDING_COURSE = ['practice', 'progress'];
 const ALL_VIEWS = ['ide', 'welcome', 'onboarding', 'practice',
-                   'lab-pseudocode', 'lab-logic', 'progress', 'settings', 'about'];
+                   'lab-pseudocode', 'lab-logic', 'lab-sql', 'progress', 'settings', 'about'];
 
 const STORE_VERSION = 3;
 /*
@@ -7961,7 +8021,222 @@ function wirePath(w) {
   return 'M' + pts.map(p => p[0] + ',' + p[1]).join(' L');
 }
 
+/* ======================================================================
+   Module O: small SQL sandbox
+
+   This is deliberately an educational, in-memory subset rather than a
+   database server. It covers the DDL and DML students meet first, keeps all
+   data in this page, and makes an unsupported statement fail plainly.
+   ====================================================================== */
+function createSqlDatabase() {
+  return { tables:Object.create(null) };
+}
+
+function sqlKey(name) { return String(name).toLowerCase(); }
+
+function sqlParts(text, separator) {
+  const out = [];
+  let part = '', quote = null, depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (quote) {
+      part += ch;
+      if (ch === quote && text[i + 1] === quote) { part += text[++i]; continue; }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"') { quote = ch; part += ch; continue; }
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === separator && depth === 0) { if (part.trim()) out.push(part.trim()); part = ''; }
+    else part += ch;
+  }
+  if (quote) throw new Error('A quoted value is not closed.');
+  if (depth !== 0) throw new Error('The brackets in this SQL do not match.');
+  if (part.trim()) out.push(part.trim());
+  return out;
+}
+
+function sqlValue(token) {
+  const s = String(token).trim();
+  if (/^NULL$/i.test(s)) return null;
+  if (/^TRUE$/i.test(s)) return true;
+  if (/^FALSE$/i.test(s)) return false;
+  if (/^-?(?:\d+\.?\d*|\.\d+)$/.test(s)) return Number(s);
+  if ((s[0] === "'" && s[s.length - 1] === "'") ||
+      (s[0] === '"' && s[s.length - 1] === '"')) {
+    return s.slice(1, -1).replace(new RegExp(s[0] + s[0], 'g'), s[0]);
+  }
+  throw new Error(`Use quotes around text values such as '${s}'.`);
+}
+
+function sqlTable(db, name) {
+  const table = db.tables[sqlKey(name)];
+  if (!table) throw new Error(`There is no table called ${name}.`);
+  return table;
+}
+
+function sqlColumn(table, name) {
+  const column = table.columns.find(c => sqlKey(c.name) === sqlKey(name));
+  if (!column) throw new Error(`There is no column called ${name} in ${table.name}.`);
+  return column;
+}
+
+function sqlTest(row, table, source) {
+  if (!source || !source.trim()) return true;
+  const terms = source.split(/\s+(AND|OR)\s+/i);
+  let value = null, join = null;
+  for (let i = 0; i < terms.length; i += 2) {
+    const m = terms[i].trim().match(/^([A-Za-z_]\w*)\s*(=|<>|!=|<=|>=|<|>)\s*(.+)$/s);
+    if (!m) throw new Error(`This WHERE condition is not supported: ${terms[i].trim()}`);
+    const column = sqlColumn(table, m[1]);
+    const left = row[sqlKey(column.name)], right = sqlValue(m[3]);
+    const hit = m[2] === '=' ? left === right :
+      (m[2] === '<>' || m[2] === '!=') ? left !== right :
+      m[2] === '<' ? left < right : m[2] === '>' ? left > right :
+      m[2] === '<=' ? left <= right : left >= right;
+    value = value === null ? hit : (join === 'AND' ? value && hit : value || hit);
+    join = String(terms[i + 1] || '').toUpperCase();
+  }
+  return value;
+}
+
+function runSql(db, source) {
+  if (!db || !db.tables) throw new Error('The SQL database is not available.');
+  const clean = String(source || '').split('\n').filter(line => !/^\s*--/.test(line)).join('\n');
+  const statements = sqlParts(clean, ';');
+  if (!statements.length) throw new Error('Write a SQL statement first.');
+  let result = { columns:[], rows:[], message:'' };
+
+  for (const statement of statements) {
+    let m;
+    if ((m = statement.match(/^CREATE\s+TABLE\s+([A-Za-z_]\w*)\s*\((.*)\)$/is))) {
+      const key = sqlKey(m[1]);
+      if (db.tables[key]) throw new Error(`A table called ${m[1]} already exists.`);
+      const columns = sqlParts(m[2], ',').map(def => {
+        const c = def.match(/^([A-Za-z_]\w*)\s+([A-Za-z]+(?:\s*\(\s*\d+\s*\))?)(.*)$/i);
+        if (!c) throw new Error(`This column definition is not understood: ${def}`);
+        return { name:c[1], type:c[2].toUpperCase().replace(/\s+/g, ''), primaryKey:/\bPRIMARY\s+KEY\b/i.test(c[3]) };
+      });
+      if (!columns.length) throw new Error('A table needs at least one column.');
+      if (new Set(columns.map(c => sqlKey(c.name))).size !== columns.length) throw new Error('Column names must be unique.');
+      db.tables[key] = { name:m[1], columns, rows:[] };
+      result = { columns:[], rows:[], message:`Created table ${m[1]}.` };
+      continue;
+    }
+
+    if ((m = statement.match(/^DROP\s+TABLE\s+([A-Za-z_]\w*)$/i))) {
+      const table = sqlTable(db, m[1]);
+      delete db.tables[sqlKey(table.name)];
+      result = { columns:[], rows:[], message:`Dropped table ${table.name}.` };
+      continue;
+    }
+
+    if ((m = statement.match(/^ALTER\s+TABLE\s+([A-Za-z_]\w*)\s+ADD(?:\s+COLUMN)?\s+([A-Za-z_]\w*)\s+([A-Za-z]+(?:\s*\(\s*\d+\s*\))?)$/i))) {
+      const table = sqlTable(db, m[1]);
+      if (table.columns.some(c => sqlKey(c.name) === sqlKey(m[2]))) throw new Error(`Column ${m[2]} already exists.`);
+      table.columns.push({ name:m[2], type:m[3].toUpperCase().replace(/\s+/g, ''), primaryKey:false });
+      table.rows.forEach(row => { row[sqlKey(m[2])] = null; });
+      result = { columns:[], rows:[], message:`Added column ${m[2]}.` };
+      continue;
+    }
+
+    if ((m = statement.match(/^ALTER\s+TABLE\s+([A-Za-z_]\w*)\s+DROP(?:\s+COLUMN)?\s+([A-Za-z_]\w*)$/i))) {
+      const table = sqlTable(db, m[1]), column = sqlColumn(table, m[2]);
+      table.columns = table.columns.filter(c => c !== column);
+      table.rows.forEach(row => { delete row[sqlKey(column.name)]; });
+      result = { columns:[], rows:[], message:`Dropped column ${column.name}.` };
+      continue;
+    }
+
+    if ((m = statement.match(/^INSERT\s+INTO\s+([A-Za-z_]\w*)\s*(?:\(([^)]*)\))?\s+VALUES\s*\((.*)\)$/is))) {
+      const table = sqlTable(db, m[1]);
+      const names = m[2] ? sqlParts(m[2], ',') : table.columns.map(c => c.name);
+      const values = sqlParts(m[3], ',').map(sqlValue);
+      if (names.length !== values.length) throw new Error('The number of columns and values must match.');
+      const row = Object.fromEntries(table.columns.map(c => [sqlKey(c.name), null]));
+      names.forEach((name, i) => { const column = sqlColumn(table, name.trim()); row[sqlKey(column.name)] = values[i]; });
+      const primary = table.columns.find(c => c.primaryKey);
+      if (primary && table.rows.some(r => r[sqlKey(primary.name)] === row[sqlKey(primary.name)])) {
+        throw new Error(`${primary.name} is a PRIMARY KEY, so its value must be unique.`);
+      }
+      table.rows.push(row);
+      result = { columns:[], rows:[], message:'Inserted 1 row.' };
+      continue;
+    }
+
+    if ((m = statement.match(/^UPDATE\s+([A-Za-z_]\w*)\s+SET\s+(.+?)(?:\s+WHERE\s+(.+))?$/is))) {
+      const table = sqlTable(db, m[1]);
+      const changes = sqlParts(m[2], ',').map(part => {
+        const a = part.match(/^([A-Za-z_]\w*)\s*=\s*(.+)$/s);
+        if (!a) throw new Error(`This assignment is not understood: ${part}`);
+        return [sqlColumn(table, a[1]), sqlValue(a[2])];
+      });
+      let count = 0;
+      table.rows.forEach(row => {
+        if (!sqlTest(row, table, m[3])) return;
+        changes.forEach(([column, value]) => { row[sqlKey(column.name)] = value; });
+        count++;
+      });
+      result = { columns:[], rows:[], message:`Updated ${count} row${count === 1 ? '' : 's'}.` };
+      continue;
+    }
+
+    if ((m = statement.match(/^DELETE\s+FROM\s+([A-Za-z_]\w*)(?:\s+WHERE\s+(.+))?$/is))) {
+      const table = sqlTable(db, m[1]), before = table.rows.length;
+      table.rows = table.rows.filter(row => !sqlTest(row, table, m[2]));
+      const count = before - table.rows.length;
+      result = { columns:[], rows:[], message:`Deleted ${count} row${count === 1 ? '' : 's'}.` };
+      continue;
+    }
+
+    if ((m = statement.match(/^SELECT\s+(.+?)\s+FROM\s+([A-Za-z_]\w*)(?:\s+WHERE\s+(.+))?$/is))) {
+      const table = sqlTable(db, m[2]);
+      const columns = m[1].trim() === '*' ? table.columns : sqlParts(m[1], ',').map(name => sqlColumn(table, name.trim()));
+      const rows = table.rows.filter(row => sqlTest(row, table, m[3]))
+        .map(row => columns.map(column => row[sqlKey(column.name)]));
+      result = { columns:columns.map(c => c.name), rows, message:`Selected ${rows.length} row${rows.length === 1 ? '' : 's'}.` };
+      continue;
+    }
+
+    throw new Error(`This SQL statement is not supported yet: ${statement.split(/\s+/).slice(0, 3).join(' ')}`);
+  }
+  return result;
+}
+
 const TESTS = [
+
+  /* ---- Module O: browser SQL sandbox ---- */
+  ['SQL: DDL creates a table and DML inserts and selects rows', () => {
+    const db = createSqlDatabase();
+    const out = runSql(db,
+      'CREATE TABLE Students (id INTEGER PRIMARY KEY, name TEXT, score INTEGER);\n' +
+      "INSERT INTO Students (id, name, score) VALUES (1, 'Ada', 92);\n" +
+      "INSERT INTO Students (id, name, score) VALUES (2, 'Alan', 87);\n" +
+      'SELECT name, score FROM Students WHERE score >= 90;');
+    assertEq(out.columns.join(','), 'name,score', 'the selected columns should be preserved');
+    assertEq(JSON.stringify(out.rows), JSON.stringify([['Ada', 92]]),
+      'the WHERE clause should keep only Ada');
+    assertEq(db.tables.students.rows.length, 2, 'both inserted rows should stay in the table');
+  }],
+  ['SQL: UPDATE, DELETE and ALTER change the in-memory database', () => {
+    const db = createSqlDatabase();
+    runSql(db,
+      'CREATE TABLE Books (id INTEGER PRIMARY KEY, title TEXT);\n' +
+      "INSERT INTO Books VALUES (1, 'Old title');\n" +
+      "INSERT INTO Books VALUES (2, 'Keep me');\n" +
+      'ALTER TABLE Books ADD COLUMN price REAL;\n' +
+      "UPDATE Books SET title = 'New title', price = 12.5 WHERE id = 1;\n" +
+      'DELETE FROM Books WHERE id = 2;');
+    const out = runSql(db, 'SELECT id, title, price FROM Books;');
+    assertEq(JSON.stringify(out.rows), JSON.stringify([[1, 'New title', 12.5]]),
+      'the update and delete should be visible in the next query');
+    runSql(db, 'ALTER TABLE Books DROP COLUMN price;');
+    assertEq(db.tables.books.columns.map(c => c.name).join(','), 'id,title',
+      'DROP COLUMN should remove the column from the schema');
+    runSql(db, 'DROP TABLE Books;');
+    assertEq(Object.keys(db.tables).length, 0, 'DROP TABLE should remove the table');
+  }],
 
 
   /* ---- Module N: laying out a circuit ---- */
@@ -10515,6 +10790,7 @@ function runSelfTest() {
 
 // Let Node require this logic too (in the browser module is undefined, so the catch runs)
 try { if (typeof module !== 'undefined') module.exports = { runProgram, createRun, truthTable, runSelfTest, TESTS,
+  createSqlDatabase, runSql,
   structuredEnglishToPseudo, traceTableToPseudo, checkPseudoAgainstTable,
   flowchartSVG, flowchartToPseudo, FLOW_DOC_VERSION, FLOW_DRAFT_KEY,
   newFlowDocument, createFlowNode, compileFlowDocument,
@@ -10637,7 +10913,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   const VIEWS = {
     ide:'view-ide', welcome:'view-welcome', onboarding:'view-onboarding',
     practice:'view-practice',
-    'lab-pseudocode':'view-lab-pseudocode', 'lab-logic':'view-lab-logic',
+    'lab-pseudocode':'view-lab-pseudocode', 'lab-logic':'view-lab-logic', 'lab-sql':'view-lab-sql',
     progress:'view-progress', settings:'view-settings', about:'view-about'
   };
   const NAV = [
@@ -10645,6 +10921,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     { id:'practice',        label:'Practice' },
     { id:'lab-pseudocode',  label:'Convert' },
     { id:'lab-logic',       label:'Logic' },
+    { id:'lab-sql',         label:'SQL' },
     { id:'progress',        label:'Progress' },
     { id:'settings',        label:'Settings' }
   ];
@@ -12186,6 +12463,79 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     copyText(tableToTSV(tbl), 'Copied to clipboard');
   });
 
+  /* ============================================================
+     SQL Lab — local DDL and DML sandbox
+     ============================================================ */
+  const SQL_EXAMPLE = `CREATE TABLE Students (
+  id INTEGER PRIMARY KEY,
+  name TEXT,
+  score INTEGER
+);
+
+INSERT INTO Students VALUES (1, 'Ada', 92);
+INSERT INTO Students VALUES (2, 'Alan', 87);
+INSERT INTO Students VALUES (3, 'Grace', 95);
+
+UPDATE Students SET score = 90 WHERE id = 2;
+SELECT name, score FROM Students WHERE score >= 90;`;
+  let sqlDb = createSqlDatabase();
+
+  function sqlTableHTML(columns, rows) {
+    if (!columns.length) return '<p class="empty">No rows to display.</p>';
+    return '<table><thead><tr>' + columns.map(c => `<th>${esc(c)}</th>`).join('') +
+      '</tr></thead><tbody>' + rows.map(row => '<tr>' + row.map(value =>
+        `<td>${value === null ? '<span class="hint">NULL</span>' : esc(value)}</td>`).join('') + '</tr>').join('') +
+      '</tbody></table>';
+  }
+
+  function renderSqlSchema() {
+    const tables = Object.values(sqlDb.tables);
+    $('sql-schema').innerHTML = tables.length ? tables.map(table =>
+      `<h3 style="font-size:13px;margin:0 0 8px">${esc(table.name)}</h3>` +
+      '<table style="margin-bottom:16px"><thead><tr><th>Column</th><th>Type</th><th>Key</th></tr></thead><tbody>' +
+      table.columns.map(column => `<tr><td>${esc(column.name)}</td><td>${esc(column.type)}</td>` +
+        `<td>${column.primaryKey ? 'PRIMARY KEY' : ''}</td></tr>`).join('') + '</tbody></table>'
+    ).join('') : '<p class="empty">No tables yet.</p>';
+  }
+
+  function runSqlEditor() {
+    const status = $('sql-status');
+    try {
+      const result = runSql(sqlDb, $('sql-src').value);
+      $('sql-result').innerHTML = sqlTableHTML(result.columns, result.rows);
+      renderSqlSchema();
+      status.textContent = result.message;
+      status.className = 'status ok';
+    } catch (e) {
+      status.textContent = e.message;
+      status.className = 'status err';
+    }
+  }
+
+  try { $('sql-src').value = localStorage.getItem('dryrun.sql.source.v1') || SQL_EXAMPLE; }
+  catch (e) { $('sql-src').value = SQL_EXAMPLE; }
+  $('sql-src').addEventListener('input', () => {
+    try { localStorage.setItem('dryrun.sql.source.v1', $('sql-src').value); } catch (e) {}
+  });
+  $('sql-src').addEventListener('keydown', event => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); runSqlEditor(); }
+  });
+  $('sql-run').addEventListener('click', runSqlEditor);
+  $('sql-example').addEventListener('click', () => {
+    $('sql-src').value = SQL_EXAMPLE;
+    $('sql-src').dispatchEvent(new Event('input'));
+    $('sql-status').textContent = 'Example loaded. Run it when you are ready.';
+    $('sql-status').className = 'status';
+  });
+  $('sql-reset').addEventListener('click', () => {
+    sqlDb = createSqlDatabase();
+    $('sql-result').innerHTML = '<p class="empty">Run a SELECT statement to see rows.</p>';
+    renderSqlSchema();
+    $('sql-status').textContent = 'Database reset. Your SQL text is still here.';
+    $('sql-status').className = 'status ok';
+  });
+  renderSqlSchema();
+
   /* ================= Tab 3: structured English -> pseudocode ================= */
   $('eng-forms').innerHTML = ENG_FORMS.map(esc).join('<br>');
   $('eng').value = 'Set total to 0\nFor each i from 1 to 5\n    Add i to total\nNext i\nOutput total';
@@ -12692,7 +13042,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   /* ============================================================
      Pseudocode Lab sub-tabs
      ============================================================ */
-  const LABTABS = [['tab-eng', 'p-eng'], ['tab-tt', 'p-tt'], ['tab-flow-build', 'p-flow-build'],
+  const LABTABS = [['tab-eng', 'p-eng'], ['tab-code-trace', 'p-code-trace'], ['tab-tt', 'p-tt'], ['tab-flow-build', 'p-flow-build'],
     ['tab-flow', 'p-flow'], ['tab-make', 'p-make']];
   function showLabTab(which) {
     const id = which.indexOf('tab-') === 0 ? which : 'tab-' + which;
@@ -12714,6 +13064,28 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     go('ide');
     toast('Opened in the IDE');
   }
+
+  /* ================= Pseudocode -> trace table ================= */
+  $('code-trace-src').value = 'DECLARE n : INTEGER\nINPUT n\nn ← n + 1\nOUTPUT n';
+  $('code-trace-inputs').value = '4';
+  function buildCodeTrace() {
+    const status = $('code-trace-status');
+    try {
+      const inputs = $('code-trace-inputs').value.split(/[,\n]/)
+        .map(value => value.trim()).filter(Boolean).join('\n');
+      const run = runProgram($('code-trace-src').value, inputs);
+      $('code-trace-out').innerHTML = run.steps.length
+        ? traceHTML(run.steps, false)
+        : '<p class="empty">This program completed without an executable step.</p>';
+      status.textContent = `Built ${run.steps.length} trace row${run.steps.length === 1 ? '' : 's'}.`;
+      status.className = 'status ok';
+    } catch (e) {
+      $('code-trace-out').innerHTML = '<p class="empty">No trace table yet.</p>';
+      status.textContent = e.message;
+      status.className = 'status err';
+    }
+  }
+  $('code-trace-run').addEventListener('click', buildCodeTrace);
 
 
   /* ================= Write a question ================= */

@@ -207,3 +207,36 @@ test('the flowchart builder fits a narrow mobile viewport', async ({ page }) => 
   }));
   expect(sizes.scrollWidth).toBe(sizes.clientWidth);
 });
+
+test('a student can run SQL DDL and DML in the SQL Lab', async ({ page }) => {
+  await page.goto('/#/lab-sql');
+
+  await expect(page.getByRole('heading', { name:'SQL Lab' })).toBeVisible();
+  await page.getByLabel('SQL editor').fill(
+    'CREATE TABLE Students (id INTEGER PRIMARY KEY, name TEXT);\n' +
+    "INSERT INTO Students VALUES (1, 'Ada');\n" +
+    'SELECT * FROM Students;');
+  await page.getByRole('button', { name:'Run SQL' }).click();
+
+  await expect(page.getByRole('region', { name:'SQL result' })).toContainText('Ada');
+  await expect(page.getByRole('region', { name:'Database schema' })).toContainText('Students');
+  await expect(page.locator('#sql-status')).toHaveClass(/ok/);
+});
+
+test('a student can convert pseudocode directly into a trace table', async ({ page }) => {
+  await page.goto('/#/lab-pseudocode');
+  await page.getByRole('tab', { name:'Code → table' }).click();
+
+  await page.getByLabel('Pseudocode to trace').fill(
+    'DECLARE n : INTEGER\n' +
+    'INPUT n\n' +
+    'n ← n + 1\n' +
+    'OUTPUT n');
+  await page.getByLabel('Input values for trace').fill('4');
+  await page.getByRole('button', { name:'Build trace table' }).click();
+
+  const trace = page.getByRole('region', { name:'Trace table from pseudocode' });
+  await expect(trace).toContainText('n');
+  await expect(trace).toContainText('5');
+  await expect(page.locator('#code-trace-status')).toHaveClass(/ok/);
+});
