@@ -24,6 +24,15 @@ test('the ordinary application boots without an uncaught browser error', async (
   expect(pageErrors).toEqual([]);
 });
 
+test('students can view the source and suggest a feature from the navigation', async ({ page }) => {
+  await page.goto('/');
+
+  await expect(page.getByRole('link', { name:'View on GitHub' }))
+    .toHaveAttribute('href', 'https://github.com/zhixuanlucasfeng-cmyk/cie-cs-toolkit');
+  await expect(page.getByRole('link', { name:'Suggest a feature' }))
+    .toHaveAttribute('href', /issues\/new\?template=feature_request\.md$/);
+});
+
 test('the retired dashboard route opens the editor and course setup sits below the tools', async ({ page }) => {
   await page.goto('/#/dashboard');
 
