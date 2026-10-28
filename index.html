@@ -2351,7 +2351,20 @@ function parseIf(st) {
   const opener = { line:line.no, kw:'IF' };
   const thenB = parseBlock(st, ['ELSE','ENDIF'], { ...opener, kw:'IF' });
   let elseB = null;
-  if (peekKw(st) === 'ELSE') { st.i++; elseB = parseBlock(st, ['ENDIF'], opener); }
+  if (peekKw(st) === 'ELSE') {
+    const elseLine = st.lines[st.i];
+    if (elseLine.toks[1] && elseLine.toks[1].v === 'IF') {
+      // `ELSE IF condition THEN` is a nested IF written on the same line.
+      // Parse it as such so each matching ENDIF keeps its normal meaning.
+      const at = st.i;
+      st.lines[at] = { ...elseLine, toks:elseLine.toks.slice(1) };
+      try { elseB = [parseIf(st)]; }
+      finally { st.lines[at] = elseLine; }
+    } else {
+      st.i++;
+      elseB = parseBlock(st, ['ENDIF'], opener);
+    }
+  }
   if (peekKw(st) !== 'ENDIF') throw new CIEError(`The IF on line ${line.no} has no matching ENDIF`, line.no);
   st.i++;
   return { type:'IF', line:line.no, cond, then:thenB, else:elseB };
@@ -9816,6 +9829,17 @@ const TESTS = [
     assertThrows(() => runProgram(
       'FUNCTION Loop(n : INTEGER) RETURNS INTEGER\n    RETURN Loop(n + 1)\nENDFUNCTION\nOUTPUT Loop(1)', ''),
       'called itself more than', 'endless recursion must be stopped');
+  }],
+  ['Selection: consecutive ELSE IF branches on one line are accepted', () => {
+    const { env } = runProgram(
+      'DECLARE inputKey : STRING\nDECLARE newRow : INTEGER\nDECLARE newCol : INTEGER\n' +
+      'inputKey ← "A"\nnewRow ← 10\nnewCol ← 10\n' +
+      'IF inputKey = "W" THEN\n    newRow ← newRow - 1\n' +
+      'ELSE IF inputKey = "S" THEN\n    newRow ← newRow + 1\n' +
+      'ELSE IF inputKey = "A" THEN\n    newCol ← newCol - 1\n' +
+      'ELSE IF inputKey = "D" THEN\n    newCol ← newCol + 1\n' +
+      'ENDIF\nENDIF\nENDIF\nENDIF\nOUTPUT newRow\nOUTPUT newCol', '');
+    assertEq(env.output.join(','), '10,9', 'the A branch should run without an extra ELSE error');
   }],
   ['Routines: wrong argument count and unknown names are reported', () => {
     assertThrows(() => runProgram('PROCEDURE P(a : INTEGER)\n    OUTPUT a\nENDPROCEDURE\nCALL P(1, 2)', ''),
