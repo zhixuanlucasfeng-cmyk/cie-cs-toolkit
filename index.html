@@ -3044,10 +3044,8 @@ function* execStmt(s, env) {
     }
     case 'OUTPUT': {
       const text = s.exprs.map(e => fmt(evalExpr(e, env))).join('');
-      if (env.output.length >= MAX_OUTPUT) {
-        throw new CIEError(`This program has produced too much output (over ${MAX_OUTPUT} lines) — check the loop that is printing`, s.line);
-      }
       env.output.push(text);
+      if (env.output.length > MAX_OUTPUT) env.output.shift();
       yield snapshot(env, s.line, text);
       return;
     }
@@ -3124,7 +3122,7 @@ function hoistRoutines(ast, env) {
 const MAX_STEPS = 2000000;        // a ceiling, not the real guard
 const STEP_LIMIT_GRADING = 200000; // per hidden case: generous, still bounded
 const TIME_LIMIT_MS = 5000;        // the guard that actually matters
-const MAX_OUTPUT = 500;        // a runaway OUTPUT must stop before the browser does
+const MAX_OUTPUT = 500;        // keep the console bounded without stopping valid programs
 function parseInputValues(text) {
   return String(text || '').split('\n').map(s => s.trim()).filter(s => s !== '').map(s => {
     if (/^-?\d+(\.\d+)?$/.test(s)) return parseFloat(s);
@@ -9570,9 +9568,11 @@ const TESTS = [
     assert(c.has('selection'), 'selection inside two loops should be found');
     assert(!c.has('array'), 'no array was used');
   }],
-  ['Execution: runaway output is stopped', () => {
-    assertThrows(() => runProgram('DECLARE i : INTEGER\nFOR i ← 1 TO 2000\n    OUTPUT i\nNEXT i', ''),
-      'too much output', 'a program that prints forever should be stopped');
+  ['Execution: long output keeps running in a rolling buffer', () => {
+    const { env } = runProgram('DECLARE i : INTEGER\nFOR i ← 1 TO 600\n    OUTPUT i\nNEXT i', '');
+    assertEq(env.output.length, 500, 'only the latest 500 output lines should be kept');
+    assertEq(env.output[0], '101', 'the oldest lines should roll off the buffer');
+    assertEq(env.output[499], '600', 'the program should still reach its final output');
   }],
   /* ---- Modules H and I: syllabus registry and learning data ---- */
   ['Syllabus: 9608 is present but never offered as current', () => {
