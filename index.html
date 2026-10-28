@@ -782,6 +782,7 @@
   /* Runtime notes in the Problems list: what the program is doing now, as
      opposed to what the editor can see wrong without running it. */
   .prob.is-waiting b { color:var(--warning); }
+  .prob.is-warning b { color:var(--warning); }
   .prob.is-runtime b { color:var(--danger); }
   .trace-gap td {
     text-align:center; color:var(--text-muted); font-style:italic;
@@ -2122,6 +2123,85 @@ const KEYWORDS = new Set([
 const OPS = ['←','<-','<>','≠','>=','≥','<=','≤','=','>','<','+','-','*','/','&','(',')','[',']',',',':'];
 const OP_ALIAS = { '<-':'←', '≠':'<>', '≥':'>=', '≤':'<=' };
 
+/*
+  Cambridge mark schemes award benefit of doubt when the intended operation is
+  clear. The editor does the same for a small set of notation-only differences:
+  it runs the canonical form, keeps every original line number, and reports what
+  it accepted as a warning. It never invents missing logic or variable names.
+*/
+function prepareMarkSchemeSource(source) {
+  const allowances = [];
+  const messages = {
+    semicolon: 'Accepted with benefit of doubt: the trailing semicolon is ignored.',
+    quotes: 'Accepted with benefit of doubt: smart quotes are treated as normal quotes.',
+    print: 'Accepted with benefit of doubt: PRINT is treated as OUTPUT.',
+    read: 'Accepted with benefit of doubt: READ is treated as INPUT.',
+    ending: 'Accepted with benefit of doubt: the spaced block ending is understood.',
+    compare: 'Accepted with benefit of doubt: == or != is treated as CIE = or <>.',
+    assign: 'Accepted with benefit of doubt; CIE uses ← for assignment.'
+  };
+
+  function note(line, kind, text) {
+    if (allowances.some(a => a.line === line && a.kind === kind)) return;
+    allowances.push({ line, from:0, to:Math.max(1, text.length), kind,
+      message:messages[kind], severity:'warning' });
+  }
+
+  function rewriteOperators(text, lineNo) {
+    let out = '', quote = null;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (quote) {
+        out += ch;
+        if (ch === quote) quote = null;
+        continue;
+      }
+      if (ch === '"' || ch === "'") { quote = ch; out += ch; continue; }
+      if (ch === '/' && text[i + 1] === '/') { out += text.slice(i); break; }
+      const pair = text.slice(i, i + 2);
+      if (pair === '==') { out += '='; i++; note(lineNo, 'compare', text); continue; }
+      if (pair === '!=') { out += '<>'; i++; note(lineNo, 'compare', text); continue; }
+      out += ch;
+    }
+    return out;
+  }
+
+  const code = String(source == null ? '' : source).replace(/\r\n?/g, '\n').split('\n').map((raw, index) => {
+    const lineNo = index + 1;
+    let line = raw;
+    if (/[“”‘’]/.test(line)) {
+      line = line.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+      note(lineNo, 'quotes', raw);
+    }
+    if (/;\s*$/.test(line)) {
+      line = line.replace(/;\s*$/, '');
+      note(lineNo, 'semicolon', raw);
+    }
+    if (/^\s*PRINT\b/i.test(line)) {
+      line = line.replace(/^(\s*)PRINT\b/i, '$1OUTPUT');
+      note(lineNo, 'print', raw);
+    }
+    if (/^\s*READ\b/i.test(line)) {
+      line = line.replace(/^(\s*)READ\b/i, '$1INPUT');
+      note(lineNo, 'read', raw);
+    }
+    if (/^\s*END\s+(IF|WHILE|FOR)\b/i.test(line)) {
+      line = line.replace(/^(\s*)END\s+(IF|WHILE|FOR)\b/i,
+        (_, indent, word) => indent + 'END' + word.toUpperCase());
+      note(lineNo, 'ending', raw);
+    }
+    line = rewriteOperators(line, lineNo);
+    const assign = line.match(/^(\s*(?:FOR\s+)?[A-Za-z_][A-Za-z0-9_]*(?:\s*\[[^\]]+\])?\s*)=(?!=)/i);
+    if (assign) {
+      line = assign[1] + '←' + line.slice(assign[0].length);
+      note(lineNo, 'assign', raw);
+    }
+    return line;
+  }).join('\n');
+
+  return { code, allowances };
+}
+
 /* ---------- Tokenizer ---------- */
 function tokenize(text) {
   const lines = [];
@@ -3156,7 +3236,8 @@ function createRun(codeText, inputText, opts) {
   const timeLimit = o.timeLimitMs || TIME_LIMIT_MS;
   const keep = o.keepSteps !== false;
 
-  const lines = tokenize(codeText);
+  const prepared = prepareMarkSchemeSource(codeText);
+  const lines = tokenize(prepared.code);
   if (!lines.length) throw new CIEError('No pseudocode has been written yet', 1);
   const ast = parseProgram(lines);
   const env = new Env(parseInputValues(inputText));
@@ -3180,6 +3261,7 @@ function createRun(codeText, inputText, opts) {
     get stopped() { return stopped; },
     get steps()   { return steps; },
     get env()     { return env; },
+    get allowances() { return prepared.allowances; },
     get stepCount() { return n; },
     /* What the program is waiting for, or null. Waiting is not an error. */
     get waiting() { return waiting; },
@@ -3212,7 +3294,7 @@ function createRun(codeText, inputText, opts) {
     stop() { stopped = true; finished = true; },
     result() {
       return { steps, env, stepCount: n, lastLine: last ? last.line : 0,
-               ms: elapsed, error, stopped, waiting };
+               ms: elapsed, error, stopped, waiting, allowances:prepared.allowances };
     },
     /*
       Run at most `budget` steps, then hand control back. Returns true while
@@ -6854,8 +6936,9 @@ function highlight(src) {
   half-typed line gets ignored.
 */
 function checkSource(src) {
-  const lines = String(src == null ? '' : src).split('\n');
-  const problems = [];
+  const prepared = prepareMarkSchemeSource(src);
+  const lines = prepared.code.split('\n');
+  const problems = prepared.allowances.slice();
   const add = (line, from, to, message, severity) =>
     problems.push({ line: line + 1, from, to, message, severity: severity || 'error' });
 
@@ -6873,12 +6956,6 @@ function checkSource(src) {
     const first = (text.match(/^[A-Za-z_][A-Za-z0-9_]*/) || [''])[0].toUpperCase();
     const second = ((text.match(/^[A-Za-z_][A-Za-z0-9_]*\s+([A-Za-z_][A-Za-z0-9_]*)/) || [])[1] || '').toUpperCase();
 
-    // = used where CIE wants ←, which is the single most common slip
-    const assign = noComment.match(/^\s*([A-Za-z_][A-Za-z0-9_]*(?:\s*\[[^\]]*\])?)\s*=(?!=)/);
-    if (assign && !['IF', 'WHILE', 'UNTIL', 'CASE', 'OUTPUT', 'RETURN'].includes(first)) {
-      const at = noComment.indexOf('=', assign[1].length);
-      add(n, at, at + 1, 'CIE uses ← for assignment, not =', 'error');
-    }
     // an unclosed string is certain, whatever comes next on the line
     const quotes = (noComment.match(/"/g) || []).length;
     if (quotes % 2 === 1) {
@@ -9023,8 +9100,11 @@ const TESTS = [
   ['using an undeclared variable is an error', () => {
     assertThrows(() => runProgram('x ← 1', ''), 'not declared', 'using a variable without DECLARE should be an error');
   }],
-  ['using = for assignment is an error', () => {
-    assertThrows(() => runProgram('DECLARE x : INTEGER\nx = 1', ''), '←', 'assigning with = should point at ←');
+  ['using = for assignment receives benefit of doubt', () => {
+    const run = runProgram('DECLARE x : INTEGER\nx = 1\nOUTPUT x', '');
+    assertEq(run.env.output.join(','), '1', 'an unambiguous assignment should still run');
+    assert(run.allowances.some(a => /← for assignment/.test(a.message)),
+      'the student should still be told the CIE notation');
   }],
   ['a missing ENDIF names the opening line', () => {
     assertThrows(() => runProgram('DECLARE x : INTEGER\nx ← 1\nIF x = 1\n  OUTPUT x', ''),
@@ -9844,6 +9924,24 @@ const TESTS = [
     const { env } = runProgram(code, '');
     assertEq(env.output.join(','), '10,9', 'the A branch should run without an extra ELSE error');
     assertEq(checkSource(code).length, 0, 'the Problems panel should accept the same ELSE IF chain');
+  }],
+  ['Mark scheme tolerance: clear alternative notation runs with warnings', () => {
+    const code =
+      'DECLARE score : INTEGER;\nREAD score;\n' +
+      'IF score == 50 THEN;\n    PRINT “pass”;\nELSE;\n' +
+      '    score = score + 1;\n    PRINT score;\nEND IF;';
+    const exact = runProgram(code, '50');
+    const near = runProgram(code, '49');
+    assertEq(exact.env.output.join(','), 'pass', 'PRINT, smart quotes and == should be understood');
+    assertEq(near.env.output.join(','), '50', '= should be accepted as an unambiguous assignment');
+    assert(exact.allowances.length >= 4, 'the run should record the notation it accepted');
+    const problems = checkSource(code);
+    assert(problems.length >= 4, 'accepted alternatives should still be shown to the student');
+    assert(problems.every(p => p.severity === 'warning'), 'mark-scheme allowances must not be blocking errors');
+
+    const loop = runProgram(
+      'DECLARE n : INTEGER;\nn = 0;\nWHILE n != 2 DO;\n    PRINT n;\n    n = n + 1;\nEND WHILE;', '');
+    assertEq(loop.env.output.join(','), '0,1', '!= and a spaced block ending should also run');
   }],
   ['Routines: wrong argument count and unknown names are reported', () => {
     assertThrows(() => runProgram('PROCEDURE P(a : INTEGER)\n    OUTPUT a\nENDPROCEDURE\nCALL P(1, 2)', ''),
@@ -10880,7 +10978,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   emptyFileSet, readFileSet, addFile, renameFile, closeFile, selectFile,
   updateActive, activeFile, uniqueFileName, fileName, FILESET_VERSION, MAX_FILES,
   contrastRatio, Env, MAX_FILE_LINES, MAX_DEPTH, MAX_STEPS, TIME_LIMIT_MS, hoistRoutines,
-  highlight, highlightTokens, checkSource, indentFor, dedentFor, DEDENT_WORDS, AUTO_CLOSE,
+  highlight, highlightTokens, checkSource, prepareMarkSchemeSource, indentFor, dedentFor, DEDENT_WORDS, AUTO_CLOSE,
   buildSharedQuestion, exportQuestion, importQuestion, SHARE_SCHEMA }; } catch (e) {}
 </script>
 
@@ -13372,7 +13470,7 @@ SELECT name, score FROM Students WHERE score >= 90;`;
   function ideGutter() {
     const n = ideSrc.value.split('\n').length;
     const cur = ideAt >= 0 && ideSteps[ideAt] ? ideSteps[ideAt].line : -1;
-    const errLines = new Set(ideProblems.map(p => p.line));
+    const errLines = new Set(ideProblems.filter(p => p.severity !== 'warning').map(p => p.line));
     let html = '';
     for (let i = 1; i <= n; i++) {
       const cls = [ideBreaks.has(i) ? 'bp' : '', i === cur ? 'on' : '', errLines.has(i) ? 'err' : '']
@@ -13414,13 +13512,14 @@ SELECT name, score FROM Students WHERE score >= 90;`;
         `${esc(e.message)}</span></button>`);
     }
     rows.push(...ideProblems.map(p =>
-      `<button class="prob" data-goto="${p.line}"><b>${p.line}</b><span>${esc(p.message)}</span></button>`));
+      `<button class="prob${p.severity === 'warning' ? ' is-warning' : ''}" data-goto="${p.line}">` +
+      `<b>${p.line}</b><span>${esc(p.message)}</span></button>`));
     box.innerHTML = rows.length ? rows.join('') : '<p class="empty">No problems found.</p>';
     box.querySelectorAll('[data-goto]').forEach(b => {
       b.onclick = () => ideGoToLine(Number(b.dataset.goto));
     });
     // The count is of faults, so a pause does not inflate it.
-    const faults = ideProblems.length + (ideRunError ? 1 : 0);
+    const faults = ideProblems.filter(p => p.severity !== 'warning').length + (ideRunError ? 1 : 0);
     $('dtab-problems').textContent = faults ? `Problems (${faults})` : 'Problems';
     ideGutter();
   }
@@ -13514,9 +13613,12 @@ SELECT name, score FROM Students WHERE score >= 90;`;
     if (ideRun && ideRun.done) {
       ideBusy(false);
       const stopped = r && r.stopped;
+      const allowanceNote = r && r.allowances && r.allowances.length
+        ? ` ${r.allowances.length} notation difference${r.allowances.length === 1 ? '' : 's'} accepted with benefit of doubt.`
+        : '';
       ideStatus(stopped
         ? `Stopped after ${r.stepCount.toLocaleString()} steps. What it produced up to that point is below.`
-        : `Finished — ${r.stepCount.toLocaleString()} steps, ${r.env.output.length} line${r.env.output.length === 1 ? '' : 's'} of output.`,
+        : `Finished — ${r.stepCount.toLocaleString()} steps, ${r.env.output.length} line${r.env.output.length === 1 ? '' : 's'} of output.${allowanceNote}`,
         stopped ? 'err' : 'ok');
       return 'finished';                 // the run is kept, so Reset is deliberate
     }

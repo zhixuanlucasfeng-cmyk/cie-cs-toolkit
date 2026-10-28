@@ -39,6 +39,20 @@ test('the editor can safely auto-fix a misplaced ARRAY declaration', async ({ pa
   await expect(page.locator('#ide-problems')).toHaveText('No problems found.');
 });
 
+test('mark-scheme notation runs while the editor shows non-blocking warnings', async ({ page }) => {
+  await page.goto('/#/ide');
+  const editor = page.getByLabel('Pseudocode editor. Click a line number to set a breakpoint.');
+  await editor.fill('DECLARE x : INTEGER;\nx = 1;\nPRINT x;');
+
+  await expect(page.locator('#dtab-problems')).toHaveText('Problems');
+  await expect(page.locator('#ide-problems .is-warning')).toHaveCount(5);
+  await page.getByRole('button', { name:'Run', exact:true }).click();
+
+  await expect(page.locator('#ide-status')).toContainText('accepted with benefit of doubt');
+  await expect(page.locator('#ide-output')).toContainText('1');
+  await expect(page.locator('#dtab-problems')).toHaveText('Problems');
+});
+
 test('typing less-than and hyphen inserts the Cambridge assignment arrow', async ({ page }) => {
   await page.goto('/#/ide');
   const editor = page.getByLabel('Pseudocode editor. Click a line number to set a breakpoint.');
