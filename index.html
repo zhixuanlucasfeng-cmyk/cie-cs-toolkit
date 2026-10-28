@@ -13770,6 +13770,7 @@ SELECT name, score FROM Students WHERE score >= 90;`;
     }
     // A run belongs to the program that started it; editing makes it stale.
     if (ideRun) { ideRun.stop(); ideRun = null; ideAsk(null); ideBusy(false); }
+    ideRunError = null;
     idePaintSoon();
     ideOverlay();
     // Offer completions while a word is being typed, and only then.
@@ -13973,12 +13974,15 @@ SELECT name, score FROM Students WHERE score >= 90;`;
   $('ide-autofix').addEventListener('click', () => {
     const fixed = autoFixPseudo(ideSrc.value);
     if (fixed === ideSrc.value) {
+      ideRunError = null;
+      ideCheck();
       ideStatus('No safe fixes found.');
       return;
     }
     ideSrc.value = fixed;
     ideSrc.setSelectionRange(fixed.length, fixed.length);
     ideSrc.dispatchEvent(new Event('input', { bubbles:true }));
+    ideCheck();
     ideStatus('Fixed the ARRAY declaration.');
   });
   $('ide-tabs').addEventListener('click', ev => {

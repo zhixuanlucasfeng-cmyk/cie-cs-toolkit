@@ -27,11 +27,16 @@ test('the ordinary application boots without an uncaught browser error', async (
 test('the editor can safely auto-fix a misplaced ARRAY declaration', async ({ page }) => {
   await page.goto('/#/ide');
   const editor = page.getByLabel('Pseudocode editor. Click a line number to set a breakpoint.');
-  await editor.fill('DECLARE Map ARRAY : [1:20, 1:30] OF CHAR');
+  await editor.fill('DECLARE');
+  await page.getByRole('button', { name:'Run', exact:true }).click();
+  await expect(page.locator('#dtab-problems')).toHaveText('Problems (1)');
 
+  await editor.fill('DECLARE Map ARRAY : [1:20, 1:30] OF CHAR');
   await page.getByRole('button', { name:'Auto-fix code' }).click();
 
   await expect(editor).toHaveValue('DECLARE Map : ARRAY[1:20, 1:30] OF CHAR');
+  await expect(page.locator('#dtab-problems')).toHaveText('Problems');
+  await expect(page.locator('#ide-problems')).toHaveText('No problems found.');
 });
 
 test('typing less-than and hyphen inserts the Cambridge assignment arrow', async ({ page }) => {
