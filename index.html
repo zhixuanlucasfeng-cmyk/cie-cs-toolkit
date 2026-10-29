@@ -2138,7 +2138,7 @@ function prepareMarkSchemeSource(source) {
     read: 'Accepted with benefit of doubt: READ is treated as INPUT.',
     ending: 'Accepted with benefit of doubt: the spaced block ending is understood.',
     compare: 'Accepted with benefit of doubt: == or != is treated as CIE = or <>.',
-    assign: 'Accepted with benefit of doubt; CIE uses ← for assignment.'
+    assign: 'Accepted this time with benefit of doubt, but correct it: = compares values; ← assigns a value.'
   };
 
   function note(line, kind, text) {
@@ -9103,8 +9103,8 @@ const TESTS = [
   ['using = for assignment receives benefit of doubt', () => {
     const run = runProgram('DECLARE x : INTEGER\nx = 1\nOUTPUT x', '');
     assertEq(run.env.output.join(','), '1', 'an unambiguous assignment should still run');
-    assert(run.allowances.some(a => /← for assignment/.test(a.message)),
-      'the student should still be told the CIE notation');
+    assert(run.allowances.some(a => /= compares values/.test(a.message) && /← assigns a value/.test(a.message)),
+      'the warning must explain that comparison and assignment are different operations');
   }],
   ['a missing ENDIF names the opening line', () => {
     assertThrows(() => runProgram('DECLARE x : INTEGER\nx ← 1\nIF x = 1\n  OUTPUT x', ''),
@@ -10726,7 +10726,7 @@ const TESTS = [
   ['Editor: live errors catch the slips worth catching', () => {
     const found = msg => checkSource(src).some(p => new RegExp(msg, 'i').test(p.message));
     let src = 'DECLARE x : INTEGER\nx = 1';
-    assert(found('← for assignment'), '= instead of ← should be flagged');
+    assert(found('= compares values'), '= instead of ← should be explained');
     src = 'OUTPUT "no end';
     assert(found('no closing quote'), 'an unclosed string should be flagged');
     src = 'DECLARE a : ARRAY[1:3] OF INTEGER\na[0] ← 1';
