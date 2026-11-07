@@ -2134,7 +2134,7 @@ class CIEError extends Error {
    ====================================================================== */
 
 const KEYWORDS = new Set([
-  'DECLARE','CONSTANT','ARRAY','OF','INTEGER','REAL','BOOLEAN','CHAR','STRING','DATE',
+  'DECLARE','CONSTANT','TYPE','ARRAY','OF','INTEGER','REAL','BOOLEAN','CHAR','STRING','DATE',
   'IF','THEN','ELSE','ENDIF','CASE','OTHERWISE','ENDCASE',
   'FOR','TO','STEP','NEXT','ENDFOR','WHILE','DO','ENDWHILE','REPEAT','UNTIL',
   'OUTPUT','INPUT','AND','OR','NOT','MOD','DIV','TRUE','FALSE',
@@ -2362,6 +2362,7 @@ function parseStatement(st) {
   switch (k) {
     case 'DECLARE':  st.i++; return parseDeclare(line);
     case 'CONSTANT': st.i++; return parseConstant(line);
+    case 'TYPE':     st.i++; return parseType(line);
     case 'OUTPUT':   st.i++; return parseOutput(line);
     case 'INPUT':    st.i++; return parseInput(line);
     case 'IF':       return parseIf(st);
@@ -2383,6 +2384,15 @@ function parseStatement(st) {
       throw new CIEError(`An extra ${k} with no matching opening statement before it`, line.no);
     default:         return parseAssign(st);
   }
+}
+const SCALAR_TYPES = new Set(['INTEGER','REAL','BOOLEAN','CHAR','STRING','DATE']);
+function parseDataType(c, message) {
+  const t = at(c);
+  if (!t || t.t !== 'IDENT' && !(t.t === 'KW' && SCALAR_TYPES.has(t.v))) {
+    throw new CIEError(message || 'State a data type', c.line);
+  }
+  c.i++;
+  return t.v;
 }
 function parseDeclare(line) {
   const c = cur(line.toks, 1, line);
@@ -2410,11 +2420,23 @@ function parseDeclare(line) {
     eat(c, ']'); eat(c, 'OF');
     arr = { dims };
   }
-  const t = at(c);
-  if (!t || t.t !== 'KW') throw new CIEError('State the data type (INTEGER / REAL / BOOLEAN / CHAR / STRING / DATE)', line.no);
-  const type = t.v; c.i++;
+  const type = parseDataType(c, 'State the data type (INTEGER / REAL / BOOLEAN / CHAR / STRING / DATE or a declared TYPE)');
   expectEnd(c);
   return { type:'DECLARE', line:line.no, names, dtype:type, arr };
+}
+function parseType(line) {
+  const c = cur(line.toks, 1, line);
+  const name = at(c);
+  if (!name || name.t !== 'IDENT') throw new CIEError('TYPE must be followed by a type name', line.no);
+  c.i++; eat(c, '='); eat(c, '(');
+  const values = [];
+  do {
+    const value = at(c);
+    if (!value || value.t !== 'IDENT') throw new CIEError('An enumerated TYPE needs named values', line.no);
+    values.push(value.v); c.i++;
+  } while (tryEat(c, ','));
+  eat(c, ')'); expectEnd(c);
+  return { type:'TYPEDEF', line:line.no, name:name.v, values };
 }
 function parseConstant(line) {
   const c = cur(line.toks, 1, line);
@@ -2592,22 +2614,33 @@ function parseRoutine(st, isFunction) {
 
   const params = [];
   if (tryEat(c, '(')) {
+    let inheritedBy = 'VALUE';
     if (vAt(c) !== ')') {
       do {
-        let by = 'VALUE';
         const kw = vAt(c);
-        if (kw === 'BYREF' || kw === 'BYREFERENCE') { by = 'REF'; c.i++; }
-        else if (kw === 'BYVAL' || kw === 'BYVALUE') { c.i++; }
+        if (kw === 'BYREF' || kw === 'BYREFERENCE') { inheritedBy = 'REF'; c.i++; }
+        else if (kw === 'BYVAL' || kw === 'BYVALUE') { inheritedBy = 'VALUE'; c.i++; }
+        if (isFunction && inheritedBy === 'REF') throw new CIEError('A FUNCTION cannot have BYREF parameters', line.no);
         const p = at(c);
         if (!p || p.t !== 'IDENT') throw new CIEError('Each parameter needs a name', line.no);
         c.i++;
-        let dtype = null;
-        if (tryEat(c, ':')) {
-          const d = at(c);
-          if (!d || d.t !== 'KW') throw new CIEError(`State the type of parameter ${p.v}`, line.no);
-          dtype = d.v; c.i++;
+        if (!tryEat(c, ':')) throw new CIEError(`State the type of parameter ${p.v}`, line.no);
+        let arr = null, dtype;
+        if (tryEat(c, 'ARRAY')) {
+          eat(c, '[');
+          const dims = [];
+          do {
+            const lo = parseExpr(c); eat(c, ':'); const hi = parseExpr(c);
+            dims.push({ lo, hi });
+          } while (tryEat(c, ','));
+          if (dims.length > 2) throw new CIEError('Only one- and two-dimensional arrays are supported', line.no);
+          eat(c, ']'); eat(c, 'OF');
+          dtype = parseDataType(c, `State the element type of array parameter ${p.v}`);
+          arr = { dims };
+        } else {
+          dtype = parseDataType(c, `State the type of parameter ${p.v}`);
         }
-        params.push({ name:p.v, by, dtype });
+        params.push({ name:p.v, by:inheritedBy, dtype, arr });
       } while (tryEat(c, ','));
     }
     eat(c, ')');
@@ -2615,9 +2648,7 @@ function parseRoutine(st, isFunction) {
   let retType = null;
   if (isFunction) {
     if (!tryEat(c, 'RETURNS')) throw new CIEError('A FUNCTION must say what it RETURNS', line.no);
-    const d = at(c);
-    if (!d || d.t !== 'KW') throw new CIEError('State the type the FUNCTION returns', line.no);
-    retType = d.v; c.i++;
+    retType = parseDataType(c, 'State the type the FUNCTION returns');
   }
   expectEnd(c);
   st.i++;
@@ -2700,6 +2731,7 @@ class Env {
     this.inputs = inputs || [];
     this.ip = 0;
     this.routines = new Map(); // PROCEDURE and FUNCTION definitions, hoisted
+    this.types = new Map();    // user-defined enum name -> uppercase value map
     this.files = new Map();    // the sandbox: name -> {lines, pos, mode, open}
     this.depth = 0;
     this.steps = 0;
@@ -2711,6 +2743,7 @@ class Env {
     e.inputs = this.inputs;
     e.output = this.output;
     e.routines = this.routines;
+    e.types = this.types;
     e.files = this.files;
     e.depth = this.depth + 1;
     e.root = this.root || this;
@@ -2726,6 +2759,10 @@ class Env {
   declare(name, dtype, line, bounds) {
     const key = String(name).toUpperCase();
     if (this.vars.has(key)) throw new CIEError(`Variable ${name} is declared more than once`, line);
+    const typeKey = String(dtype).toUpperCase();
+    if (!SCALAR_TYPES.has(typeKey) && dtype !== 'CONST' && !this.types.has(typeKey)) {
+      throw new CIEError(`Type ${dtype} has not been declared`, line);
+    }
     if (bounds) {
       const dims = bounds.dims;
       for (const d of dims) {
@@ -2753,8 +2790,36 @@ class Env {
     throw new CIEError(`Variable ${name} is not declared — CIE requires DECLARE before use`, line);
   }
   hasOwn(name) { return this.vars.has(String(name).toUpperCase()); }
+  defineType(name, values, line) {
+    const key = String(name).toUpperCase();
+    if (SCALAR_TYPES.has(key) || this.types.has(key)) throw new CIEError(`Type ${name} is declared more than once`, line);
+    const members = new Map();
+    for (const value of values) {
+      const memberKey = String(value).toUpperCase();
+      if (members.has(memberKey)) throw new CIEError(`Enum value ${value} is listed more than once`, line);
+      members.set(memberKey, Object.freeze({ kind:'enum', type:key, name:value }));
+    }
+    this.types.set(key, members);
+  }
+  enumValue(name, line) {
+    const key = String(name).toUpperCase();
+    const found = [];
+    for (const members of this.types.values()) if (members.has(key)) found.push(members.get(key));
+    if (found.length > 1) throw new CIEError(`Enum value ${name} is ambiguous`, line);
+    return found[0] || null;
+  }
   get(name, line) {
-    const s = this.slot(name, line);
+    let s = null;
+    const key = String(name).toUpperCase();
+    for (let e = this; e; e = e.parent) {
+      s = e.vars.get(key);
+      if (s) break;
+    }
+    if (!s) {
+      const member = this.enumValue(name, line);
+      if (member) return member;
+      throw new CIEError(`Variable ${name} is not declared — CIE requires DECLARE before use`, line);
+    }
     if (s.isArray) throw new CIEError(`${name} is an array — write it as ${name}[index]`, line);
     if (s.value === null) throw new CIEError(`Variable ${name} is used before it has been given a value`, line);
     return s.value;
@@ -2763,7 +2828,7 @@ class Env {
     const s = this.slot(name, line);
     if (s.isArray) throw new CIEError(`${name} is an array — write it as ${name}[index] ← …`, line);
     if (s.isConst) throw new CIEError(`${name} is a CONSTANT and cannot be assigned to`, line);
-    s.value = checkedValue(val, s.dtype, line, name);
+    s.value = checkedValue(val, s.dtype, line, name, this.types);
   }
   // Works for one or two dimensions; the cells are one flat array.
   cellIndex(name, idxs, line) {
@@ -2792,7 +2857,36 @@ class Env {
   }
   setCell(name, idxs, val, line) {
     const { s, k } = this.cellIndex(name, idxs, line);
-    s.cells[k] = checkedValue(val, s.dtype, line, `${name}[${idxs.join(', ')}]`);
+    s.cells[k] = checkedValue(val, s.dtype, line, `${name}[${idxs.join(', ')}]`, this.types);
+  }
+  alias(name, slot, line) {
+    const key = String(name).toUpperCase();
+    if (this.vars.has(key)) throw new CIEError(`Variable ${name} is declared more than once`, line);
+    this.vars.set(key, slot);
+    this.order.push(name);
+  }
+  cellReference(name, idxs, line) {
+    const { s, k } = this.cellIndex(name, idxs, line);
+    const ref = { name, dtype:s.dtype };
+    Object.defineProperty(ref, 'value', {
+      get: () => s.cells[k],
+      set: value => { s.cells[k] = checkedValue(value, s.dtype, line, name, this.types); },
+      enumerable: true
+    });
+    return ref;
+  }
+  copyArray(targetName, sourceName, line) {
+    const target = this.slot(targetName, line), source = this.slot(sourceName, line);
+    if (!target.isArray || !source.isArray) throw new CIEError('Whole-array assignment needs an array on both sides', line);
+    if (String(target.dtype).toUpperCase() !== String(source.dtype).toUpperCase()) {
+      throw new CIEError('Whole-array assignment needs the same element type on both sides', line);
+    }
+    const targetSizes = target.dims.map(d => d.hi - d.lo + 1);
+    const sourceSizes = source.dims.map(d => d.hi - d.lo + 1);
+    if (targetSizes.length !== sourceSizes.length || targetSizes.some((size, i) => size !== sourceSizes[i])) {
+      throw new CIEError('Whole-array assignment needs arrays with the same size in every dimension', line);
+    }
+    target.cells = source.cells.slice();
   }
 
   /* ---- the sandboxed filesystem: in memory, and gone when the run ends ---- */
@@ -2884,7 +2978,7 @@ function dateObject(parts) {
   date.setUTCFullYear(parts.year, parts.month - 1, parts.day);
   return date;
 }
-function checkedValue(value, dtype, line, label) {
+function checkedValue(value, dtype, line, label, types) {
   const t = String(dtype || '').toUpperCase();
   const fail = want => { throw new CIEError(`${label} is ${t} and needs ${want}, but got ${fmt(value)}`, line); };
   switch (t) {
@@ -2894,6 +2988,10 @@ function checkedValue(value, dtype, line, label) {
     case 'CHAR':    if (typeof value !== 'string' || [...value].length !== 1) fail('one character'); break;
     case 'STRING':  if (typeof value !== 'string') fail('text in double quotes'); break;
     case 'DATE':    return dateParts(value, line, label).value;
+    default: {
+      const members = types && types.get(t);
+      if (members && (!value || value.kind !== 'enum' || value.type !== t)) fail(`a ${dtype} value`);
+    }
   }
   return value;
 }
@@ -3019,6 +3117,7 @@ function evalExpr(n, env) {
 /* ---------- Display formatting ---------- */
 function fmt(v) {
   if (v === null || v === undefined) return '';
+  if (v && v.kind === 'enum') return v.name;
   if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
   if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(parseFloat(v.toFixed(6)));
   return String(v);
@@ -3041,28 +3140,52 @@ function bindArguments(def, args, callerEnv, line) {
     throw new CIEError(`${def.name} has called itself more than ${MAX_DEPTH} times — a recursive routine needs a case that stops it`, line);
   }
   const inner = callerEnv.child();
-  const writeBacks = [];
   def.params.forEach((p, i) => {
     const arg = args[i];
-    inner.declare(p.name, p.dtype || 'INTEGER', line, null);
-    inner.vars.get(String(p.name).toUpperCase()).value = checkedValue(
-      evalExpr(arg, callerEnv), p.dtype || 'INTEGER', line, p.name);
+    if (p.arr) {
+      if (!arg || arg.k !== 'var') throw new CIEError(`Array parameter ${p.name} needs an array variable`, line);
+      const actual = callerEnv.slot(arg.name, line);
+      if (!actual.isArray) throw new CIEError(`Parameter ${p.name} needs an array`, line);
+      if (String(actual.dtype).toUpperCase() !== String(p.dtype).toUpperCase()) {
+        throw new CIEError(`Array parameter ${p.name} needs element type ${p.dtype}`, line);
+      }
+      const dims = p.arr.dims.map(d => ({ lo:evalExpr(d.lo, callerEnv), hi:evalExpr(d.hi, callerEnv) }));
+      const expectedSizes = dims.map(d => d.hi - d.lo + 1);
+      const actualSizes = actual.dims.map(d => d.hi - d.lo + 1);
+      if (dims.length !== actual.dims.length || expectedSizes.some((size, d) => size !== actualSizes[d])) {
+        throw new CIEError(`Array parameter ${p.name} needs the declared size`, line);
+      }
+      if (p.by === 'REF') {
+        const exactBounds = dims.every((d, n) => d.lo === actual.dims[n].lo && d.hi === actual.dims[n].hi);
+        if (!exactBounds) throw new CIEError(`BYREF array parameter ${p.name} needs the declared bounds`, line);
+        inner.alias(p.name, actual, line);
+      } else {
+        inner.declare(p.name, p.dtype, line, { dims });
+        inner.vars.get(String(p.name).toUpperCase()).cells = actual.cells.slice();
+      }
+      return;
+    }
     if (p.by === 'REF') {
       if (!arg || (arg.k !== 'var' && arg.k !== 'index')) {
         throw new CIEError(`Parameter ${p.name} is BYREF, so the argument has to be a variable`, line);
       }
-      writeBacks.push({ param:p.name, arg });
+      let actual;
+      if (arg.k === 'var') {
+        actual = callerEnv.slot(arg.name, line);
+        if (actual.isArray) throw new CIEError(`Parameter ${p.name} needs a scalar variable`, line);
+      } else {
+        actual = callerEnv.cellReference(arg.name, arg.idxs.map(e => evalExpr(e, callerEnv)), line);
+      }
+      if (String(actual.dtype).toUpperCase() !== String(p.dtype).toUpperCase()) {
+        throw new CIEError(`BYREF parameter ${p.name} needs type ${p.dtype}`, line);
+      }
+      inner.alias(p.name, actual, line);
+    } else {
+      inner.declare(p.name, p.dtype, line, null);
+      inner.set(p.name, evalExpr(arg, callerEnv), line);
     }
   });
-  return { inner, writeBacks };
-}
-
-function applyWriteBacks(writeBacks, inner, callerEnv, line) {
-  for (const w of writeBacks) {
-    const v = inner.vars.get(String(w.param).toUpperCase()).value;
-    if (w.arg.k === 'var') callerEnv.set(w.arg.name, v, line);
-    else callerEnv.setCell(w.arg.name, w.arg.idxs.map(e => evalExpr(e, callerEnv)), v, line);
-  }
+  return { inner };
 }
 
 // A CALL is a statement, so its body is traced line by line like any other.
@@ -3070,13 +3193,12 @@ function* callRoutine(name, args, env, line) {
   const def = env.routines.get(String(name).toUpperCase());
   if (!def) throw new CIEError(`There is no procedure called ${name}`, line);
   if (def.type !== 'PROCDEF') throw new CIEError(`${name} is a FUNCTION — use it in an expression, not with CALL`, line);
-  const { inner, writeBacks } = bindArguments(def, args, env, line);
+  const { inner } = bindArguments(def, args, env, line);
   try {
     yield* execBlock(def.body, inner);
   } catch (e) {
     if (!(e instanceof ReturnSignal)) throw e;
   }
-  applyWriteBacks(writeBacks, inner, env, line);
 }
 
 /*
@@ -3096,7 +3218,7 @@ function callFunction(def, args, env, line) {
       if (++n > MAX_STEPS) throw new CIEError(`${def.name} ran for more than ${MAX_STEPS} steps without returning`, line);
     }
   } catch (e) {
-    if (e instanceof ReturnSignal) return checkedValue(e.value, def.retType, line, `${def.name} return value`);
+    if (e instanceof ReturnSignal) return checkedValue(e.value, def.retType, line, `${def.name} return value`, env.types);
     throw e;
   }
   throw new CIEError(`${def.name} finished without a RETURN`, line);
@@ -3189,6 +3311,11 @@ function* execStmt(s, env) {
   switch (s.type) {
     case 'NOP': return;
 
+    case 'TYPEDEF':
+      env.defineType(s.name, s.values, s.line);
+      yield snapshot(env, s.line);
+      return;
+
     case 'DECLARE': {
       let bounds = null;
       if (s.arr) bounds = { dims: s.arr.dims.map(d => ({ lo: evalExpr(d.lo, env), hi: evalExpr(d.hi, env) })) };
@@ -3205,6 +3332,15 @@ function* execStmt(s, env) {
       return;
     }
     case 'ASSIGN': {
+      if (!s.target.idxs && s.expr.k === 'var') {
+        const target = env.slot(s.target.name, s.line);
+        const source = (() => { try { return env.slot(s.expr.name, s.line); } catch (_) { return null; } })();
+        if (target.isArray && source && source.isArray) {
+          env.copyArray(s.target.name, s.expr.name, s.line);
+          yield snapshot(env, s.line);
+          return;
+        }
+      }
       const v = evalExpr(s.expr, env);
       assignTo(s.target, v, env, s.line);
       yield snapshot(env, s.line);
@@ -11091,6 +11227,17 @@ const TESTS = [
     assertThrows(() => runProgram('DECLARE a : ARRAY[1:3] OF INTEGER\na[0] ← 1', ''), 'start at 1', 'but index 0 of a 1-based array is not');
     assertThrows(() => runProgram('DECLARE a : ARRAY[1:3] OF INTEGER\na[4] ← 1', ''), 'out of bounds', 'nor past the end');
   }],
+  ['Matrix: whole-array assignment is a deep positional copy', () => {
+    const code = 'DECLARE a : ARRAY[1:2] OF INTEGER\nDECLARE b : ARRAY[0:1] OF INTEGER\n' +
+      'a[1] ← 7\na[2] ← 8\nb ← a\na[1] ← 99\nOUTPUT b[0]\nOUTPUT b[1]';
+    assertEq(runProgram(code, '').env.output.join('|'), '7|8', 'the target keeps its bounds and does not alias the source');
+    assertThrows(() => runProgram(
+      'DECLARE a : ARRAY[1:2] OF INTEGER\nDECLARE b : ARRAY[1:3] OF INTEGER\nb ← a', ''),
+      'same size', 'arrays of different sizes cannot be assigned');
+    assertThrows(() => runProgram(
+      'DECLARE a : ARRAY[1:2] OF INTEGER\nDECLARE b : ARRAY[1:2] OF STRING\nb ← a', ''),
+      'element type', 'arrays of different element types cannot be assigned');
+  }],
   ['Matrix: procedures, functions, BYVALUE and BYREF', () => {
     assertEq(runProgram('PROCEDURE P(n : INTEGER)\n    n ← n + 1\nENDPROCEDURE\nDECLARE x : INTEGER\nx ← 1\nCALL P(x)\nOUTPUT x', '')
       .env.output.join(''), '1', 'BYVALUE leaves the caller alone');
@@ -11098,6 +11245,38 @@ const TESTS = [
       .env.output.join(''), '2', 'BYREF writes back');
     assertEq(runProgram('FUNCTION D(n : INTEGER) RETURNS INTEGER\n    RETURN n * 2\nENDFUNCTION\nOUTPUT D(4) + 1', '')
       .env.output.join(''), '9', 'a function is usable in an expression');
+  }],
+  ['Matrix: array parameters and BYREF aliases obey their declarations', () => {
+    const byValue = 'PROCEDURE Change(a : ARRAY[1:2] OF INTEGER)\n    a[1] ← 9\nENDPROCEDURE\n' +
+      'DECLARE x : ARRAY[1:2] OF INTEGER\nx[1] ← 1\nx[2] ← 2\nCALL Change(x)\nOUTPUT x[1]';
+    assertEq(runProgram(byValue, '').env.output.join(''), '1', 'a BYVALUE array is copied');
+    const byRef = 'PROCEDURE Change(BYREF a : ARRAY[1:2] OF INTEGER)\n    a[1] ← 9\nENDPROCEDURE\n' +
+      'DECLARE x : ARRAY[1:2] OF INTEGER\nx[1] ← 1\nx[2] ← 2\nCALL Change(x)\nOUTPUT x[1]';
+    assertEq(runProgram(byRef, '').env.output.join(''), '9', 'a BYREF array aliases the caller');
+    const inherited = 'PROCEDURE Change(BYREF a : INTEGER, b : INTEGER)\n    a ← 8\n    b ← 9\nENDPROCEDURE\n' +
+      'DECLARE x : INTEGER\nDECLARE y : INTEGER\nx ← 1\ny ← 2\nCALL Change(x, y)\nOUTPUT x\nOUTPUT y';
+    assertEq(runProgram(inherited, '').env.output.join('|'), '8|9', 'BYREF mode is inherited by following parameters');
+    const sameActual = 'PROCEDURE Change(BYREF a : INTEGER, b : INTEGER)\n    a ← 8\n    OUTPUT b\nENDPROCEDURE\n' +
+      'DECLARE x : INTEGER\nx ← 1\nCALL Change(x, x)\nOUTPUT x';
+    assertEq(runProgram(sameActual, '').env.output.join('|'), '8|8', 'two BYREF parameters see the same aliased variable immediately');
+    const cell = 'PROCEDURE Change(BYREF n : INTEGER)\n    n ← 7\nENDPROCEDURE\n' +
+      'DECLARE a : ARRAY[1:2] OF INTEGER\na[1] ← 1\nCALL Change(a[1])\nOUTPUT a[1]';
+    assertEq(runProgram(cell, '').env.output.join(''), '7', 'an array cell can be passed BYREF');
+    assertThrows(() => runProgram(
+      'FUNCTION Bad(BYREF n : INTEGER) RETURNS INTEGER\nRETURN n\nENDFUNCTION', ''),
+      'FUNCTION', 'FUNCTION parameters cannot be BYREF');
+    assertThrows(() => runProgram('PROCEDURE Bad(n)\nENDPROCEDURE', ''),
+      'type', 'every routine parameter needs a declared type');
+  }],
+  ['Matrix: simple enumerated types keep their own values', () => {
+    const code = 'TYPE Season = (Spring, Summer, Autumn, Winter)\nDECLARE s : Season\ns ← Spring\nOUTPUT s';
+    assertEq(runProgram(code, '').env.output.join(''), 'Spring', 'an enum value can be assigned and output');
+    assertThrows(() => runProgram(
+      'TYPE Season = (Spring, Summer)\nDECLARE s : Season\ns ← "Spring"', ''),
+      'Season', 'plain text is not an enum value');
+    assertThrows(() => runProgram(
+      'TYPE Season = (Spring, Summer)\nTYPE Weather = (Sunny, Rainy)\nDECLARE s : Season\ns ← Sunny', ''),
+      'Season', 'a value from another enum is refused');
   }],
   ['Matrix: scope — a routine sees globals, and its locals shadow them', () => {
     assertEq(runProgram('DECLARE g : INTEGER\ng ← 5\nPROCEDURE P()\n    OUTPUT g\nENDPROCEDURE\nCALL P()', '')
