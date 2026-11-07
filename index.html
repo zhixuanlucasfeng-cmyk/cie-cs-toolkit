@@ -2248,7 +2248,7 @@ function tokenize(text) {
         throw new CIEError("A character literal looks like 'A': one character inside single quotes", lineNo);
       }
       if (/[0-9]/.test(c)) {                                      // unquoted DD/MM/YYYY date
-        const m = src.slice(i).match(/^(\d{1,2})\/(\d{1,2})\/(\d{1,4})(?!\d)/);
+        const m = src.slice(i).match(/^(\d{2})\/(\d{2})\/(\d{4})(?!\d)/);
         if (m) {
           toks.push({ t:'DATE', v:makeDate(Number(m[1]), Number(m[2]), Number(m[3]), lineNo, 'DATE'), line:lineNo });
           i += m[0].length; continue;
@@ -2517,8 +2517,6 @@ function parseCaseArm(line) {
 }
 function isCaseArm(line) {
   if (!line) return false;
-  const first = line.toks[0];
-  if (!first || !['NUM','STR','CHAR','DATE','IDENT'].includes(first.t) && !['TRUE','FALSE'].includes(first.v)) return false;
   try { parseCaseArm(line); return true; } catch (_) { return false; }
 }
 function parseCase(st) {
@@ -2978,6 +2976,12 @@ function dateObject(parts) {
   date.setUTCFullYear(parts.year, parts.month - 1, parts.day);
   return date;
 }
+function orderedValue(value) {
+  if (typeof value === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+    return dateObject(dateParts(value, 0, 'DATE')).getTime();
+  }
+  return value;
+}
 function checkedValue(value, dtype, line, label, types) {
   const t = String(dtype || '').toUpperCase();
   const fail = want => { throw new CIEError(`${label} is ${t} and needs ${want}, but got ${fmt(value)}`, line); };
@@ -2990,7 +2994,8 @@ function checkedValue(value, dtype, line, label, types) {
     case 'DATE':    return dateParts(value, line, label).value;
     default: {
       const members = types && types.get(t);
-      if (members && (!value || value.kind !== 'enum' || value.type !== t)) fail(`a ${dtype} value`);
+      if (!members) throw new CIEError(`Type ${dtype} has not been declared`, line);
+      if (!value || value.kind !== 'enum' || value.type !== t) fail(`a ${dtype} value`);
     }
   }
   return value;
@@ -3008,7 +3013,7 @@ function argsOf(a, count, name, line) {
   return a;
 }
 function numberText(value) {
-  return typeof value === 'string' && /^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(value.trim());
+  return typeof value === 'string' && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value.trim());
 }
 const FUNCS = {
   LENGTH: (a, l) => String(a[0]).length,
@@ -3019,7 +3024,7 @@ const FUNCS = {
   MID:    a => String(a[0]).substr(a[1] - 1, a[2]),   // CIE MID counts from 1
   INT:    a => Math.trunc(a[0]),
   ROUND:  a => { const d = a.length > 1 ? a[1] : 0; const m = Math.pow(10, d); return Math.round(a[0] * m) / m; },
-  NUM_TO_STR: (a, l) => { argsOf(a, 1, 'NUM_TO_STR', l); return fmt(needNum(a[0], l, 'NUM_TO_STR')); },
+  NUM_TO_STR: (a, l) => { argsOf(a, 1, 'NUM_TO_STR', l); return String(needNum(a[0], l, 'NUM_TO_STR')); },
   STR_TO_NUM: (a, l) => {
     argsOf(a, 1, 'STR_TO_NUM', l);
     if (!numberText(a[0])) throw new CIEError('STR_TO_NUM needs text containing a number', l);
@@ -3088,10 +3093,10 @@ function evalExpr(n, env) {
         case 'OR':  return truthy(a, ln) || truthy(b, ln);
         case '=':   return a === b;
         case '<>':  return a !== b;
-        case '<':   return a < b;
-        case '>':   return a > b;
-        case '<=':  return a <= b;
-        case '>=':  return a >= b;
+        case '<':   return orderedValue(a) < orderedValue(b);
+        case '>':   return orderedValue(a) > orderedValue(b);
+        case '<=':  return orderedValue(a) <= orderedValue(b);
+        case '>=':  return orderedValue(a) >= orderedValue(b);
         case '&':   return String(fmt(a)) + String(fmt(b));
         case '+':
           if (typeof a === 'string' || typeof b === 'string') return String(fmt(a)) + String(fmt(b));
@@ -3435,8 +3440,9 @@ function* execStmt(s, env) {
           if (typeof lo !== typeof hi || typeof subj !== typeof lo) {
             throw new CIEError('A CASE range and its value must have matching types', arm.line);
           }
-          if (hi < lo) throw new CIEError('A CASE range cannot end below where it starts', arm.line);
-          matches = subj >= lo && subj <= hi;
+          const orderedLo = orderedValue(lo), orderedHi = orderedValue(hi), orderedSubj = orderedValue(subj);
+          if (orderedHi < orderedLo) throw new CIEError('A CASE range cannot end below where it starts', arm.line);
+          matches = orderedSubj >= orderedLo && orderedSubj <= orderedHi;
         }
         if (matches) { yield* execBlock(arm.body, env); return; }
       }
@@ -11183,6 +11189,9 @@ const TESTS = [
     assertThrows(() => runProgram(
       'FUNCTION Bad() RETURNS INTEGER\n    RETURN "wrong"\nENDFUNCTION\nOUTPUT Bad()', ''),
       'INTEGER', 'a function result should match its RETURNS type');
+    assertThrows(() => runProgram(
+      'FUNCTION Bad() RETURNS Intger\n    RETURN "wrong"\nENDFUNCTION\nOUTPUT Bad()', ''),
+      'Type Intger', 'a misspelled return type should be refused');
   }],
   ['Matrix: exponentiation is right-associative and binds before multiplication', () => {
     assertEq(runProgram('OUTPUT 2 ^ 3 ^ 2', '').env.output.join(''), '512', '2 ^ (3 ^ 2)');
@@ -11212,6 +11221,12 @@ const TESTS = [
       'range', 'a descending CASE range should be refused');
     assertThrows(() => runProgram('CASE OF 1\n1 : OUTPUT "one"\nOTHERWISE OUTPUT "x"\n2 : OUTPUT "two"\nENDCASE', ''),
       'OTHERWISE', 'OTHERWISE must be the final arm');
+    assertEq(runProgram('CASE OF -1\n0 : OUTPUT "zero"\n-1 : OUTPUT "negative"\nENDCASE', '').env.output.join(''),
+      'negative', 'a later CASE arm may start with a negative expression');
+    assertEq(runProgram('CASE OF 3\n(1 + 2) : OUTPUT "three"\nENDCASE', '').env.output.join(''),
+      'three', 'a CASE arm may start with a parenthesised expression');
+    assertEq(runProgram('CASE OF 01/02/2024\n31/01/2024 TO 02/02/2024 : OUTPUT "date"\nENDCASE', '').env.output.join(''),
+      'date', 'DATE ranges compare calendar order rather than display text');
   }],
   ['Matrix: all three loops, including STEP and zero iterations', () => {
     assertEq(runProgram('DECLARE i : INTEGER\nFOR i ← 1 TO 3\n    OUTPUT i\nNEXT i', '').env.output.join(','), '1,2,3', 'FOR');
@@ -11303,6 +11318,10 @@ const TESTS = [
     assertEq(env.output.map(fmt).join('|'), '12.5|-12.5|TRUE|FALSE|65|A', 'conversion built-ins should behave');
     assertThrows(() => runProgram('OUTPUT STR_TO_NUM("abc")', ''), 'STR_TO_NUM', 'invalid numeric text is refused');
     assertThrows(() => runProgram('OUTPUT CHR(256)', ''), 'CHR', 'CHR only accepts byte values');
+    assertEq(runProgram('OUTPUT NUM_TO_STR(0.123456789)', '').env.output.join(''), '0.123456789',
+      'NUM_TO_STR must not round a stored number for display');
+    assertEq(runProgram('OUTPUT STR_TO_NUM(NUM_TO_STR(1 / 10000000)) = 1 / 10000000', '').env.output.join(''), 'TRUE',
+      'NUM_TO_STR and STR_TO_NUM should preserve very small numbers');
   }],
   ['Matrix: DATE literals and calendar built-ins', () => {
     const { env } = runProgram(
@@ -11315,6 +11334,9 @@ const TESTS = [
     assertEq(runProgram('DECLARE d : DATE\nd ← 29/02/2000\nOUTPUT d', '').env.output.join(''), '29/02/2000',
       '2000 is a leap year');
     assertThrows(() => runProgram('OUTPUT SETDATE(31, 4, 2024)', ''), 'SETDATE', 'invalid calendar dates are refused');
+    assertEq(runProgram('OUTPUT 12/3/2', '').env.output.join(''), '2', 'short slash expressions remain arithmetic');
+    assertEq(runProgram('OUTPUT 31/01/2024 < 01/02/2024', '').env.output.join(''), 'TRUE',
+      'DATE comparisons use calendar order across month boundaries');
   }],
   ['Matrix: file handling in the sandbox', () => {
     const { env } = runProgram(
