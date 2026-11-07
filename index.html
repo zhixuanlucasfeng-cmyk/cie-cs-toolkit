@@ -2144,7 +2144,7 @@ const KEYWORDS = new Set([
 ]);
 
 // Longest first, so '<=' is not split into '<'
-const OPS = ['←','<-','<>','≠','>=','≥','<=','≤','=','>','<','+','-','*','/','&','(',')','[',']',',',':'];
+const OPS = ['←','<-','<>','≠','>=','≥','<=','≤','=','>','<','+','-','*','/','^','&','(',')','[',']',',',':'];
 const OP_ALIAS = { '<-':'←', '≠':'<>', '≥':'>=', '≤':'<=' };
 
 /*
@@ -2294,7 +2294,13 @@ function pCmp(c) {
 }
 function pAdd(c) { let l = pMul(c); while (['+','-','&'].includes(vAt(c))) { const op = vAt(c); c.i++; l = { k:'bin', op, l, r:pMul(c) }; } return l; }
 function pMul(c) { let l = pNeg(c); while (['*','/','MOD','DIV'].includes(vAt(c))) { const op = vAt(c); c.i++; l = { k:'bin', op, l, r:pNeg(c) }; } return l; }
-function pNeg(c) { if (vAt(c) === '-') { c.i++; return { k:'un', op:'NEG', e:pNeg(c) }; } return pPrim(c); }
+function pNeg(c) { if (vAt(c) === '-') { c.i++; return { k:'un', op:'NEG', e:pNeg(c) }; } return pPow(c); }
+function pPow(c) {
+  const l = pPrim(c);
+  if (vAt(c) !== '^') return l;
+  c.i++;
+  return { k:'bin', op:'^', l, r:pNeg(c) };
+}
 function pPrim(c) {
   const t = at(c);
   if (!t) throw new CIEError('The expression is incomplete', c.line);
@@ -2686,7 +2692,8 @@ class Env {
     return e;
   }
   declare(name, dtype, line, bounds) {
-    if (this.vars.has(name)) throw new CIEError(`Variable ${name} is declared more than once`, line);
+    const key = String(name).toUpperCase();
+    if (this.vars.has(key)) throw new CIEError(`Variable ${name} is declared more than once`, line);
     if (bounds) {
       const dims = bounds.dims;
       for (const d of dims) {
@@ -2697,22 +2704,23 @@ class Env {
       }
       const size = dims.reduce((a, d) => a * (d.hi - d.lo + 1), 1);
       if (size > MAX_CELLS) throw new CIEError(`${name} would need ${size} elements, more than this tool allows`, line);
-      this.vars.set(name, { dtype, isArray:true, dims, cells:new Array(size).fill(null) });
+      this.vars.set(key, { name, dtype, isArray:true, dims, cells:new Array(size).fill(null) });
     } else {
-      this.vars.set(name, { dtype, value:null });
+      this.vars.set(key, { name, dtype, value:null });
     }
     this.order.push(name);
   }
   // Look in this scope first, then outwards. A local of the same name shadows
   // the global, which is what BYVALUE parameters rely on.
   slot(name, line) {
+    const key = String(name).toUpperCase();
     for (let e = this; e; e = e.parent) {
-      const s = e.vars.get(name);
+      const s = e.vars.get(key);
       if (s) return s;
     }
     throw new CIEError(`Variable ${name} is not declared — CIE requires DECLARE before use`, line);
   }
-  hasOwn(name) { return this.vars.has(name); }
+  hasOwn(name) { return this.vars.has(String(name).toUpperCase()); }
   get(name, line) {
     const s = this.slot(name, line);
     if (s.isArray) throw new CIEError(`${name} is an array — write it as ${name}[index]`, line);
@@ -2723,7 +2731,7 @@ class Env {
     const s = this.slot(name, line);
     if (s.isArray) throw new CIEError(`${name} is an array — write it as ${name}[index] ← …`, line);
     if (s.isConst) throw new CIEError(`${name} is a CONSTANT and cannot be assigned to`, line);
-    s.value = val;
+    s.value = checkedValue(val, s.dtype, line, name);
   }
   // Works for one or two dimensions; the cells are one flat array.
   cellIndex(name, idxs, line) {
@@ -2752,7 +2760,7 @@ class Env {
   }
   setCell(name, idxs, val, line) {
     const { s, k } = this.cellIndex(name, idxs, line);
-    s.cells[k] = val;
+    s.cells[k] = checkedValue(val, s.dtype, line, `${name}[${idxs.join(', ')}]`);
   }
 
   /* ---- the sandboxed filesystem: in memory, and gone when the run ends ---- */
@@ -2815,6 +2823,18 @@ class Env {
 
 /* ---------- Evaluation ---------- */
 const isNum = v => typeof v === 'number';
+function checkedValue(value, dtype, line, label) {
+  const t = String(dtype || '').toUpperCase();
+  const fail = want => { throw new CIEError(`${label} is ${t} and needs ${want}, but got ${fmt(value)}`, line); };
+  switch (t) {
+    case 'INTEGER': if (typeof value !== 'number' || !Number.isInteger(value)) fail('a whole number'); break;
+    case 'REAL':    if (typeof value !== 'number') fail('a number'); break;
+    case 'BOOLEAN': if (typeof value !== 'boolean') fail('TRUE or FALSE'); break;
+    case 'CHAR':    if (typeof value !== 'string' || [...value].length !== 1) fail('one character'); break;
+    case 'STRING':  if (typeof value !== 'string') fail('text in double quotes'); break;
+  }
+  return value;
+}
 function needNum(v, line, what) {
   if (!isNum(v)) throw new CIEError(`${what} needs a number, but got ${fmt(v)}`, line);
   return v;
@@ -2876,6 +2896,7 @@ function evalExpr(n, env) {
           return needNum(a, ln, 'Addition') + needNum(b, ln, 'Addition');
         case '-':   return needNum(a, ln, 'Subtraction') - needNum(b, ln, 'Subtraction');
         case '*':   return needNum(a, ln, 'Multiplication') * needNum(b, ln, 'Multiplication');
+        case '^':   return Math.pow(needNum(a, ln, 'Exponentiation'), needNum(b, ln, 'Exponentiation'));
         case '/':
           if (needNum(b, ln, 'Division') === 0) throw new CIEError('Cannot divide by 0', ln);
           return needNum(a, ln, 'Division') / b;
@@ -2920,7 +2941,8 @@ function bindArguments(def, args, callerEnv, line) {
   def.params.forEach((p, i) => {
     const arg = args[i];
     inner.declare(p.name, p.dtype || 'INTEGER', line, null);
-    inner.vars.get(p.name).value = evalExpr(arg, callerEnv);
+    inner.vars.get(String(p.name).toUpperCase()).value = checkedValue(
+      evalExpr(arg, callerEnv), p.dtype || 'INTEGER', line, p.name);
     if (p.by === 'REF') {
       if (!arg || (arg.k !== 'var' && arg.k !== 'index')) {
         throw new CIEError(`Parameter ${p.name} is BYREF, so the argument has to be a variable`, line);
@@ -2933,7 +2955,7 @@ function bindArguments(def, args, callerEnv, line) {
 
 function applyWriteBacks(writeBacks, inner, callerEnv, line) {
   for (const w of writeBacks) {
-    const v = inner.vars.get(w.param).value;
+    const v = inner.vars.get(String(w.param).toUpperCase()).value;
     if (w.arg.k === 'var') callerEnv.set(w.arg.name, v, line);
     else callerEnv.setCell(w.arg.name, w.arg.idxs.map(e => evalExpr(e, callerEnv)), v, line);
   }
@@ -2970,7 +2992,7 @@ function callFunction(def, args, env, line) {
       if (++n > MAX_STEPS) throw new CIEError(`${def.name} ran for more than ${MAX_STEPS} steps without returning`, line);
     }
   } catch (e) {
-    if (e instanceof ReturnSignal) return e.value;
+    if (e instanceof ReturnSignal) return checkedValue(e.value, def.retType, line, `${def.name} return value`);
     throw e;
   }
   throw new CIEError(`${def.name} finished without a RETURN`, line);
@@ -3051,7 +3073,9 @@ function snapshot(env, line, out) {
   // shadows and the table shows what the line actually sees.
   const chain = [];
   for (let e = env; e; e = e.parent) chain.unshift(e);
-  for (const e of chain) for (const name of e.order) vars[name] = fmtSlot(e.vars.get(name));
+  for (const e of chain) {
+    for (const name of e.order) vars[name] = fmtSlot(e.vars.get(String(name).toUpperCase()));
+  }
   return { line, vars, out: out || '' };
 }
 function* execBlock(stmts, env) {
@@ -3070,7 +3094,7 @@ function* execStmt(s, env) {
     }
     case 'CONST': {
       env.declare(s.name, 'CONST', s.line, null);
-      const slot = env.vars.get(s.name);
+      const slot = env.vars.get(String(s.name).toUpperCase());
       slot.value = evalExpr(s.expr, env);
       slot.isConst = true;
       yield snapshot(env, s.line);
@@ -10892,6 +10916,30 @@ const TESTS = [
       "a ← 7\nb ← 2.5\nc ← \"hi\"\nd ← 'z'\ne ← TRUE\nf ← \"2026-09-14\"\n" +
       'OUTPUT a\nOUTPUT b\nOUTPUT c\nOUTPUT d\nOUTPUT e\nOUTPUT f', '');
     assertEq(env.output.map(fmt).join('|'), '7|2.5|hi|z|TRUE|2026-09-14', 'every declared type should round-trip');
+  }],
+  ['Matrix: identifiers are case-insensitive', () => {
+    assertEq(runProgram('DECLARE Score : INTEGER\nscore ← 5\nOUTPUT SCORE', '').env.output.join(''), '5',
+      'the same identifier should work in any letter case');
+    assertThrows(() => runProgram('DECLARE Score : INTEGER\nDECLARE score : INTEGER', ''),
+      'declared more than once', 'declarations that differ only by case should still be duplicates');
+  }],
+  ['Matrix: scalar assignments and returns keep their declared types', () => {
+    assertThrows(() => runProgram('DECLARE n : INTEGER\nn ← "hello"', ''),
+      'INTEGER', 'INTEGER should reject a string assignment');
+    assertThrows(() => runProgram('DECLARE n : INTEGER\nn ← 2.5', ''),
+      'INTEGER', 'INTEGER should reject a non-whole number');
+    assertEq(runProgram('DECLARE r : REAL\nr ← 2\nOUTPUT r', '').env.output.join(''), '2',
+      'REAL should accept an integer value');
+    assertThrows(() => runProgram(
+      'FUNCTION Bad() RETURNS INTEGER\n    RETURN "wrong"\nENDFUNCTION\nOUTPUT Bad()', ''),
+      'INTEGER', 'a function result should match its RETURNS type');
+  }],
+  ['Matrix: exponentiation is right-associative and binds before multiplication', () => {
+    assertEq(runProgram('OUTPUT 2 ^ 3 ^ 2', '').env.output.join(''), '512', '2 ^ (3 ^ 2)');
+    assertEq(runProgram('OUTPUT (2 ^ 3) ^ 2', '').env.output.join(''), '64', 'parentheses override associativity');
+    assertEq(runProgram('OUTPUT 2 ^ 3 * 4', '').env.output.join(''), '32', '^ binds before *');
+    assertEq(runProgram('OUTPUT -2 ^ 2', '').env.output.join(''), '-4', '^ binds before unary minus');
+    assertEq(runProgram('OUTPUT 2 ^ -2', '').env.output.join(''), '0.25', 'a negative exponent is accepted');
   }],
   ['Matrix: CONSTANT cannot be reassigned', () => {
     assertEq(runProgram('CONSTANT PI = 3.14\nOUTPUT PI', '').env.output.join(''), '3.14', 'a constant holds its value');
