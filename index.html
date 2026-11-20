@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -21,11 +21,12 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://dryruncs.com/og.png">
 <meta name="twitter:image:alt" content="A DryRun mark breakdown: a hard-coded answer scoring 1 out of 5, with the failing hidden test case named.">
-<meta name="theme-color" content="#faf9f6">
+<meta name="theme-color" content="#15181d">
 <script data-boot>
   /* Apply the chosen palette before paint so a reload never flashes paper. */
   try {
     const savedTheme = localStorage.getItem('dryrun.theme');
+    if (savedTheme === 'light') delete document.documentElement.dataset.theme;
     if (['dark', 'gold', 'violet', 'crimson', 'cyber'].includes(savedTheme)) document.documentElement.dataset.theme = savedTheme;
   } catch (e) {}
 </script>
@@ -11989,7 +11990,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   };
 
   function applyTheme(mode) {
-    if (!THEMES.includes(mode)) mode = 'light';
+    if (!THEMES.includes(mode)) mode = 'dark';
     if (mode !== 'light') document.documentElement.dataset.theme = mode;
     else delete document.documentElement.dataset.theme;
     // The browser's own chrome is part of the page on a phone.
@@ -12004,7 +12005,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     document.querySelectorAll('[data-theme-choice]').forEach(choice => {
       choice.setAttribute('aria-pressed', String(choice.dataset.themeChoice === mode));
     });
-    try { mode === 'light' ? localStorage.removeItem(THEME_KEY) : localStorage.setItem(THEME_KEY, mode); } catch (e) {}
+    try { localStorage.setItem(THEME_KEY, mode); } catch (e) {}
   }
 
   // The boot script in the head has already set the attribute; this only
