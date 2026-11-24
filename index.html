@@ -21,6 +21,10 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://dryruncs.com/og.png">
 <meta name="twitter:image:alt" content="A DryRun mark breakdown: a hard-coded answer scoring 1 out of 5, with the failing hidden test case named.">
+<meta name="google-site-verification" content="xyGja-e4b7dkq6hH_Eg9-HxuZWaJa1ZhnNCLmGXh_Cw">
+<script id="seo-pages" type="application/json">{"ide":{"path":"/","title":"Cambridge Pseudocode Online IDE & Editor | DryRun","description":"Write and run Cambridge pseudocode online. Step through algorithms, inspect variables and build trace tables for IGCSE 0478 and A Level 9618. No sign-up needed.","label":"Editor","index":true,"teaches":["Cambridge pseudocode","Algorithm design","Trace tables"]},"welcome":{"path":"/features","title":"Computer Science Practice for IGCSE & A Level | DryRun","description":"Explore DryRun: Cambridge pseudocode practice, hidden test cases, trace tables, flowcharts, SQL and Boolean logic. Learn how students and teachers can use it.","label":"Features","index":true,"teaches":["Computer science","Algorithm design"]},"lab-pseudocode":{"path":"/pseudocode-tools","title":"Pseudocode Trace Tables & Flowchart Builder | DryRun","description":"Turn pseudocode into a trace table, build a flowchart and convert structured English into Cambridge pseudocode. Explore each step in your browser.","label":"Convert","index":true,"teaches":["Trace tables","Flowcharts","Structured English"]},"lab-logic":{"path":"/logic","title":"Truth Table Generator & Logic Circuits | DryRun","description":"Practise Boolean logic with truth tables and logic circuits. Enter an expression and explore input combinations for Cambridge Computer Science revision.","label":"Logic","index":true,"teaches":["Boolean logic","Truth tables","Logic circuits"]},"lab-sql":{"path":"/sql","title":"SQL Practice Online: DDL & DML Editor | DryRun","description":"Practise SQL CREATE TABLE, INSERT, SELECT, UPDATE and DELETE in a browser sandbox. Explore database tables and query results without setting up a server.","label":"SQL","index":true,"teaches":["SQL","DDL","DML"]},"about":{"path":"/about","title":"About DryRun: Privacy & Independent Learning | DryRun","description":"How DryRun stores your work, uses anonymous analytics and supports Computer Science practice. An independent resource, not endorsed by Cambridge.","label":"About & privacy","index":true},"onboarding":{"path":"/onboarding","title":"Choose Your Computer Science Course | DryRun","description":"Choose your course and exam year for personalised practice on this device.","label":"Choose course","index":false},"practice":{"path":"/practice","title":"Your Computer Science Practice Session | DryRun","description":"Practise questions and review feedback for your selected Computer Science course.","label":"Practice","index":false},"progress":{"path":"/progress","title":"Your Learning Progress | DryRun","description":"Review your locally stored practice history and export learning evidence.","label":"Progress","index":false},"settings":{"path":"/settings","title":"Settings & Local Backups | DryRun","description":"Manage your course, colour theme and local learning backups.","label":"Settings","index":false}}</script>
+<meta name="twitter:title" content="Cambridge Pseudocode Online IDE &amp; Editor | DryRun">
+<meta name="twitter:description" content="Run Cambridge pseudocode and explore trace tables in your browser.">
 <meta name="theme-color" content="#15181d">
 <script data-boot>
   /* Apply the chosen palette before paint so a reload never flashes paper. */
@@ -30,7 +34,7 @@
     if (['dark', 'gold', 'violet', 'crimson', 'cyber'].includes(savedTheme)) document.documentElement.dataset.theme = savedTheme;
   } catch (e) {}
 </script>
-<script type="application/ld+json">
+<script id="seo-structured-data" type="application/ld+json">
 {"@context":"https://schema.org","@type":"LearningResource","name":"DryRun — Computer Science Reasoning Lab",
 "url":"https://dryruncs.com/",
 "description":"Practice for Cambridge IGCSE 0478 and AS & A Level 9618 Computer Science: pseudocode marked against hidden tests, SQL DDL and DML, trace tables, flowcharts and Boolean logic.",
@@ -356,6 +360,11 @@
   .workspace :is(h1, h2, [id^="view-"]) { scroll-margin-top:calc(var(--appbar-h) + var(--s4)); }
   #main { scroll-margin-top:calc(var(--appbar-h) + var(--s4)); }
   .workspace.is-wide { max-width:none; }
+  .seo-guide { max-width:76ch; margin:28px 0; color:var(--text-secondary); line-height:1.65; }
+  .seo-guide h2,.seo-guide h3 { color:var(--text-primary); }
+  .seo-guide pre { padding:16px; background:var(--surface); overflow:auto; }
+  .rail-item[href] { text-decoration:none; }
+  .legal nav { margin-bottom:16px; line-height:1.8; }
   .view { display:none; }
   .view.is-active { display:block; }
 
@@ -1233,7 +1242,7 @@
 
     <!-- ================= IDE ================= -->
     <section class="view" id="view-ide" aria-labelledby="ide-h">
-      <h1 class="sr-only" id="ide-h">Pseudocode IDE</h1>
+      <h1 class="sr-only" id="ide-h">Cambridge Pseudocode Online IDE</h1>
       <div class="ide">
         <div class="ide-bar">
           <div class="ide-file">
@@ -1319,6 +1328,19 @@
           </aside>
         </div>
       </div>
+
+      <section class="seo-guide" aria-labelledby="pseudocode-guide-h">
+        <h2 id="pseudocode-guide-h">Run Cambridge pseudocode online</h2>
+        <p>DryRun is a free pseudocode editor for Cambridge IGCSE Computer Science 0478 and AS &amp; A Level 9618 practice. Write a program above, press Run, or use Step to follow its execution. The Variables and Trace panels help you see how values change.</p>
+        <h3>What is pseudocode?</h3>
+        <p>Pseudocode (sometimes written “pseudo code”) describes an algorithm using readable instructions. Cambridge uses conventions such as DECLARE, INPUT, OUTPUT, IF and WHILE. This editor implements a learning subset of those conventions; it is an independent revision tool, not a compiler or mark scheme provided by Cambridge.</p>
+        <h3>Try a short program</h3>
+        <pre><code>DECLARE Total : INTEGER
+Total ← 2 + 3
+OUTPUT Total</code></pre>
+        <p>Paste this example into the editor and press Run to output 5. Use ← (or type &lt;-) to assign a value; = compares values in a condition. They have different meanings, even when the editor offers a lenient warning.</p>
+        <p>Next, <a href="/pseudocode-tools" data-route="lab-pseudocode">build a trace table or flowchart</a>, <a href="/sql" data-route="lab-sql">practise SQL</a>, or <a href="/features" data-route="welcome">explore the learning tools</a>. Your saved editor work stays in this browser; export important work before clearing browser data.</p>
+      </section>
     </section>
 
     <!-- ================= Welcome ================= -->
@@ -2088,6 +2110,7 @@
 <div class="action-bar" id="action-bar" hidden></div>
 
 <footer class="legal">
+  <nav aria-label="Explore DryRun"><a href="/" data-route="ide">Cambridge pseudocode editor</a> · <a href="/pseudocode-tools" data-route="lab-pseudocode">Trace tables &amp; flowcharts</a> · <a href="/sql" data-route="lab-sql">SQL practice</a> · <a href="/logic" data-route="lab-logic">Boolean logic</a> · <a href="/features" data-route="welcome">Features</a> · <a href="/about" data-route="about">About &amp; privacy</a></nav>
   <p class="feedback-line">Found a bug, or want a question added? <a href="https://github.com/zhixuanlucasfeng-cmyk/cie-cs-toolkit/issues/new" target="_blank" rel="noopener">Tell me here</a> — it is read by a person.</p>
   <p><b>Independent learning resource — not endorsed by Cambridge International Education.</b></p>
   <p>Cambridge International Education is not affiliated with this project and does not endorse it. "Cambridge", the syllabus codes and any related marks belong to their owners and are used here only to say which courses this resource is aimed at. Every question is original, written against publicly listed syllabus content; no past-paper material is reproduced.</p>
@@ -11075,7 +11098,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   }
 
   /* ============================================================
-     Router — hash based, no dependency
+     Router — ordinary URLs, with legacy hash-link support
      ============================================================ */
   const VIEWS = {
     ide:'view-ide', welcome:'view-welcome', onboarding:'view-onboarding',
@@ -11092,6 +11115,25 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     { id:'progress',        label:'Progress' },
     { id:'settings',        label:'Settings' }
   ];
+  const SEO_PAGES = JSON.parse($('seo-pages').textContent);
+  const routeForPath = () => Object.keys(SEO_PAGES).find(v => SEO_PAGES[v].path === location.pathname.replace(/\/$/, '') || (v === 'ide' && location.pathname === '/'));
+  function updatePageMetadata(view) {
+    const page = SEO_PAGES[view];
+    const url = 'https://dryruncs.com' + page.path;
+    document.title = page.title;
+    document.querySelector('link[rel="canonical"]').href = url;
+    const values = {description:page.description, robots:page.index && !SELF_TEST_MODE ? 'index, follow' : 'noindex, follow',
+      'og:title':page.title, 'og:description':page.description, 'og:url':url,
+      'twitter:title':page.title, 'twitter:description':page.description};
+    Object.entries(values).forEach(([name, value]) => {
+      document.querySelector(`meta[name="${name}"],meta[property="${name}"]`).content = value;
+    });
+    $('seo-structured-data').textContent = JSON.stringify({
+      '@context':'https://schema.org', '@type':page.teaches ? 'LearningResource' : 'WebPage',
+      name:page.title, description:page.description, url, inLanguage:'en',
+      ...(page.teaches ? {isAccessibleForFree:true, learningResourceType:'Interactive tool', teaches:page.teaches} : {})
+    });
+  }
   let currentView = null;
 
   // These read the profile, so they cannot render before a course is chosen.
@@ -11111,7 +11153,11 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     }
     currentView = view;
     Object.keys(VIEWS).forEach(v => $(VIEWS[v]).classList.toggle('is-active', v === view));
-    if (location.hash !== '#/' + view) history.replaceState(null, '', '#/' + view);
+    const target = SEO_PAGES[view].path + location.search;
+    if (location.protocol !== 'file:' && (location.pathname + location.search !== target || location.hash.startsWith('#/'))) {
+      history[opts && opts.replace ? 'replaceState' : 'pushState'](null, '', target);
+    }
+    updatePageMetadata(view);
     renderRail();
     closeDrawer();
     if (view === 'progress') { renderProgress(); renderEvidence(); }
@@ -11131,9 +11177,22 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     updateActionBar();
     if (!(opts && opts.keepFocus)) $('main').focus();
   }
-  window.addEventListener('hashchange', () => {
-    const v = location.hash.replace(/^#\//, '');
-    if (v && v !== currentView) go(v);
+  function openLocation() {
+    if (location.hash.startsWith('#/')) {
+      const legacy = location.hash.slice(2);
+      if (legacy === 'dashboard' || VIEWS[legacy]) go(legacy, {replace:true});
+      else location.replace('/404');
+    } else {
+      go(routeForPath() || 'ide', {replace:true});
+    }
+  }
+  window.addEventListener('hashchange', openLocation);
+  window.addEventListener('popstate', openLocation);
+  document.addEventListener('click', ev => {
+    const link = ev.target.closest('a[data-route]');
+    if (!link || ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) return;
+    ev.preventDefault();
+    go(link.dataset.route);
   });
 
   /* ============================================================
@@ -11148,12 +11207,12 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     const noCourse = !store.getProfile();
     $('rail-nav').innerHTML = NAV.map(n => {
       const locked = noCourse && NEEDS_COURSE.has(n.id);
-      return `<button class="rail-item${locked ? ' is-locked' : ''}" role="listitem" data-go="${n.id}"` +
+      return `<a href="${SEO_PAGES[n.id].path}" class="rail-item${locked ? ' is-locked' : ''}" role="listitem" data-go="${n.id}"` +
         (currentView === n.id ? ' aria-current="page"' : '') +
         (locked ? ' aria-describedby="rail-locked-note"' : '') +
         `><span class="label">${esc(n.label)}</span>` +
         (locked ? '<span class="count" aria-hidden="true">needs a course</span>' : '') +
-        '</button>';
+        '</a>';
     }).join('') +
     (noCourse ? '<p class="rail-label" id="rail-locked-note" style="text-transform:none;letter-spacing:0;padding-top:8px">Choose a course to unlock these. The two labs work straight away.</p>' : '');
 
@@ -11198,6 +11257,10 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   $('rail').addEventListener('click', ev => {
     const btn = ev.target.closest('[data-go],[data-topic]');
     if (!btn) return;
+    if (btn.tagName === 'A') {
+      if (ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) return;
+      ev.preventDefault();
+    }
     if (btn.dataset.go === 'practice') { go('practice', { resume:true }); return; }
     if (btn.dataset.go) { go(btn.dataset.go); return; }
     if (btn.getAttribute('aria-disabled') === 'true') {
@@ -14194,11 +14257,11 @@ SELECT name, score FROM Students WHERE score >= 90;`;
   renderCourseChoices();
   runDemo();
   if (SELF_TEST_MODE) {
+    document.querySelector('meta[name="robots"]').content = 'noindex, follow';
     renderSelfTestReport();
     return;
   }
-  const startView = (location.hash || '').replace(/^#\//, '');
-  go(startView === 'dashboard' ? 'ide' : (VIEWS[startView] ? startView : 'ide'));
+  openLocation();
 })();
 
 </script>
@@ -14211,9 +14274,9 @@ Local preview:
         file:///.../index.html?selftest=1
 
 Deploy to Vercel:
-    1. Push this folder to GitHub (index.html alone is enough)
+    1. Push this folder to GitHub (the build generates each public route)
     2. Open vercel.com -> Add New -> Project -> Import this repo
-    3. Framework Preset "Other"; leave Build Command and Output Directory empty
+    3. Framework Preset "Other"; vercel.json builds the static pages into dist
     4. Deploy; you get an xxx.vercel.app address when it finishes
     Every later git push to main redeploys automatically.
 =========================================================================

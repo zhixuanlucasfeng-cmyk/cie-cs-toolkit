@@ -75,7 +75,7 @@ test('the retired dashboard route opens the editor and course setup sits below t
   await page.goto('/#/dashboard');
 
   await expect(page.locator('#view-ide')).toHaveClass(/is-active/);
-  await expect(page).toHaveURL(/#\/ide$/);
+  await expect(page).toHaveURL('http://127.0.0.1:4173/');
   await expect(page.getByRole('heading', { name:'Dashboard' })).toHaveCount(0);
 
   const order = await page.evaluate(() => ({

@@ -1,20 +1,6 @@
 User-agent: *
 Allow: /
 
-# Explicitly allow the AI crawlers that drive discovery for student tools
-User-agent: GPTBot
-Allow: /
-
-User-agent: ChatGPT-User
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: Google-Extended
-Allow: /
-
+# Private device views and self-tests use noindex, not robots blocking:
+# crawlers must be able to fetch a page to see its noindex directive.
 Sitemap: https://dryruncs.com/sitemap.xml
