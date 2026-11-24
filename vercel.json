@@ -6,20 +6,135 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "redirects": [
-    { "source": "/:path*", "has": [{ "type": "host", "value": "www.dryruncs.com" }], "destination": "https://dryruncs.com/:path*", "statusCode": 301 },
-    { "source": "/:path*", "has": [{ "type": "host", "value": "cie-cs-toolkit.vercel.app" }], "destination": "https://dryruncs.com/:path*", "statusCode": 301 },
-    { "source": "/index", "destination": "/", "statusCode": 301 },
-    { "source": "/ide", "destination": "/", "statusCode": 301 },
-    { "source": "/dashboard", "destination": "/", "statusCode": 301 },
-    { "source": "/welcome", "destination": "/features", "statusCode": 301 },
-    { "source": "/lab-pseudocode", "destination": "/pseudocode-tools", "statusCode": 301 },
-    { "source": "/lab-logic", "destination": "/logic", "statusCode": 301 },
-    { "source": "/lab-sql", "destination": "/sql", "statusCode": 301 }
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.dryruncs.com"
+        }
+      ],
+      "destination": "https://dryruncs.com/:path*",
+      "statusCode": 301
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "cie-cs-toolkit.vercel.app"
+        }
+      ],
+      "destination": "https://dryruncs.com/:path*",
+      "statusCode": 301
+    },
+    {
+      "source": "/index",
+      "destination": "/",
+      "statusCode": 301
+    },
+    {
+      "source": "/ide",
+      "destination": "/",
+      "statusCode": 301
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/",
+      "statusCode": 301
+    },
+    {
+      "source": "/welcome",
+      "destination": "/features",
+      "statusCode": 301
+    },
+    {
+      "source": "/lab-pseudocode",
+      "destination": "/pseudocode-tools",
+      "statusCode": 301
+    },
+    {
+      "source": "/lab-logic",
+      "destination": "/logic",
+      "statusCode": 301
+    },
+    {
+      "source": "/lab-sql",
+      "destination": "/sql",
+      "statusCode": 301
+    },
+    {
+      "source": "/404",
+      "destination": "/page-not-found",
+      "statusCode": 301
+    }
   ],
   "headers": [
-    { "source": "/:path*", "headers": [{ "key": "X-Content-Type-Options", "value": "nosniff" }] },
-    { "source": "/:path*", "has": [{ "type": "query", "key": "selftest" }], "headers": [{ "key": "X-Robots-Tag", "value": "noindex, follow" }] },
-    { "source": "/(settings|progress|practice|onboarding)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, follow" }] },
-    { "source": "/sitemap.xml", "headers": [{ "key": "Content-Type", "value": "application/xml; charset=utf-8" }] }
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "query",
+          "key": "selftest"
+        }
+      ],
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/:path*",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "query",
+          "key": "selftest"
+        }
+      ],
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/(settings|progress|practice|onboarding)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/xml; charset=utf-8"
+        }
+      ]
+    }
   ]
 }

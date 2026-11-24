@@ -20,9 +20,9 @@ test('direct links and legacy hashes open the same tool; device pages stay noind
   await page.reload();await expect(page.locator('#view-settings')).toHaveClass(/is-active/);
   const missing=await page.goto('/this-page-does-not-exist');expect(missing.status()).toBe(404);
 });
-test('a crawler without JavaScript can read content and follow public links',async ({browser})=>{
+test('a crawler without JavaScript can read content and follow public links',async ({browser,baseURL})=>{
   const context=await browser.newContext({javaScriptEnabled:false});const page=await context.newPage();
-  await page.goto('http://127.0.0.1:4173/');
+  await page.goto(baseURL+'/');
   await expect(page.getByRole('heading',{name:'Run Cambridge pseudocode online'})).toBeVisible();
   await page.getByRole('navigation',{name:'Explore DryRun'}).getByRole('link',{name:'SQL practice'}).click();
   await expect(page.getByRole('heading',{name:'SQL Lab',exact:true})).toBeVisible();

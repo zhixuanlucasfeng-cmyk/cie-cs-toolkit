@@ -11181,7 +11181,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     if (location.hash.startsWith('#/')) {
       const legacy = location.hash.slice(2);
       if (legacy === 'dashboard' || VIEWS[legacy]) go(legacy, {replace:true});
-      else location.replace('/404');
+      else location.replace('/page-not-found');
     } else {
       go(routeForPath() || 'ide', {replace:true});
     }
