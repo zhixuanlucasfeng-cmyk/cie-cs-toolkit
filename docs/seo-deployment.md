@@ -45,4 +45,16 @@ Do not change localStorage keys during SEO work. No secrets are needed for this 
 
 ## 2026-11-24 verification record
 
-Implementation and local verification in progress. Production and Search Console results will be appended after they are observed.
+- Production commits: `703602a` initial static SEO build, `7a1c7d7` root query headers and error alias fixes; final follow-up preserves native link semantics in the rail.
+- Local core checks: 257/257. SEO artifact checks: 3/3. Browser checks: 21/21 locally and 21/21 against https://dryruncs.com after deployment.
+- All six sitemap URLs: HTTP 200, unique canonical and title. CSS, JS, share image and Vercel analytics script: HTTP 200. Fonts use the system font stack, no external font request.
+- `www.dryruncs.com` Vercel domain setting changed from 307 to 301; path is preserved. Old `cie-cs-toolkit.vercel.app` host uses 301. HTTP to HTTPS, HTML suffixes and trailing slash normalization use platform 308 redirects.
+- Unknown URLs return HTTP 404. The error-document alias `/404` permanently redirects to `/page-not-found`, which returns 404.
+- Settings/progress/practice/onboarding and the root self-test query have verified noindex response headers. Root-specific header rules are explicit because the wildcard header did not cover the root in production testing.
+- Google ownership: verified via HTML tag using the user's signed-in account.
+- Sitemap: submitted 2026-11-24, last read 2026-11-24, status Success, 6 discovered pages. Discovery does not mean all six are indexed.
+- Homepage URL inspection: already indexed by Google. New live test at 08:35 Dubai time on 2026-11-24: URL can be indexed. Requested indexing afterwards; Google confirmed the URL was added to the priority crawl queue.
+- Updated content/re-ranking and indexing of the other five URLs remain Google's asynchronous decisions. No claim of a target keyword position.
+- No login or app API exists in the active configuration; optional sync remains disabled. An invalid `/api/` URL returns 404. No secrets were added, and no DNS or domain registration details changed.
+- Production functional tests created test traffic on 2026-11-24; do not report those visits as organic growth or cumulative users.
+- Browser screenshots and HTTP/test evidence are saved locally in `outputs/seo-2026-11-24/` in the original workspace. They are not in the deployed static output.

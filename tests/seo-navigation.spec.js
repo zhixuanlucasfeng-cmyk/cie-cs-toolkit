@@ -2,7 +2,7 @@ const {test,expect} = require('@playwright/test');
 test('clean URLs preserve editing state, history and per-page metadata',async ({page})=>{
   await page.goto('/');
   await page.locator('#ide-src').fill('OUTPUT "Saved SEO test"');
-  await page.locator('#rail-nav a[data-go="lab-sql"]').click();
+  await page.locator('#rail-nav').getByRole('link',{name:'SQL',exact:true}).click();
   await expect(page).toHaveURL(/\/sql$/);
   await expect(page).toHaveTitle('SQL Practice Online: DDL & DML Editor | DryRun');
   await expect(page.locator('link[rel=canonical]')).toHaveAttribute('href','https://dryruncs.com/sql');

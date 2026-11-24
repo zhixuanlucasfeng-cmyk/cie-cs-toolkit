@@ -11207,12 +11207,12 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     const noCourse = !store.getProfile();
     $('rail-nav').innerHTML = NAV.map(n => {
       const locked = noCourse && NEEDS_COURSE.has(n.id);
-      return `<a href="${SEO_PAGES[n.id].path}" class="rail-item${locked ? ' is-locked' : ''}" role="listitem" data-go="${n.id}"` +
+      return `<div role="listitem"><a href="${SEO_PAGES[n.id].path}" class="rail-item${locked ? ' is-locked' : ''}" data-go="${n.id}"` +
         (currentView === n.id ? ' aria-current="page"' : '') +
         (locked ? ' aria-describedby="rail-locked-note"' : '') +
         `><span class="label">${esc(n.label)}</span>` +
         (locked ? '<span class="count" aria-hidden="true">needs a course</span>' : '') +
-        '</a>';
+        '</a></div>';
     }).join('') +
     (noCourse ? '<p class="rail-label" id="rail-locked-note" style="text-transform:none;letter-spacing:0;padding-top:8px">Choose a course to unlock these. The two labs work straight away.</p>' : '');
 

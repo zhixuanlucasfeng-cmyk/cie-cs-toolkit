@@ -37,7 +37,7 @@ for (const [view, page] of Object.entries(pages)) {
   html = html.replace('<div role="list" aria-labelledby="rail-nav-label" id="rail-nav"></div>',
     '<div role="list" aria-labelledby="rail-nav-label" id="rail-nav">'+
     ['ide','practice','lab-pseudocode','lab-logic','lab-sql','progress','settings'].map(v =>
-      `<a class="rail-item" role="listitem" data-go="${v}" href="${pages[v].path}">${esc(pages[v].label)}</a>`).join('')+'</div>');
+      `<div role="listitem"><a class="rail-item" data-go="${v}" href="${pages[v].path}">${esc(pages[v].label)}</a></div>`).join('')+'</div>');
   fs.writeFileSync(path.join(out, page.path === '/' ? 'index.html' : page.path.slice(1)+'.html'), html);
 }
 fs.writeFileSync(path.join(out, 'sitemap.xml'), '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+
