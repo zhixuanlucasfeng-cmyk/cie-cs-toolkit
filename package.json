@@ -2,8 +2,9 @@
   "name": "dryrun-verification",
   "private": true,
   "scripts": {
-    "test:core": "node scripts/test-core.cjs",
+    "test:core": "node scripts/test-core.cjs && node --test tests/classroom.test.cjs",
     "test:browser": "playwright test",
+    "test:compat": "playwright test --config=playwright.compat.config.js",
     "test": "npm run test:core && npm run build && npm run test:seo && npm run test:browser",
     "build": "node scripts/build.cjs",
     "test:seo": "node --test tests/seo.test.cjs"

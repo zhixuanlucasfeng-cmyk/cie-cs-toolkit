@@ -1174,6 +1174,69 @@
   .tt-row-pick tbody tr:hover { background:var(--accent-wash); }
   .tt-row-pick tbody tr.is-live td { background:var(--accent-wash); font-weight:700; }
   .circ-hint { margin:0 0 var(--s3); font-size:13.5px; color:var(--text-secondary); }
+
+  /* Logic is a workspace: the diagram gets the viewport, navigation is a drawer. */
+  body.logic-workspace #btn-menu { display:inline-flex; width:44px; height:44px; flex-shrink:0; }
+  body.logic-workspace .rail {
+    position:fixed; top:0; bottom:0; left:0; z-index:50; width:min(84vw,320px);
+    max-height:none; transform:translateX(-100%); visibility:hidden; pointer-events:none;
+    padding-top:calc(16px + env(safe-area-inset-top));
+  }
+  body.logic-workspace .rail.is-open { transform:none; visibility:visible; pointer-events:auto; }
+  body.logic-workspace .workspace { padding:0; width:100%; }
+  #view-lab-logic.is-active {
+    display:flex; flex-direction:column; height:calc(100dvh - var(--appbar-h)); min-height:560px;
+  }
+  .logic-bar { display:flex; align-items:center; gap:24px; padding:16px 24px; border-bottom:1px solid var(--border); }
+  .logic-bar h1 { font:600 18px var(--font-ui); margin:0; white-space:nowrap; }
+  .logic-expression { display:flex; align-items:center; gap:12px; flex:1; min-width:0; }
+  .logic-expression label { font-size:13px; color:var(--text-secondary); }
+  .logic-expression .control { flex:1; min-width:0; font:16px var(--font-mono); }
+  .logic-help { position:relative; flex-shrink:0; font-size:13px; }
+  .logic-help summary { cursor:pointer; padding:12px 0; }
+  .logic-help p { position:absolute; right:0; top:100%; width:min(340px,85vw); padding:16px; background:var(--surface); border:1px solid var(--border-strong); z-index:10; }
+  .logic-workbench { display:grid; grid-template-columns:minmax(0,1fr) minmax(300px,30%); flex:1; min-height:0; }
+  .logic-drawing, .logic-table-panel { display:flex; flex-direction:column; min-width:0; min-height:0; }
+  .logic-table-panel { border-left:1px solid var(--border); background:var(--surface); }
+  .logic-panel-bar { min-height:62px; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px 20px; border-bottom:1px solid var(--border); }
+  .logic-panel-bar h2 { margin:0; font:600 14px var(--font-ui); }
+  .logic-zoom { display:flex; align-items:center; gap:4px; }
+  .logic-zoom .btn { min-width:44px; min-height:44px; }
+  #circ-zoom-label { min-width:5ch; text-align:center; font:12px var(--font-mono); color:var(--text-secondary); }
+  .logic-signals { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 20px; color:var(--text-secondary); font-size:13px; }
+  #logic-inputs { display:flex; gap:8px; flex-wrap:wrap; }
+  #logic-inputs .btn { min-height:44px; font-family:var(--font-mono); }
+  #logic-inputs .btn[aria-pressed="true"] { color:var(--accent); border-color:var(--accent); background:var(--accent-wash); }
+  #logic-output { margin-left:auto; font:600 16px var(--font-mono); color:var(--accent); white-space:nowrap; }
+  #circ-out { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; background-image:radial-gradient(var(--border) 1px, transparent 1px); background-size:24px 24px; }
+  .circ-stage { display:grid; place-items:center; min-width:100%; min-height:100%; width:max-content; padding:24px; }
+  #circ-out svg.circuit { max-width:none; flex-shrink:0; margin:0; }
+  #view-lab-logic .circ-hint { padding:12px 20px; margin:0; border-top:1px solid var(--border); font-size:12px; }
+  .logic-table-help { margin:0; padding:12px 20px; font-size:12px; color:var(--text-secondary); }
+  #tt-out { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; }
+  #tt-out table { width:100%; font-variant-numeric:tabular-nums; }
+  #tt-out th { position:sticky; top:0; z-index:1; background:var(--surface-raised); }
+  #tt-out :is(th,td) { padding:12px; text-align:center; }
+  #tt-out tr:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+  #logic-status { margin:0; min-height:36px; padding:8px 20px; border-top:1px solid var(--border); font-size:12px; }
+  #view-lab-logic :is(button,input,summary,[tabindex]):focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  @media (max-width:999px) {
+    #view-lab-logic.is-active { min-height:850px; }
+    .logic-bar { flex-wrap:wrap; gap:8px 16px; padding:12px 16px; }
+    .logic-expression { flex-basis:100%; order:2; }
+    .logic-help { margin-left:auto; }
+    .logic-workbench { grid-template-columns:minmax(0,1fr); grid-template-rows:minmax(440px,1fr) minmax(240px,.7fr); }
+    .logic-table-panel { border-left:0; border-top:1px solid var(--border); }
+  }
+  @media (max-width:520px) {
+    .logic-expression { gap:8px; }
+    .logic-expression label { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+    .logic-panel-bar, .logic-signals { padding-inline:12px; }
+    .logic-signals { gap:8px; }
+    .logic-panel-bar .btn { padding-inline:10px; }
+    #tt-out :is(th,td) { padding:12px; }
+  }
+
 </style>
 </head>
 <body>
@@ -1814,38 +1877,43 @@ OUTPUT Total</code></pre>
 
     <!-- ================= Logic Lab ================= -->
     <section class="view" id="view-lab-logic" aria-labelledby="logic-h">
-      <div class="page-head">
-        <h1 id="logic-h">Logic</h1>
-        <p>Truth tables with every intermediate step, and the matching circuit.</p>
+      <div class="logic-bar">
+        <h1 id="logic-h">Logic gates</h1>
+        <form id="logic-form" class="logic-expression">
+          <label for="expr">Expression</label>
+          <input id="expr" class="control" spellcheck="false" autocomplete="off" aria-describedby="logic-help">
+          <button class="btn primary" id="btn-gen" type="submit">Generate</button>
+        </form>
+        <details class="logic-help"><summary>Syntax help</summary>
+          <p id="logic-help">Use A–Z with AND, OR, NOT, XOR, NAND, NOR and brackets.<br>Precedence: ( ) → NOT → AND/NAND → XOR → OR/NOR.</p>
+        </details>
       </div>
-      <div class="grid-2">
-        <div class="panel">
-          <div class="panel-head"><h2>Boolean expression</h2></div>
-          <div class="panel-body">
-            <label class="field-label" for="expr">Expression</label>
-            <input id="expr" class="control" spellcheck="false">
-            <p class="status">Supports AND OR NOT XOR NAND NOR and brackets. Variables are single capital letters A–Z.<br>Precedence: ( ) &gt; NOT &gt; AND/NAND &gt; XOR &gt; OR/NOR</p>
-            <div class="btn-row">
-              <button class="btn primary" id="btn-gen">Generate</button>
-              <button class="btn" id="btn-copy-tt">Copy truth table</button>
-            </div>
-            <p class="status" id="logic-status" role="status" aria-live="polite"></p>
-          </div>
-        </div>
-        <div class="stack">
-          <div class="panel" style="margin:0">
-            <div class="panel-head"><h2>Truth table</h2></div>
-            <div class="panel-body"><div class="scroll-x" id="tt-out" role="region" aria-label="Truth table"><p class="empty">Click "Generate" to see it.</p></div></div>
-          </div>
-          <div class="panel" style="margin:0">
-            <div class="panel-head"><h2>Logic circuit</h2></div>
-            <div class="panel-body">
-              <p class="circ-hint" id="circ-hint">Click any row of the truth table to send those inputs through the circuit.</p>
-              <div class="scroll-x" id="circ-out" role="region" aria-label="Logic circuit"><p class="empty">Click "Generate" to see it.</p></div>
+      <div class="logic-workbench">
+        <section class="logic-drawing" aria-labelledby="circuit-h">
+          <div class="logic-panel-bar">
+            <h2 id="circuit-h">Circuit</h2>
+            <div class="logic-zoom" role="group" aria-label="Circuit zoom">
+              <button class="btn ghost" id="circ-zoom-out" aria-label="Zoom out">−</button>
+              <output id="circ-zoom-label" aria-live="polite">100%</output>
+              <button class="btn ghost" id="circ-zoom-in" aria-label="Zoom in">+</button>
+              <button class="btn" id="circ-fit" aria-label="Fit circuit">Fit</button>
             </div>
           </div>
-        </div>
+          <div class="logic-signals">
+            <span>Inputs</span>
+            <div id="logic-inputs" role="group" aria-label="Circuit inputs"></div>
+            <output id="logic-output" aria-live="polite">Q = —</output>
+          </div>
+          <div id="circ-out" tabindex="0" role="region" aria-label="Logic circuit" aria-describedby="circ-hint"><p class="empty">Enter an expression to draw its circuit.</p></div>
+          <p class="circ-hint" id="circ-hint">Toggle an input or select a truth-table row to follow the signal.</p>
+        </section>
+        <section class="logic-table-panel" aria-labelledby="truth-h">
+          <div class="logic-panel-bar"><h2 id="truth-h">Truth table</h2><button class="btn ghost" id="btn-copy-tt">Copy truth table</button></div>
+          <p class="logic-table-help">Select a row to test its inputs.</p>
+          <div id="tt-out" tabindex="0" role="region" aria-label="Truth table"><p class="empty">Generate a table from the expression above.</p></div>
+        </section>
       </div>
+      <p class="status" id="logic-status" role="status" aria-live="polite"></p>
     </section>
 
     <!-- ================= SQL Lab ================= -->
@@ -2622,6 +2690,12 @@ function parseRoutine(st, isFunction) {
         const p = at(c);
         if (!p || p.t !== 'IDENT') throw new CIEError('Each parameter needs a name', line.no);
         c.i++;
+        const names = [p.v];
+        while (tryEat(c, ',')) {
+          const next = at(c);
+          if (!next || next.t !== 'IDENT') throw new CIEError('Each grouped parameter needs a name before its type', line.no);
+          names.push(next.v); c.i++;
+        }
         if (!tryEat(c, ':')) throw new CIEError(`State the type of parameter ${p.v}`, line.no);
         let arr = null, dtype;
         if (tryEat(c, 'ARRAY')) {
@@ -2638,7 +2712,7 @@ function parseRoutine(st, isFunction) {
         } else {
           dtype = parseDataType(c, `State the type of parameter ${p.v}`);
         }
-        params.push({ name:p.v, by:inheritedBy, dtype, arr });
+        for (const name of names) params.push({ name, by:inheritedBy, dtype, arr });
       } while (tryEat(c, ','));
     }
     eat(c, ')');
@@ -2747,7 +2821,7 @@ class Env {
     e.root = this.root || this;
     // A routine can read and write the program's own variables. Its parameters
     // and anything it DECLAREs are local and shadow them.
-    e.parent = this;
+    e.parent = e.root;
     Object.defineProperty(e, 'ip', {
       get: () => (this.root || this).ip,
       set: v => { (this.root || this).ip = v; }
@@ -3060,33 +3134,44 @@ const FUNCS = {
     return makeDate(now.getDate(), now.getMonth() + 1, now.getFullYear(), l, 'TODAY');
   },
 };
-function evalExpr(n, env) {
+function* evalValues(expressions, env) {
+  const values = [];
+  for (const expression of expressions) values.push(yield* evalExpr(expression, env));
+  return values;
+}
+function* evalBounds(dimensions, env) {
+  const bounds = [];
+  for (const d of dimensions) bounds.push({ lo:yield* evalExpr(d.lo, env), hi:yield* evalExpr(d.hi, env) });
+  return bounds;
+}
+
+function* evalExpr(n, env) {
   switch (n.k) {
     case 'lit':   return n.v;
     case 'var':   return env.get(n.name, n.line);
     case 'index':
-      return env.getCell(n.name, n.idxs.map(e => evalExpr(e, env)), n.line);
+      return env.getCell(n.name, (yield* evalValues(n.idxs, env)), n.line);
     case 'call': {
       const def = env.routines.get(n.name);
       if (def) {
         if (def.type !== 'FUNCDEF') throw new CIEError(`${def.name} is a PROCEDURE — use CALL ${def.name}(…) on its own line`, n.line);
-        return callFunction(def, n.args, env, n.line);
+        return yield* callFunction(def, n.args, env, n.line);
       }
       if (n.name === 'EOF') {
         if (n.args.length !== 1) throw new CIEError('EOF takes one file name', n.line);
-        return env.atEOF(evalExpr(n.args[0], env), n.line);
+        return env.atEOF((yield* evalExpr(n.args[0], env)), n.line);
       }
       const f = FUNCS[n.name];
       if (!f) throw new CIEError(`Unknown function ${n.name}()`, n.line);
-      return f(n.args.map(a => evalExpr(a, env)), n.line);
+      return f((yield* evalValues(n.args, env)), n.line);
     }
     case 'un': {
-      const v = evalExpr(n.e, env);
+      const v = (yield* evalExpr(n.e, env));
       if (n.op === 'NOT') return !truthy(v, n.e.line);
       return -needNum(v, n.e.line, 'Unary minus');
     }
     case 'bin': {
-      const a = evalExpr(n.l, env), b = evalExpr(n.r, env);
+      const a = (yield* evalExpr(n.l, env)), b = (yield* evalExpr(n.r, env));
       const ln = n.l.line || n.r.line;
       switch (n.op) {
         case 'AND': return truthy(a, ln) && truthy(b, ln);
@@ -3137,7 +3222,7 @@ function fmtSlot(s) {
 // RETURN unwinds through the generator stack; it is control flow, not an error.
 class ReturnSignal { constructor(value) { this.value = value; } }
 
-function bindArguments(def, args, callerEnv, line) {
+function* bindArguments(def, args, callerEnv, line) {
   if (args.length !== def.params.length) {
     throw new CIEError(`${def.name} takes ${def.params.length} argument${def.params.length === 1 ? '' : 's'}, but ${args.length} ${args.length === 1 ? 'was' : 'were'} given`, line);
   }
@@ -3145,7 +3230,7 @@ function bindArguments(def, args, callerEnv, line) {
     throw new CIEError(`${def.name} has called itself more than ${MAX_DEPTH} times — a recursive routine needs a case that stops it`, line);
   }
   const inner = callerEnv.child();
-  def.params.forEach((p, i) => {
+  for (const [i, p] of def.params.entries()) {
     const arg = args[i];
     if (p.arr) {
       if (!arg || arg.k !== 'var') throw new CIEError(`Array parameter ${p.name} needs an array variable`, line);
@@ -3154,7 +3239,7 @@ function bindArguments(def, args, callerEnv, line) {
       if (String(actual.dtype).toUpperCase() !== String(p.dtype).toUpperCase()) {
         throw new CIEError(`Array parameter ${p.name} needs element type ${p.dtype}`, line);
       }
-      const dims = p.arr.dims.map(d => ({ lo:evalExpr(d.lo, callerEnv), hi:evalExpr(d.hi, callerEnv) }));
+      const dims = (yield* evalBounds(p.arr.dims, callerEnv));
       const expectedSizes = dims.map(d => d.hi - d.lo + 1);
       const actualSizes = actual.dims.map(d => d.hi - d.lo + 1);
       if (dims.length !== actual.dims.length || expectedSizes.some((size, d) => size !== actualSizes[d])) {
@@ -3168,7 +3253,7 @@ function bindArguments(def, args, callerEnv, line) {
         inner.declare(p.name, p.dtype, line, { dims });
         inner.vars.get(String(p.name).toUpperCase()).cells = actual.cells.slice();
       }
-      return;
+      continue;
     }
     if (p.by === 'REF') {
       if (!arg || (arg.k !== 'var' && arg.k !== 'index')) {
@@ -3179,7 +3264,7 @@ function bindArguments(def, args, callerEnv, line) {
         actual = callerEnv.slot(arg.name, line);
         if (actual.isArray) throw new CIEError(`Parameter ${p.name} needs a scalar variable`, line);
       } else {
-        actual = callerEnv.cellReference(arg.name, arg.idxs.map(e => evalExpr(e, callerEnv)), line);
+        actual = callerEnv.cellReference(arg.name, (yield* evalValues(arg.idxs, callerEnv)), line);
       }
       if (String(actual.dtype).toUpperCase() !== String(p.dtype).toUpperCase()) {
         throw new CIEError(`BYREF parameter ${p.name} needs type ${p.dtype}`, line);
@@ -3187,9 +3272,9 @@ function bindArguments(def, args, callerEnv, line) {
       inner.alias(p.name, actual, line);
     } else {
       inner.declare(p.name, p.dtype, line, null);
-      inner.set(p.name, evalExpr(arg, callerEnv), line);
+      inner.set(p.name, (yield* evalExpr(arg, callerEnv)), line);
     }
-  });
+  }
   return { inner };
 }
 
@@ -3198,7 +3283,7 @@ function* callRoutine(name, args, env, line) {
   const def = env.routines.get(String(name).toUpperCase());
   if (!def) throw new CIEError(`There is no procedure called ${name}`, line);
   if (def.type !== 'PROCDEF') throw new CIEError(`${name} is a FUNCTION — use it in an expression, not with CALL`, line);
-  const { inner } = bindArguments(def, args, env, line);
+  const { inner } = yield* bindArguments(def, args, env, line);
   try {
     yield* execBlock(def.body, inner);
   } catch (e) {
@@ -3206,22 +3291,12 @@ function* callRoutine(name, args, env, line) {
   }
 }
 
-/*
-  A FUNCTION used inside an expression runs to completion without yielding,
-  because expressions are evaluated outside the generator. Its inner lines
-  therefore do not appear in the trace table — which matches how a trace
-  table question treats a function anyway.
-  ponytail: no per-line trace inside functions; make evalExpr a generator if
-  that is ever needed.
-*/
-function callFunction(def, args, env, line) {
-  const { inner } = bindArguments(def, args, env, line);
-  const it = execBlock(def.body, inner);
+// Functions yield through expressions, so INPUT, Step, Stop and execution
+// limits work inside a function just as they do inside a procedure.
+function* callFunction(def, args, env, line) {
+  const { inner } = yield* bindArguments(def, args, env, line);
   try {
-    let n = 0;
-    for (const _ of it) {
-      if (++n > MAX_STEPS) throw new CIEError(`${def.name} ran for more than ${MAX_STEPS} steps without returning`, line);
-    }
+    yield* execBlock(def.body, inner);
   } catch (e) {
     if (e instanceof ReturnSignal) return checkedValue(e.value, def.retType, line, `${def.name} return value`, env.types);
     throw e;
@@ -3235,7 +3310,7 @@ function callFunction(def, args, env, line) {
   handed on, because "INPUT Numbers[Index]" has to name the cell it is
   actually waiting for — Numbers[3], not Numbers[Index].
 */
-function inputTarget(target, env, line) {
+function* inputTarget(target, env, line) {
   const slot = env.slot(target.name, line);
   if (!target.idxs) {
     if (slot.isArray) {
@@ -3243,7 +3318,7 @@ function inputTarget(target, env, line) {
     }
     return { dtype: slot.dtype, label: target.name, idxs: null };
   }
-  const idxs = target.idxs.map(e => evalExpr(e, env));
+  const idxs = (yield* evalValues(target.idxs, env));
   return { dtype: slot.dtype, label: `${target.name}[${idxs.join(', ')}]`, idxs };
 }
 
@@ -3292,9 +3367,9 @@ function coerceInput(raw, dtype, line, label) {
   }
 }
 
-function assignTo(target, value, env, line) {
+function* assignTo(target, value, env, line) {
   if (!target.idxs) env.set(target.name, value, line);
-  else env.setCell(target.name, target.idxs.map(e => evalExpr(e, env)), value, line);
+  else env.setCell(target.name, (yield* evalValues(target.idxs, env)), value, line);
 }
 
 /* ---------- Execution (generator: yields a snapshot per executed line) ---------- */
@@ -3323,7 +3398,7 @@ function* execStmt(s, env) {
 
     case 'DECLARE': {
       let bounds = null;
-      if (s.arr) bounds = { dims: s.arr.dims.map(d => ({ lo: evalExpr(d.lo, env), hi: evalExpr(d.hi, env) })) };
+      if (s.arr) bounds = { dims: (yield* evalBounds(s.arr.dims, env)) };
       for (const n of s.names) env.declare(n, s.dtype, s.line, bounds);
       yield snapshot(env, s.line);
       return;
@@ -3331,7 +3406,7 @@ function* execStmt(s, env) {
     case 'CONST': {
       env.declare(s.name, 'CONST', s.line, null);
       const slot = env.vars.get(String(s.name).toUpperCase());
-      slot.value = evalExpr(s.expr, env);
+      slot.value = (yield* evalExpr(s.expr, env));
       slot.isConst = true;
       yield snapshot(env, s.line);
       return;
@@ -3346,13 +3421,13 @@ function* execStmt(s, env) {
           return;
         }
       }
-      const v = evalExpr(s.expr, env);
-      assignTo(s.target, v, env, s.line);
+      const v = (yield* evalExpr(s.expr, env));
+      yield* assignTo(s.target, v, env, s.line);
       yield snapshot(env, s.line);
       return;
     }
     case 'INPUT': {
-      const want = inputTarget(s.target, env, s.line);
+      const want = yield* inputTarget(s.target, env, s.line);
       let v;
       if (env.hasInput()) {
         // Batch: the next predefined value, checked against the declared type.
@@ -3390,53 +3465,53 @@ function* execStmt(s, env) {
       return;
     }
     case 'RETURN': {
-      const v = evalExpr(s.expr, env);
+      const v = (yield* evalExpr(s.expr, env));
       yield snapshot(env, s.line);
       throw new ReturnSignal(v);
     }
     case 'OPENFILE': {
-      env.openFile(evalExpr(s.name, env), s.mode, s.line);
+      env.openFile((yield* evalExpr(s.name, env)), s.mode, s.line);
       yield snapshot(env, s.line);
       return;
     }
     case 'READFILE': {
-      const v = env.readFile(evalExpr(s.name, env), s.line);
-      assignTo(s.target, v, env, s.line);
+      const v = env.readFile((yield* evalExpr(s.name, env)), s.line);
+      yield* assignTo(s.target, v, env, s.line);
       yield snapshot(env, s.line);
       return;
     }
     case 'WRITEFILE': {
-      env.writeFile(evalExpr(s.name, env), fmt(evalExpr(s.expr, env)), s.line);
+      env.writeFile((yield* evalExpr(s.name, env)), fmt((yield* evalExpr(s.expr, env))), s.line);
       yield snapshot(env, s.line);
       return;
     }
     case 'CLOSEFILE': {
-      env.closeFile(evalExpr(s.name, env), s.line);
+      env.closeFile((yield* evalExpr(s.name, env)), s.line);
       yield snapshot(env, s.line);
       return;
     }
     case 'OUTPUT': {
-      const text = s.exprs.map(e => fmt(evalExpr(e, env))).join('');
+      const text = (yield* evalValues(s.exprs, env)).map(fmt).join('');
       env.output.push(text);
       if (env.output.length > MAX_OUTPUT) env.output.shift();
       yield snapshot(env, s.line, text);
       return;
     }
     case 'IF': {
-      const ok = truthy(evalExpr(s.cond, env), s.line);
+      const ok = truthy((yield* evalExpr(s.cond, env)), s.line);
       yield snapshot(env, s.line);
       if (ok) yield* execBlock(s.then, env);
       else if (s.else) yield* execBlock(s.else, env);
       return;
     }
     case 'CASE': {
-      const subj = evalExpr(s.subject, env);
+      const subj = (yield* evalExpr(s.subject, env));
       yield snapshot(env, s.line);
       for (const arm of s.arms) {
-        const lo = evalExpr(arm.lo, env);
+        const lo = (yield* evalExpr(arm.lo, env));
         let matches = lo === subj;
         if (arm.hi) {
-          const hi = evalExpr(arm.hi, env);
+          const hi = (yield* evalExpr(arm.hi, env));
           if (typeof lo !== typeof hi || typeof subj !== typeof lo) {
             throw new CIEError('A CASE range and its value must have matching types', arm.line);
           }
@@ -3450,10 +3525,10 @@ function* execStmt(s, env) {
       return;
     }
     case 'FOR': {
-      const to = needNum(evalExpr(s.to, env), s.line, 'The FOR end value');
-      const step = s.step ? needNum(evalExpr(s.step, env), s.line, 'STEP') : 1;
+      const to = needNum((yield* evalExpr(s.to, env)), s.line, 'The FOR end value');
+      const step = s.step ? needNum((yield* evalExpr(s.step, env)), s.line, 'STEP') : 1;
       if (step === 0) throw new CIEError('STEP cannot be 0 — the loop would never stop', s.line);
-      env.set(s.v, needNum(evalExpr(s.from, env), s.line, 'The FOR start value'), s.line);
+      env.set(s.v, needNum((yield* evalExpr(s.from, env)), s.line, 'The FOR start value'), s.line);
       yield snapshot(env, s.line);
       while (step > 0 ? env.get(s.v, s.line) <= to : env.get(s.v, s.line) >= to) {
         yield* execBlock(s.body, env);
@@ -3464,7 +3539,7 @@ function* execStmt(s, env) {
     }
     case 'WHILE': {
       while (true) {
-        const ok = truthy(evalExpr(s.cond, env), s.line);
+        const ok = truthy((yield* evalExpr(s.cond, env)), s.line);
         yield snapshot(env, s.line);
         if (!ok) return;
         yield* execBlock(s.body, env);
@@ -3473,7 +3548,7 @@ function* execStmt(s, env) {
     case 'REPEAT': {
       while (true) {
         yield* execBlock(s.body, env);
-        const done = truthy(evalExpr(s.cond, env), s.untilLine);
+        const done = truthy((yield* evalExpr(s.cond, env)), s.untilLine);
         yield snapshot(env, s.untilLine);
         if (done) return;
       }
@@ -7604,6 +7679,32 @@ const SAMPLE_EXPR = '(A XOR B) AND NOT C';
 
 /* Built-in examples: both the dropdown options and the self-test cases.
    expect = every OUTPUT joined with commas. */
+const ROUTINE_EXAMPLES = [
+  { name:'Procedure: swap two values (BYREF)', inputs:'', expect:'9,3', code:
+`PROCEDURE Swap(BYREF First : INTEGER, BYREF Second : INTEGER)
+    DECLARE Temp : INTEGER
+    Temp ← First
+    First ← Second
+    Second ← Temp
+ENDPROCEDURE
+DECLARE A, B : INTEGER
+A ← 3
+B ← 9
+CALL Swap(A, B)
+OUTPUT A
+OUTPUT B` },
+  { name:'Function: recursive factorial', inputs:'', expect:'120', code:
+`FUNCTION Factorial(n : INTEGER) RETURNS INTEGER
+    IF n = 0 THEN
+        RETURN 1
+    ELSE
+        RETURN n * Factorial(n - 1)
+    ENDIF
+ENDFUNCTION
+OUTPUT Factorial(5)` },
+
+];
+
 const EXAMPLES = [
   { name:'Sum + even-number check (starter)', inputs:'', expect:'2,4,15', code: SAMPLE_CODE },
 
@@ -8628,6 +8729,9 @@ function runSql(db, source) {
 }
 
 const TESTS = [
+  ['IDE: procedure and function examples execute', () => {
+    for (const ex of ROUTINE_EXAMPLES) assertEq(runProgram(ex.code, ex.inputs).env.output.map(fmt).join(','), ex.expect, ex.name);
+  }],
 
   /* ---- Module O: browser SQL sandbox ---- */
   ['SQL: DDL creates a table and DML inserts and selects rows', () => {
@@ -11456,7 +11560,9 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   /* ---------- Trace rendering, shared by the labs and the inspector ---------- */
   function traceHTML(shown, markLast) {
     if (!shown.length) return '<p class="empty">No steps to show.</p>';
-    const names = Object.keys(shown[shown.length - 1].vars);
+    const columns = new Set();
+    for (const step of shown) for (const name of Object.keys(step.vars)) columns.add(name);
+    const names = [...columns];
     const win = traceWindow(shown);
     const cols = names.length + 2;
     let html = '<table><thead><tr><th class="n">Line</th>' +
@@ -11546,6 +11652,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
       }, 60);
     }
     currentView = view;
+    document.body.classList.toggle('logic-workspace', view === 'lab-logic');
     Object.keys(VIEWS).forEach(v => $(VIEWS[v]).classList.toggle('is-active', v === view));
     const target = SEO_PAGES[view].path + location.search;
     if (location.protocol !== 'file:' && (location.pathname + location.search !== target || location.hash.startsWith('#/'))) {
@@ -12923,7 +13030,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
 
   function renderTruthTable(t) {
     let html = '<table class="tt-row-pick"><thead><tr>' + t.cols.map((c, i) =>
-      `<th${i === t.cols.length - 1 ? ' style="color:var(--accent)"' : ''}>${esc(c)}</th>`).join('') +
+      `<th title="${esc(c)}"${i === t.cols.length - 1 ? ' style="color:var(--accent)"' : ''}>${i === t.cols.length - 1 ? 'Q' : esc(c)}</th>`).join('') +
       '</tr></thead><tbody>';
     t.rows.forEach((r, ri) => {
       html += `<tr data-row="${ri}" tabindex="0">` + r.map((v, i) =>
@@ -12964,6 +13071,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
   */
   let circRow = null;
   let circTable = null;
+  let circZoom = 1, circLayout = null;
 
   function circAssignment(t, ri) {
     const asg = {};
@@ -12971,21 +13079,52 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
     return asg;
   }
 
+  function updateLogicSignals() {
+    const t = circTable;
+    const asg = t && circAssignment(t, circRow === null ? 0 : circRow);
+    $('logic-inputs').innerHTML = t ? t.vars.map(v =>
+      `<button class="btn" data-input="${v}" aria-label="Toggle input ${v}" aria-pressed="${asg[v]}">${v} = ${asg[v] ? 1 : 0}</button>`).join('') : '';
+    $('logic-output').textContent = t && circRow !== null ? 'Q = ' + (beval(t.root, asg) ? 1 : 0) : 'Q = —';
+    [...$('tt-out').querySelectorAll('tbody tr')].forEach((tr, i) => {
+      tr.classList.toggle('is-live', i === circRow);
+      tr.setAttribute('aria-selected', String(i === circRow));
+    });
+  }
+
   function showCircuitRow(ri) {
     if (!circTable) return;
-    circRow = (ri === circRow) ? null : ri;      // clicking the live row turns it off
+    circRow = ri === circRow ? null : ri;
     renderCircuit(circTable);
-    [...$('tt-out').querySelectorAll('tbody tr')].forEach((tr, i) =>
-      tr.classList.toggle('is-live', i === circRow));
-    const hint = $('circ-hint');
-    if (hint) {
-      hint.textContent = circRow === null
-        ? 'Click any row of the truth table to send those inputs through the circuit.'
-        : 'Showing row ' + (circRow + 1) + ': ' +
-          circTable.vars.map(v => v + '=' + (circAssignment(circTable, circRow)[v] ? 1 : 0)).join(', ') +
-          '. Click it again for the plain diagram.';
-    }
+    updateLogicSignals();
+    $('circ-hint').textContent = circRow === null ? 'Plain diagram. Toggle an input or select a row to show its signals.' : 'Row ' + (ri + 1) + ' · ' +
+      circTable.vars.map(v => v + ' = ' + (circAssignment(circTable, ri)[v] ? 1 : 0)).join(' · ') +
+      '. Highlighted wires carry 1.';
   }
+  $('logic-inputs').addEventListener('click', ev => {
+    const button = ev.target.closest('[data-input]');
+    if (!button || !circTable) return;
+    const key = button.dataset.input, asg = circAssignment(circTable, circRow === null ? 0 : circRow);
+    asg[key] = !asg[key];
+    const ri = circTable.rows.findIndex(row => circTable.vars.every((v, i) => !!row[i] === asg[v]));
+    showCircuitRow(ri);
+    $('logic-inputs').querySelector(`[data-input="${key}"]`).focus({preventScroll:true});
+  });
+  function sizeCircuit() {
+    const svg = $('circ-out').querySelector('svg');
+    if (!svg || !circLayout) return;
+    const box = $('circ-out');
+    if (!box.clientWidth || !box.clientHeight) return;
+    const fit = Math.min((box.clientWidth - 48) / circLayout.width, (box.clientHeight - 48) / circLayout.height, 2.5);
+    svg.style.width = Math.max(1, circLayout.width * fit * circZoom) + 'px';
+    svg.style.height = Math.max(1, circLayout.height * fit * circZoom) + 'px';
+    $('circ-zoom-label').textContent = Math.round(circZoom * 100) + '%';
+    $('circ-zoom-out').disabled = circZoom <= .5;
+    $('circ-zoom-in').disabled = circZoom >= 3;
+  }
+  $('circ-zoom-in').addEventListener('click', () => { circZoom = Math.min(3, circZoom + .25); sizeCircuit(); });
+  $('circ-zoom-out').addEventListener('click', () => { circZoom = Math.max(.5, circZoom - .25); sizeCircuit(); });
+  $('circ-fit').addEventListener('click', () => { circZoom = 1; sizeCircuit(); $('circ-out').scrollTo(0,0); });
+  new ResizeObserver(sizeCircuit).observe($('circ-out'));
 
   $('tt-out').addEventListener('click', ev => {
     const tr = ev.target.closest('tr[data-row]');
@@ -12999,6 +13138,7 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
 
   function renderCircuit(t) {
     const L = layoutCircuit(t.root);
+    circLayout = L;
 
     // With a row chosen, every node has a value for it.
     const live = circRow !== null && t.rows[circRow];
@@ -13056,31 +13196,32 @@ try { if (typeof module !== 'undefined') module.exports = { runProgram, createRu
         t.vars.map(v => v + '=' + (asg[v] ? 1 : 0)).join(', ')
       : `Circuit for ${esc($('expr').value)}`;
     $('circ-out').innerHTML =
-      `<svg class="circuit${live ? ' is-live' : ''}" viewBox="0 0 ${L.width} ${L.height}" ` +
-      `width="${L.width}" height="${L.height}" role="img" aria-label="${label}">${svg}</svg>`;
+      `<div class="circ-stage"><svg class="circuit${live ? ' is-live' : ''}" viewBox="0 0 ${L.width} ${L.height}" ` +
+      `width="${L.width}" height="${L.height}" role="img" aria-label="${label}">${svg}</svg></div>`;
+    sizeCircuit();
   }
 
   function generate() {
     const st = $('logic-status');
     try {
       const t = truthTable($('expr').value);
-      circTable = t; circRow = null;
+      circTable = t; circRow = null; circZoom = 1;
       renderTruthTable(t);
-      renderCircuit(t);
+      showCircuitRow(0);
       const hint = $('circ-hint');
-      if (hint) hint.textContent = 'Click any row of the truth table to send those inputs through the circuit.';
+      if (hint) hint.textContent = 'Toggle an input or select a row. Highlighted wires carry 1.';
       st.textContent = `${t.vars.length} variables, ${t.rows.length} rows, ${t.steps.length} operation steps.`;
       st.className = 'status ok';
     } catch (e) {
-      circTable = null; circRow = null;
+      circTable = null; circRow = null; circLayout = null;
+      updateLogicSignals();
       $('tt-out').innerHTML = '<div class="empty">—</div>';
       $('circ-out').innerHTML = '<div class="empty">—</div>';
       st.textContent = e.message;
       st.className = 'status err';
     }
   }
-  $('btn-gen').addEventListener('click', generate);
-  $('expr').addEventListener('keydown', e => { if (e.key === 'Enter') generate(); });
+  $('logic-form').addEventListener('submit', ev => { ev.preventDefault(); generate(); });
   $('btn-copy-tt').addEventListener('click', () => {
     const tbl = $('tt-out').querySelector('table');
     if (!tbl) { toast('Generate the truth table first'); return; }
@@ -14250,7 +14391,11 @@ SELECT name, score FROM Students WHERE score >= 90;`;
     ideSoon(tick);
   }
 
-  function ideRunAll() { if (!ideRun || (!ideRun.waiting && !ideRun.done)) ideDrive('run'); else ideStartRun(); }
+  function ideRunAll() {
+    if (ideRun && ideRun.waiting) { askValue.focus(); return; }
+    if (ideRun && ideRun.done) ideReset();
+    ideDrive('run');
+  }
   function ideStepOnce() { ideAdvanceOne(); }
   function ideContinue() {
     if (ideRun && ideRun.done) { ideStartRun(); return; }
@@ -14616,14 +14761,15 @@ SELECT name, score FROM Students WHERE score >= 90;`;
     go('lab-pseudocode');
   });
   $('ide-examples').addEventListener('click', () => {
-    const names = EXAMPLES.map((e, i) => `${i + 1}. ${e.name}`).join('\n');
+    const examples = [...ROUTINE_EXAMPLES, ...EXAMPLES];
+    const names = examples.map((e, i) => `${i + 1}. ${e.name}`).join('\n');
     const pick = prompt('Load an example:\n\n' + names + '\n\nType a number:');
     const i = Number(pick) - 1;
-    if (!(i >= 0 && i < EXAMPLES.length)) return;
+    if (!(i >= 0 && i < examples.length)) return;
     // An example opens beside your work rather than on top of it.
-    const f = ideNewFile(EXAMPLES[i].name, EXAMPLES[i].code);
+    const f = ideNewFile(examples[i].name, examples[i].code);
     if (!f) return;
-    $('ide-inputs').value = EXAMPLES[i].inputs || '';
+    $('ide-inputs').value = examples[i].inputs || '';
     ideReset(); idePaint(); ideCheck(); ideSave();
   });
 
