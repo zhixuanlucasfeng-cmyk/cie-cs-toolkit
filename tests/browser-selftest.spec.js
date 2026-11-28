@@ -90,8 +90,13 @@ test('the retired dashboard route opens the editor and course setup sits below t
 test('students can choose a readable editor colour theme', async ({ page }) => {
   await page.emulateMedia({ reducedMotion:'reduce' });
   await page.goto('/#/settings');
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  // Paper is the default for a new visitor; a chosen palette survives a reload.
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/);
+  await expect(page.locator('#btn-theme')).toHaveText('Paper');
+  await page.getByRole('button', { name:'Midnight theme' }).click();
+  await page.reload();
   await expect(page.locator('#btn-theme')).toHaveText('Midnight');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await page.getByRole('button', { name:'Paper theme' }).click();
   await page.reload();
   await expect(page.locator('#btn-theme')).toHaveText('Paper');
