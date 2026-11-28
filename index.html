@@ -622,6 +622,12 @@
     color:inherit; opacity:.5; font-size:15px; line-height:1; cursor:pointer;
   }
   .ide-tab-x:hover { opacity:1; background:var(--danger-wash); color:var(--danger); }
+  /* Touch screens: give small controls a finger-sized target (WCAG 2.5.8). */
+  @media (pointer:coarse) {
+    .ide-tab-x { width:32px; height:32px; margin-right:var(--s1); }
+    .ask-mode input[type="checkbox"] { width:20px; height:20px; }
+    footer.legal nav a { display:inline-block; padding:8px 0; }
+  }
   .ide-newfile {
     flex-shrink:0; background:none; border:0; border-right:1px solid var(--border);
     padding:0 var(--s3); min-height:36px; cursor:pointer;
